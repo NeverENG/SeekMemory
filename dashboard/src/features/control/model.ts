@@ -54,6 +54,27 @@ export const statusSchema = z.object({
     topicTtlSeconds: z.number(),
     maxTopicsPerBatch: z.number().int().positive(),
   }),
+  capacity: z
+    .object({
+      state: z.enum(["normal", "pressured", "saturated", "protective"]),
+      actions: z.array(z.string()),
+      reasons: z.array(z.string()),
+      pressure: z.number().min(0).max(1),
+      snapshot: z.object({
+        sourceRows: z.number().int().nonnegative(),
+        sourceBytes: z.number().int().nonnegative(),
+        pendingRows: z.number().int().nonnegative(),
+        deferredRows: z.number().int().nonnegative(),
+        deadRows: z.number().int().nonnegative(),
+        databaseBytes: z.number().int().nonnegative(),
+        artifactCount: z.number().int().nonnegative(),
+        artifactBytes: z.number().int().nonnegative(),
+        contextChars: z.number().int().nonnegative(),
+        traceRows: z.number().int().nonnegative(),
+      }),
+      queue: z.record(z.string(), z.number().int().nonnegative()),
+    })
+    .nullable(),
   checkpointPending: z.number().int().nonnegative().nullable(),
   schedulerCount: z.number().int().nonnegative(),
   config: z.record(z.string(), z.json()),

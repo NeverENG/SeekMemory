@@ -302,5 +302,44 @@ class TraceTrimTest(unittest.TestCase):
         self.assertEqual(len(journal.path.read_text(encoding="utf-8").splitlines()), 3)
 
 
+class CapacityGovernorV2Test(unittest.TestCase):
+    def setUp(self) -> None:
+        self.governor = CapacityGovernor()
+
+    def test_deferred_headroom_releases_work(self) -> None:
+        decision = self.governor.evaluate(
+            CapacitySnapshot(pending_rows=10, deferred_rows=10)
+        )
+        self.assertIn("release_deferred", decision.actions)
+        self.assertEqual(decision.state, NORMAL)
+
+    def test_deferred_pressure_does_not_release_more(self) -> None:
+        decision = self.governor.evaluate(CapacitySnapshot(deferred_rows=200))
+        self.assertEqual(decision.state, PRESSURED)
+        self.assertNotIn("release_deferred", decision.actions)
+
+    def test_dead_rows_raise_alert(self) -> None:
+        decision = self.governor.evaluate(CapacitySnapshot(dead_rows=10))
+        self.assertIn("alert", decision.actions)
+        self.assertIn("dead:10rows", decision.reasons)
+
+    def test_database_size_raises_pressure(self) -> None:
+        decision = self.governor.evaluate(
+            CapacitySnapshot(db_bytes=1024 * 1024 * 1024)
+        )
+        self.assertEqual(decision.state, SATURATED)
+        self.assertIn("database:", " ".join(decision.reasons))
+
+    def test_retry_limit_moves_row_to_dead(self) -> None:
+        db = DB(":memory:")
+        self.addCleanup(db.close)
+        source = Source("s1", "t1", "umo:a", "u1", "user", "x", "2026-10-22T12:00:00")
+        db.enqueue_extraction(source, "topic")
+        db.mark_extraction_failed(["s1"], "TimeoutError", max_attempts=1)
+        self.assertEqual(db.queue_counts()["dead"], 1)
+        self.assertEqual(db.pending_extractions(), [])
+
+
+
 if __name__ == "__main__":
     unittest.main()

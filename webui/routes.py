@@ -117,6 +117,7 @@ class WebRoutes:
                 "topicTtlSeconds": plugin._c("topic_ttl_seconds", 86400.0),
                 "maxTopicsPerBatch": max(1, plugin._c("max_sessions_per_flush", 6)),
             },
+            "capacity": plugin.capacity_status() if hasattr(plugin, "capacity_status") else None,
             "checkpointPending": plugin.checkpoint.pending()
             if plugin.checkpoint
             else None,

@@ -1,6 +1,12 @@
 import { Badge, Button, JsonView } from "@/ui"
 import type { RuntimeStatus } from "../model"
 
+function toneForCapacity(state: string): "success" | "warning" | "info" {
+  if (state === "normal") return "success"
+  if (state === "protective") return "warning"
+  return "info"
+}
+
 export function RuntimePanel({
   status,
   busy,
@@ -12,6 +18,7 @@ export function RuntimePanel({
 }) {
   const task = status?.activeTask
   const policy = status?.extractionPolicy
+  const capacity = status?.capacity
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6 p-5 sm:p-8">
       <div className="workspace-intro">
@@ -39,6 +46,44 @@ export function RuntimePanel({
           </div>
         ))}
       </div>
+      {capacity && (
+        <section className="surface-panel space-y-4 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">容量治理</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                压力 {Math.round(capacity.pressure * 100)}% · 队列{" "}
+                {capacity.queue["pending"] ?? 0} 待抽取 ·{" "}
+                {capacity.queue["deferred"] ?? 0} 延迟 ·{" "}
+                {capacity.queue["dead"] ?? 0} 失败隔离
+              </p>
+            </div>
+            <Badge tone={toneForCapacity(capacity.state)}>
+              {capacity.state}
+            </Badge>
+          </div>
+          <dl className="grid gap-4 text-sm sm:grid-cols-4">
+            <div>
+              <dt className="text-muted-foreground">待抽取</dt>
+              <dd>{capacity.snapshot.pendingRows}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">延迟写入</dt>
+              <dd>{capacity.snapshot.deferredRows}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">失败隔离</dt>
+              <dd>{capacity.snapshot.deadRows}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">数据库</dt>
+              <dd>
+                {Math.round(capacity.snapshot.databaseBytes / 1024 / 1024)} MB
+              </dd>
+            </div>
+          </dl>
+        </section>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         {status?.checks.map((check) => (
           <div

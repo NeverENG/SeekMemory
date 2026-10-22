@@ -615,6 +615,8 @@ class DB:
             "FROM extraction_state WHERE state IN ('pending', 'retrying')"
         ).fetchone()
         counts = self.queue_counts()
+        page_count = int(self.conn.execute("PRAGMA page_count").fetchone()[0] or 0)
+        page_size = int(self.conn.execute("PRAGMA page_size").fetchone()[0] or 0)
         current = _parse_time(now) or datetime.datetime.now()
         oldest = _parse_time(str(pending["oldest"] or ""))
         pending_age = _age_seconds(oldest, current)
@@ -628,6 +630,7 @@ class DB:
             if parsed is not None and parsed.date() < current.date():
                 expired += 1
         return {
+            "db_bytes": page_count * page_size,
             "source_rows": int(source["rows"] or 0),
             "source_bytes": int(source["bytes"] or 0),
             "pending_rows": int(pending["rows"] or 0),

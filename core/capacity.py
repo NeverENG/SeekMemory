@@ -37,6 +37,12 @@ class CapacityThresholds:
     defer_limit: int = 400
     release_batch: int = 50
     extraction_max_attempts: int = 5
+    deferred_pressured_rows: int = 200
+    deferred_saturated_rows: int = 400
+    dead_alert_rows: int = 10
+    database_pressured_bytes: int = 512 * 1024 * 1024
+    database_saturated_bytes: int = 1024 * 1024 * 1024
+    pending_release_rows: int = 40
 
 
 def _coerce(default: Any, raw: Any) -> Any:
@@ -91,6 +97,8 @@ class CapacitySnapshot:
     pending_rows: int = 0
     pending_oldest_age_seconds: float = 0.0
     deferred_rows: int = 0
+    dead_rows: int = 0
+    db_bytes: int = 0
     artifact_count: int = 0
     artifact_bytes: int = 0
     expired_artifacts: int = 0
@@ -136,6 +144,12 @@ class CapacityGovernor:
             or snapshot.pending_oldest_age_seconds
             >= limits.pending_protective_age_seconds
         )
+        deferred_soft = snapshot.deferred_rows >= limits.deferred_pressured_rows
+        deferred_hard = snapshot.deferred_rows >= limits.deferred_saturated_rows
+        db_soft = snapshot.db_bytes >= limits.database_pressured_bytes
+        db_hard = snapshot.db_bytes >= limits.database_saturated_bytes
+        dead_alert = snapshot.dead_rows >= limits.dead_alert_rows
+
         artifact_soft = (
             snapshot.artifact_count >= limits.artifact_pressured_count
             or snapshot.artifact_bytes >= limits.artifact_pressured_bytes
@@ -159,9 +173,9 @@ class CapacityGovernor:
             snapshot.context_chars_per_turn >= limits.context_saturated_chars
         )
 
-        if pending_soft or artifact_soft or trace_soft:
+        if pending_soft or artifact_soft or trace_soft or deferred_soft or db_soft or dead_alert:
             state = PRESSURED
-        if pending_hard or artifact_hard or trace_hard or context_hard:
+        if pending_hard or artifact_hard or trace_hard or context_hard or deferred_hard or db_hard:
             state = SATURATED
         if pending_protective or source_protective:
             state = PROTECTIVE
@@ -170,6 +184,12 @@ class CapacityGovernor:
             reasons.append(f"pending:{snapshot.pending_rows}rows")
         if artifact_soft:
             reasons.append(f"artifact:{snapshot.artifact_count}/{snapshot.artifact_bytes}bytes")
+        if deferred_soft:
+            reasons.append(f"deferred:{snapshot.deferred_rows}rows")
+        if db_soft:
+            reasons.append(f"database:{snapshot.db_bytes}bytes")
+        if dead_alert:
+            reasons.append(f"dead:{snapshot.dead_rows}rows")
         if context_hard:
             reasons.append(f"context:{snapshot.context_chars_per_turn}chars")
         if trace_hard:
@@ -180,9 +200,12 @@ class CapacityGovernor:
         actions: list[str] = []
         if snapshot.pending_rows:
             actions.append("schedule_extraction")
+        if (snapshot.deferred_rows and snapshot.pending_rows < limits.pending_release_rows
+                and not pending_soft and not deferred_soft):
+            actions.append("release_deferred")
         if pending_soft:
             actions.append("raise_batch_size")
-        if pending_hard:
+        if pending_hard or deferred_hard:
             actions.append("backpressure")
         if artifact_soft:
             actions.append("compact_artifacts")
@@ -192,15 +215,17 @@ class CapacityGovernor:
             actions.append("degrade_recall")
         if trace_hard:
             actions.append("trim_trace")
-        if state == PROTECTIVE:
+        if state == PROTECTIVE or dead_alert:
             actions.append("alert")
 
         pressure = max(
             snapshot.pending_rows / max(1, limits.pending_saturated_rows),
+            snapshot.deferred_rows / max(1, limits.deferred_saturated_rows),
             snapshot.artifact_count / max(1, limits.artifact_saturated_count),
             snapshot.trace_rows / max(1, limits.trace_saturated_rows),
             snapshot.context_chars_per_turn / max(1, limits.context_saturated_chars),
             snapshot.source_bytes / max(1, limits.source_alert_bytes),
+            snapshot.db_bytes / max(1, limits.database_saturated_bytes),
         )
         return CapacityDecision(
             state, tuple(actions), tuple(reasons), round(min(1.0, pressure), 3)

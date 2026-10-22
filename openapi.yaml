@@ -687,6 +687,82 @@ components:
       required: [id, session, count, oldestAt]
       additionalProperties: false
       description: 按上游话题分组的待处理消息，仅提供计数和时间，不返回对话正文。
+    CapacityStatus:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: [normal, pressured, saturated, protective]
+        actions:
+          type: array
+          items:
+            type: string
+        reasons:
+          type: array
+          items:
+            type: string
+        pressure:
+          type: number
+          minimum: 0
+          maximum: 1
+        snapshot:
+          type: object
+          properties:
+            sourceRows:
+              type: integer
+              minimum: 0
+            sourceBytes:
+              type: integer
+              minimum: 0
+            pendingRows:
+              type: integer
+              minimum: 0
+            deferredRows:
+              type: integer
+              minimum: 0
+            deadRows:
+              type: integer
+              minimum: 0
+            databaseBytes:
+              type: integer
+              minimum: 0
+            artifactCount:
+              type: integer
+              minimum: 0
+            artifactBytes:
+              type: integer
+              minimum: 0
+            contextChars:
+              type: integer
+              minimum: 0
+            traceRows:
+              type: integer
+              minimum: 0
+          required:
+          - sourceRows
+          - sourceBytes
+          - pendingRows
+          - deferredRows
+          - deadRows
+          - databaseBytes
+          - artifactCount
+          - artifactBytes
+          - contextChars
+          - traceRows
+          additionalProperties: false
+        queue:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+      required:
+      - state
+      - actions
+      - reasons
+      - pressure
+      - snapshot
+      - queue
+      additionalProperties: false
     RuntimeStatus:
       type: object
       properties:
@@ -751,6 +827,10 @@ components:
               minimum: 1
           required: [backlogThreshold, topicTtlSeconds, maxTopicsPerBatch]
           additionalProperties: false
+        capacity:
+          anyOf:
+          - $ref: '#/components/schemas/CapacityStatus'
+          - type: 'null'
         checkpointPending:
           type: [integer, 'null']
           minimum: 0
@@ -766,6 +846,7 @@ components:
       - pending
       - pendingTopics
       - extractionPolicy
+      - capacity
       - checkpointPending
       - schedulerCount
       - config

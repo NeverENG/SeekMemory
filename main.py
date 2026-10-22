@@ -445,6 +445,8 @@ class Main(star.Star):
                 usage.get("pending_oldest_age_seconds", 0.0)
             ),
             deferred_rows=int(usage.get("deferred_rows", 0)),
+            dead_rows=int(usage.get("dead_rows", 0)),
+            db_bytes=int(usage.get("db_bytes", 0)),
             artifact_count=int(usage.get("artifact_count", 0)),
             artifact_bytes=int(usage.get("artifact_bytes", 0)),
             expired_artifacts=int(usage.get("expired_artifacts", 0)),
@@ -452,6 +454,31 @@ class Main(star.Star):
             trace_rows=trace_rows,
             trace_oldest_age_seconds=trace_age,
         )
+
+    def capacity_status(self) -> dict:
+        """Return a content-free capacity report for the WebUI status endpoint."""
+        snapshot = self._capacity_snapshot()
+        decision = self.capacity.evaluate(snapshot)
+        queue = self.db.queue_counts() if self.db is not None else {}
+        return {
+            "state": decision.state,
+            "actions": list(decision.actions),
+            "reasons": list(decision.reasons),
+            "pressure": decision.pressure,
+            "snapshot": {
+                "sourceRows": snapshot.source_rows,
+                "sourceBytes": snapshot.source_bytes,
+                "pendingRows": snapshot.pending_rows,
+                "deferredRows": snapshot.deferred_rows,
+                "deadRows": snapshot.dead_rows,
+                "databaseBytes": snapshot.db_bytes,
+                "artifactCount": snapshot.artifact_count,
+                "artifactBytes": snapshot.artifact_bytes,
+                "contextChars": snapshot.context_chars_per_turn,
+                "traceRows": snapshot.trace_rows,
+            },
+            "queue": {str(key): int(value) for key, value in queue.items()},
+        }
 
     def _observe_capacity(self) -> CapacityDecision:
         """Evaluate and journal capacity transitions for scheduler decisions."""
@@ -469,6 +496,8 @@ class Main(star.Star):
                 context={
                     "pending": snapshot.pending_rows,
                     "deferred": snapshot.deferred_rows,
+                    "dead": snapshot.dead_rows,
+                    "databaseBytes": snapshot.db_bytes,
                     "artifacts": snapshot.artifact_count,
                     "actions": len(decision.actions),
                     "pressure": decision.pressure,
@@ -482,6 +511,8 @@ class Main(star.Star):
                 {
                     "pending": snapshot.pending_rows,
                     "deferred": snapshot.deferred_rows,
+                    "dead": snapshot.dead_rows,
+                    "databaseBytes": snapshot.db_bytes,
                     "pressure": decision.pressure,
                 },
             )
@@ -490,7 +521,8 @@ class Main(star.Star):
 
     def _apply_capacity_maintenance(self, decision: CapacityDecision) -> None:
         """Release parked writes on headroom; run lifecycle actions hourly."""
-        if decision.state == NORMAL and self._deferred_rows and self.db is not None:
+        if ("release_deferred" in decision.actions and self._deferred_rows
+                and self.db is not None):
             released = self.db.release_deferred(self.capacity.thresholds.release_batch)
             if released:
                 self._deferred_rows = max(0, self._deferred_rows - released)

@@ -225,6 +225,28 @@ export interface components {
             /** Format: date-time */
             oldestAt: string | null;
         };
+        CapacityStatus: {
+            /** @enum {string} */
+            state: "normal" | "pressured" | "saturated" | "protective";
+            actions: string[];
+            reasons: string[];
+            pressure: number;
+            snapshot: {
+                sourceRows: number;
+                sourceBytes: number;
+                pendingRows: number;
+                deferredRows: number;
+                deadRows: number;
+                databaseBytes: number;
+                artifactCount: number;
+                artifactBytes: number;
+                contextChars: number;
+                traceRows: number;
+            };
+            queue: {
+                [key: string]: number;
+            };
+        };
         RuntimeStatus: {
             ready: boolean;
             checks: {
@@ -246,6 +268,7 @@ export interface components {
                 topicTtlSeconds: number;
                 maxTopicsPerBatch: number;
             };
+            capacity: components["schemas"]["CapacityStatus"] | null;
             checkpointPending: number | null;
             schedulerCount: number;
             config: components["schemas"]["JsonObject"];
