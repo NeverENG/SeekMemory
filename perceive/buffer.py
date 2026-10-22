@@ -6,7 +6,7 @@ import hashlib
 import json
 import os
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime
 from pathlib import Path
 
@@ -87,25 +87,60 @@ class Buffer:
         previous = self._last_for_session(turn.session_id)
         turn = DialogueTurn(turn.session_id, turn.speaker_id, turn.role, turn.text,
                             turn.at, turn.source_id, self._topic_for(turn, previous))
-        if self._db is not None and turn.source_id:
-            queued = source or Source(
-                turn.source_id,
-                str(turn_id or turn.source_id),
-                turn.session_id,
-                turn.speaker_id,
-                turn.role,
-                turn.text,
-                turn.at,
-            )
-            self._db.enqueue_extraction(queued, turn.topic_id, turn.at)
+        if self._db is not None:
+            turn = self._enqueue(turn, source=source, turn_id=turn_id)
         self.items.append(turn)
         if self._db is None:
             self.items = self.items[-LEGACY_KEEP:]
         else:
-            self.items = list({item.source_id: item for item in self.items}.values())
+            self.items = self._unique_by_source(self.items)
         self.last_ts = time.time()
         self.save()
         return turn
+
+    def _enqueue(
+        self, turn: DialogueTurn, *, source: Source | None, turn_id: str
+    ) -> DialogueTurn:
+        """Give a DB-backed turn its immutable Source and extraction state.
+
+        Host callers may add a turn without a Source id. The pending projection
+        deduplicates by Source id, so an empty id would collapse every such turn
+        into one row; synthesize the id and let ``enqueue_extraction`` write the
+        Source and its extraction state together.
+        """
+        at = turn.at or datetime.now().isoformat(timespec="seconds")
+        source_id = turn.source_id or make_source_id(
+            session_id=turn.session_id,
+            speaker_id=turn.speaker_id,
+            role=turn.role,
+            text=turn.text,
+            at=at,
+        )
+        if source_id != turn.source_id or at != turn.at:
+            turn = replace(turn, source_id=source_id, at=at)
+        queued = source or Source(
+            source_id,
+            str(turn_id or source_id),
+            turn.session_id,
+            turn.speaker_id,
+            turn.role,
+            turn.text,
+            at,
+        )
+        self._db.enqueue_extraction(queued, turn.topic_id, at)
+        return turn
+
+    @staticmethod
+    def _unique_by_source(items: list[DialogueTurn]) -> list[DialogueTurn]:
+        """Keep one row per non-empty Source id; source-less rows stay distinct."""
+        seen: set[str] = set()
+        kept: list[DialogueTurn] = []
+        for item in items:
+            if item.source_id and item.source_id in seen:
+                continue
+            seen.add(item.source_id)
+            kept.append(item)
+        return kept
 
     def _topic_for(self, turn: DialogueTurn, previous: DialogueTurn | None) -> str:
         if previous is None or not previous.topic_id:

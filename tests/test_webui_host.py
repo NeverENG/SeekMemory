@@ -171,8 +171,8 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await self.plugin._nightly()
         self.assertEqual(len(self.plugin.buffer.items), 1)
-        persisted = json.loads((Path(self.temp.name) / "pending.json").read_text())
-        self.assertEqual(len(persisted["items"]), 1)
+        # DB-backed pending lives in Source + extraction_state, not pending.json.
+        self.assertEqual(len(self.plugin.db.pending_extractions()), 1)
 
     async def test_missing_provider_preserves_daily_quota_and_messages(self) -> None:
         self.plugin.buffer.add("bot:FriendMessage:alice", "Plan A", "alice")
@@ -213,10 +213,8 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         task.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await task
-        persisted = json.loads((Path(self.temp.name) / "pending.json").read_text())
-        self.assertEqual(
-            [row["text"] for row in persisted["items"]], ["Plan A", "New plan"]
-        )
+        rows = self.plugin.db.pending_extractions()
+        self.assertEqual(sorted(row["text"] for row in rows), ["New plan", "Plan A"])
         self.assertFalse(plugin._flushing)
 
     async def test_shutdown_flushes_upstream_checkpoint_before_closing_db(self) -> None:

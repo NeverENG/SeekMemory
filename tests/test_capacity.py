@@ -136,6 +136,36 @@ class ExtractionProjectionTest(unittest.TestCase):
                          [("remember this", "s1")])
         self.assertFalse(os.path.exists(os.path.join(self.temp.name, "pending.json")))
 
+    def test_host_style_turns_without_source_id_stay_queued_separately(self) -> None:
+        buffer = Buffer(db=self.db)
+        buffer.add("umo:a", "Travel itinerary", "alice")
+        buffer.add("umo:a", "Database index", "alice")
+        self.assertEqual(
+            [turn.text for turn in buffer.items], ["Travel itinerary", "Database index"]
+        )
+        self.assertEqual(len({turn.source_id for turn in buffer.items}), 2)
+        self.assertEqual(len(self.db.pending_extractions()), 2)
+
+    def test_success_advances_projection_and_keeps_source_rows(self) -> None:
+        buffer = Buffer(db=self.db)
+        buffer.add("umo:a", "Travel itinerary", "alice")
+        buffer.add("umo:b", "Database index", "bob")
+        self.assertEqual(buffer.mark_succeeded(list(buffer.items)), 2)
+        self.assertEqual(buffer.items, [])
+        self.assertEqual(Buffer(db=self.db).items, [])
+        self.assertEqual(self.db.capacity_usage()["source_rows"], 2)
+
+    def test_failed_turn_stays_retryable_with_source_text(self) -> None:
+        buffer = Buffer(db=self.db)
+        turn = buffer.add("umo:a", "Travel itinerary", "alice")
+        self.assertEqual(buffer.mark_failed([turn], "TimeoutError"), 1)
+        rows = self.db.pending_extractions()
+        self.assertEqual(
+            [(row["text"], row["attempts"], row["state"]) for row in rows],
+            [("Travel itinerary", 1, "retrying")],
+        )
+        self.assertEqual(buffer.items, [turn])
+
     def test_projection_has_no_two_hundred_row_truncation(self) -> None:
         buffer = Buffer(db=self.db)
         for index in range(205):
