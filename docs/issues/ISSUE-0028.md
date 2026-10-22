@@ -54,6 +54,12 @@ Excluded:
 - [x] Legacy pending migration leaves a recoverable `.migrated` file.
 - [x] Governor transitions emit bounded lifecycle events without message text.
 - [x] Full unit suite passes.
+- [x] `backpressure` closes admission, parks turns as `deferred`, and releases
+  them when the governor returns to `normal`.
+- [x] Retries use bounded exponential backoff and end in the terminal `dead`
+  state after `extraction_max_attempts`.
+- [x] Capacity samples live in a dedicated bounded Trace instead of
+  `Journal.events`.
 
 ## Decision record
 
@@ -65,3 +71,14 @@ Excluded:
   显式延后到后续 issue（改动消息写入时序与持久化游标，需要单独评估）。
 - 2026-10-22: Trace 年龄维度拆出软阈值 `trace_pressured_age_seconds`（3 天），
   7 天才进入饱和并裁剪。
+- 2026-10-22: 第三轮评审后撤销上面的延后决定，改为本 PR 实现：`backpressure`
+  数值化（`CapacityDecision.pressure`）并真正关闭准入；被准入挡下的 turn 以
+  `deferred` 状态停在 `extraction_state`，回到 `normal` 时按批放行；批次选择
+  改为按会话轮询（`app/flush_policy.select_topic_batches`）。
+- 2026-10-22: `extraction_state` 增加 `next_attempt_at`；失败按 30s 起指数退避
+  （上限 1h），达到 `extraction_max_attempts` 进入终态 `dead`，不再无限重试。
+- 2026-10-22: 容量采样独立为 `webui/trace.py` 有界环，容量快照与裁剪不再复用
+  `Journal.events`，为将来的 `AgentHook.trace` 留出独立结构。
+- 2026-10-22: 阈值支持 `capacity_thresholds`（JSON 对象）与
+  `SEEKMEMORY_CAPACITY_<FIELD>` 环境变量覆盖，非法值回退默认。
+
