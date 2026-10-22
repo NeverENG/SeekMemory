@@ -10,6 +10,8 @@ This file is normative. If it conflicts with a casual instruction, stop and ask 
 - `docs/DESIGN.md`
 - `docs/CONTRACT.md`
 - `CONTRIBUTING.md`
+- `docs/INTERFACES.md`
+- `docs/DEV-SETUP.md`
 - `docs/BUGS.md`
 - `docs/issues/INDEX.md`
 
