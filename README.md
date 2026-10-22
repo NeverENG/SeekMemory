@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="docs/ARCHITECTURE.md">Architecture</a> /
-  <a href="docs/BM25-PROPOSAL.md">BM25 design</a> /
+  <a href="https://github.com/NeverENG/SeekMemory/issues/4">BM25 issue</a> /
   <a href="#quick-start">Quick start</a> /
   <a href="https://github.com/NeverENG/SeekMemory/issues/4">GitHub</a>
 </p>
@@ -148,7 +148,7 @@ SeekMemory 附带了一个供管理员使用的 AstrBot 插件视图。它显示
 
 - 架构：docs/ARCHITECTURE.md
 - 契约：docs/CONTRACT.md
-- BM25 提案：docs/BM25-PROPOSAL.md
+- BM25 进展与验收：[Issue #4](https://github.com/NeverENG/SeekMemory/issues/4)
 - 贡献指南：CONTRIBUTING.md
 
 ---

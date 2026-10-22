@@ -14,6 +14,7 @@ from core.strength import reinforce, retention
 from core.tree import Tree
 from recall.assemble import build as assemble
 from recall.score import score, select
+from recall.retriever import HybridRetriever
 from recall.seed import seeds
 from recall.spread import activate
 from store.cache import Cache
@@ -77,6 +78,8 @@ def main() -> None:
 
     block = assemble(picked, budget=600)
     assert block.strip(), "组装为空"
+    lexical = HybridRetriever(graph, cache).retrieve("加班", cache.active())
+    assert any(candidate.lexical > 0 for candidate in lexical), "BM25 未提供词面证据"
     print("--- 注入块 ---")
     print(block)
 

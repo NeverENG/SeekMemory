@@ -192,6 +192,7 @@ def select(
     gate: bool = True,
     min_ev_abs: float | None = None,
     min_ev_rel: float | None = None,
+    lexical_weight: float = 2.0,
 ) -> list[Artifact]:
     """
     按分数取 top-k，并以 explore 概率随机捞一条非 top 的记忆做探索。
@@ -208,6 +209,8 @@ def select(
     """
     if k <= 0 or not candidates:
         return []
+    if not math.isfinite(lexical_weight):
+        raise ValueError("lexical_weight 必须是有限数值")
     if gate and gate_mod.is_clock_query(text):
         return []
     pairs = []
@@ -242,7 +245,9 @@ def select(
                 value += literal
                 evidence += literal
         if lexical > 0:
-            lexical_score = 2.0 * max(0.0, min(1.0, float(lexical)))
+            lexical_score = max(0.0, float(lexical_weight)) * max(
+                0.0, min(1.0, float(lexical))
+            )
             value += lexical_score
             evidence += lexical_score
         if tags:

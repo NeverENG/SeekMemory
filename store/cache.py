@@ -23,6 +23,12 @@ class Cache:
         self._by_family: dict[str, set[str]] = {}
         self._by_level: dict[str, set[str]] = {}
         self._by_subject: dict[str, set[str]] = {}
+        self._version = 0
+
+    @property
+    def version(self) -> int:
+        """缓存内容的单调递增版本，供派生索引检测失效。"""
+        return self._version
 
     def load(self) -> None:
         """清空后一次性载入所有 active 记忆。"""
@@ -30,6 +36,7 @@ class Cache:
         self._by_family.clear()
         self._by_level.clear()
         self._by_subject.clear()
+        self._version += 1
         for art in self.db.list(state="active"):
             self.put(art)
 
@@ -47,6 +54,7 @@ class Cache:
         subject = str(art.header.subject_id or "")
         if subject:
             self._by_subject.setdefault(subject, set()).add(node_id)
+        self._version += 1
 
     def get(self, node_id: str) -> Artifact | None:
         """按 id 取一条缓存记忆；没有则返回 None。"""
@@ -71,6 +79,7 @@ class Cache:
         art = self._items.pop(node_id, None)
         if art is None:
             return
+        self._version += 1
         family_ids = self._by_family.get(art.header.family)
         if family_ids is not None:
             family_ids.discard(node_id)

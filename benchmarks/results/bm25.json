@@ -1,0 +1,254 @@
+{
+  "C": 8.0,
+  "weight": 1.0,
+  "calibration": [
+    {
+      "C": 1.0,
+      "weight": 0.5,
+      "old_hits": 16,
+      "old_noise": 0.3980263157894737,
+      "eligible": false,
+      "calibration_hits": 0
+    },
+    {
+      "C": 1.0,
+      "weight": 1.0,
+      "old_hits": 16,
+      "old_noise": 0.3980263157894737,
+      "eligible": false,
+      "calibration_hits": 2
+    },
+    {
+      "C": 1.0,
+      "weight": 1.5,
+      "old_hits": 16,
+      "old_noise": 0.3980263157894737,
+      "eligible": false,
+      "calibration_hits": 3
+    },
+    {
+      "C": 1.0,
+      "weight": 2.0,
+      "old_hits": 15,
+      "old_noise": 0.39114391143911437,
+      "eligible": false,
+      "calibration_hits": 4
+    },
+    {
+      "C": 2.0,
+      "weight": 0.5,
+      "old_hits": 17,
+      "old_noise": 0.3723076923076923,
+      "eligible": true,
+      "calibration_hits": 0
+    },
+    {
+      "C": 2.0,
+      "weight": 1.0,
+      "old_hits": 16,
+      "old_noise": 0.3980263157894737,
+      "eligible": false,
+      "calibration_hits": 3
+    },
+    {
+      "C": 2.0,
+      "weight": 1.5,
+      "old_hits": 16,
+      "old_noise": 0.3980263157894737,
+      "eligible": false,
+      "calibration_hits": 3
+    },
+    {
+      "C": 2.0,
+      "weight": 2.0,
+      "old_hits": 16,
+      "old_noise": 0.3980263157894737,
+      "eligible": false,
+      "calibration_hits": 5
+    },
+    {
+      "C": 4.0,
+      "weight": 0.5,
+      "old_hits": 17,
+      "old_noise": 0.3723076923076923,
+      "eligible": true,
+      "calibration_hits": 0
+    },
+    {
+      "C": 4.0,
+      "weight": 1.0,
+      "old_hits": 16,
+      "old_noise": 0.3980263157894737,
+      "eligible": false,
+      "calibration_hits": 3
+    },
+    {
+      "C": 4.0,
+      "weight": 1.5,
+      "old_hits": 16,
+      "old_noise": 0.3980263157894737,
+      "eligible": false,
+      "calibration_hits": 3
+    },
+    {
+      "C": 4.0,
+      "weight": 2.0,
+      "old_hits": 16,
+      "old_noise": 0.3980263157894737,
+      "eligible": false,
+      "calibration_hits": 5
+    },
+    {
+      "C": 8.0,
+      "weight": 0.5,
+      "old_hits": 17,
+      "old_noise": 0.4,
+      "eligible": true,
+      "calibration_hits": 0
+    },
+    {
+      "C": 8.0,
+      "weight": 1.0,
+      "old_hits": 17,
+      "old_noise": 0.3723076923076923,
+      "eligible": true,
+      "calibration_hits": 3
+    },
+    {
+      "C": 8.0,
+      "weight": 1.5,
+      "old_hits": 16,
+      "old_noise": 0.3980263157894737,
+      "eligible": false,
+      "calibration_hits": 3
+    },
+    {
+      "C": 8.0,
+      "weight": 2.0,
+      "old_hits": 16,
+      "old_noise": 0.3980263157894737,
+      "eligible": false,
+      "calibration_hits": 4
+    }
+  ],
+  "legacy": {
+    "baseline": {
+      "name": "full",
+      "hit": 17,
+      "total": 18,
+      "misses": [
+        "我是干什么的"
+      ],
+      "chars": 57.65,
+      "pin_chars": 38.0,
+      "ret_chars": 19.65,
+      "noise": 0.4,
+      "leak": 0,
+      "bchars": 64.5,
+      "latency_ms": 0.8300649999910092
+    },
+    "enabled": {
+      "name": "bm25",
+      "hit": 17,
+      "total": 18,
+      "misses": [
+        "我是干什么的"
+      ],
+      "chars": 55.85,
+      "pin_chars": 38.0,
+      "ret_chars": 17.85,
+      "noise": 0.3723076923076923,
+      "leak": 0,
+      "bchars": 54.0,
+      "latency_ms": 1.203200000236393
+    },
+    "passed": true
+  },
+  "holdout": {
+    "baseline": {
+      "hits": 1,
+      "total": 5,
+      "noise": 0.975,
+      "chars": 209.2,
+      "latency_ms": 0.2798999998049112,
+      "details": [
+        {
+          "target": "instrument_target",
+          "hit": false,
+          "picked": 8
+        },
+        {
+          "target": "travel_target",
+          "hit": false,
+          "picked": 8
+        },
+        {
+          "target": "spare_target",
+          "hit": false,
+          "picked": 8
+        },
+        {
+          "target": "keyboard_target",
+          "hit": true,
+          "picked": 8
+        },
+        {
+          "target": "market_target",
+          "hit": false,
+          "picked": 8
+        }
+      ]
+    },
+    "enabled": {
+      "hits": 2,
+      "total": 5,
+      "noise": 0.95,
+      "chars": 210.8,
+      "latency_ms": 0.36058000005141366,
+      "details": [
+        {
+          "target": "instrument_target",
+          "hit": false,
+          "picked": 8
+        },
+        {
+          "target": "travel_target",
+          "hit": false,
+          "picked": 8
+        },
+        {
+          "target": "spare_target",
+          "hit": true,
+          "picked": 8
+        },
+        {
+          "target": "keyboard_target",
+          "hit": true,
+          "picked": 8
+        },
+        {
+          "target": "market_target",
+          "hit": false,
+          "picked": 8
+        }
+      ]
+    },
+    "no_result_queries_pass": true,
+    "semantic_limits_pass": true,
+    "sha256": "2c2ade9a29aef9d8dd55664b816988340be09143a31177978eaab6ccf3be3569"
+  },
+  "sizes": [
+    {
+      "size": 5000,
+      "build_ms": 53.589900000588386,
+      "rebuild_ms": 56.48339999970631,
+      "query_ms": 13.116049999916868
+    },
+    {
+      "size": 20000,
+      "build_ms": 239.45850000018254,
+      "rebuild_ms": 233.56710000007297,
+      "query_ms": 59.40250000003289
+    }
+  ]
+}

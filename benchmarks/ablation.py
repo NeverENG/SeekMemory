@@ -13,6 +13,7 @@ import contextlib
 import os
 import sys
 import tempfile
+import time
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 
@@ -28,6 +29,8 @@ from core.graph import Graph  # noqa: E402
 from maintain.link import persist  # noqa: E402
 from recall.assemble import build as assemble  # noqa: E402
 from recall.score import select  # noqa: E402
+from recall.bm25 import BM25Index  # noqa: E402
+from recall.retriever import HybridRetriever  # noqa: E402
 from recall.seed import bigrams, dice, seeds  # noqa: E402
 from recall.spread import activate  # noqa: E402
 from store.cache import Cache  # noqa: E402
@@ -50,10 +53,14 @@ class Cfg:
     decay: bool = True
     literal_only: bool = False
     gate: bool = True  # 相关性双阈值闸门（ISSUE-0017）
+    bm25: bool = False
+    calibration_c: float = 8.0
+    lexical_weight: float = 1.0
 
 
 CONFIGS = (
     Cfg("full"),
+    Cfg("bm25_on", bm25=True),
     Cfg("no_gate", gate=False),
     Cfg("no_spread", spread=False),
     Cfg("no_score_emotion", emotion=False),
@@ -142,18 +149,23 @@ def _dedupe(cfg: Cfg):
         assemble_mod._dedupe = old
 
 
-def pipeline(cfg: Cfg, pool, source, graph, cache, q: str) -> tuple[str, list, list]:
+def pipeline(cfg: Cfg, pool, source, graph, cache, q: str,
+             hybrid: HybridRetriever | None = None) -> tuple[str, list, list]:
     """按配置组合 seeds → activate → select → assemble，返回注入文本、检索层与常驻层。"""
-    seed_ids = [] if cfg.literal_only else seeds(q, source)
-    activation = {} if (not cfg.spread or cfg.literal_only) else activate(seed_ids, graph, cache)
-    if cfg.literal_only:
+    if cfg.bm25:
+        retriever = hybrid or HybridRetriever(graph, cache, BM25Index(cfg.calibration_c))
+        candidates = retriever.retrieve(q, pool)
+    elif cfg.literal_only:
         qg = bigrams(q)
         candidates = [(a, 0.0) for a in pool
                       if dice(qg, len(qg), frozenset(bigrams(content_of(a)))) > 0]
     else:
+        seed_ids = seeds(q, source)
+        activation = activate(seed_ids, graph, cache) if cfg.spread else {}
         candidates = [(a, float(activation.get(a.header.id, 0.0))) for a in pool]
     with _clock(cfg):
-        picked = select(candidates, q, 0.0, k=K, explore=0.0, gate=cfg.gate)
+        picked = select(candidates, q, 0.0, k=K, explore=0.0, gate=cfg.gate,
+                        lexical_weight=cfg.lexical_weight)
     if not cfg.layer:
         picked = [_without_level(a) for a in picked]
     pin = gate_mod.pinned(cache)
@@ -167,8 +179,12 @@ def measure(cfg: Cfg, pool, source, graph, cache) -> dict:
     boundary_n = sum(1 for g in GOLD if not g["expect_any"])
     noise_chars = kept_chars = 0
     misses = []
+    elapsed = 0.0
+    hybrid = HybridRetriever(graph, cache, BM25Index(cfg.calibration_c)) if cfg.bm25 else None
     for g in GOLD:
-        block, picked, pin = pipeline(cfg, pool, source, graph, cache, g["q"])
+        started = time.perf_counter()
+        block, picked, pin = pipeline(cfg, pool, source, graph, cache, g["q"], hybrid)
+        elapsed += time.perf_counter() - started
         low, exps = block.lower(), [e.lower() for e in g["expect_any"]]
         chars += len(block)
         ok = bool(exps) and any(e in low for e in exps)
@@ -198,7 +214,8 @@ def measure(cfg: Cfg, pool, source, graph, cache) -> dict:
     return {"name": cfg.name, "hit": hit, "total": total, "misses": misses,
             "chars": chars / len(GOLD), "pin_chars": pin_chars / len(GOLD),
             "ret_chars": ret_chars / len(GOLD), "noise": noise_chars / max(1, kept_chars),
-            "leak": leak, "bchars": bchars / max(1, boundary_n)}
+            "leak": leak, "bchars": bchars / max(1, boundary_n),
+            "latency_ms": elapsed * 1000 / len(GOLD)}
 
 
 def report(results: list[dict], stats: dict) -> str:
@@ -222,15 +239,17 @@ def report(results: list[dict], stats: dict) -> str:
     L += ["", f"数据里 {stats['noise_text']}/{stats['n']} 条是模板生成的无关闲聊，"
           "非闲聊只有 20 条；这保证命中不是靠「池子里全是答案」。", "",
           "## 消融结果", "",
-          "| 配置 | 命中 | 总注入 | 常驻层 | 检索层 | 检索层噪声 | 边界正文泄露 | 边界注入 |",
-          "|---|---:|---:|---:|---:|---:|---:|---:|"]
+          "| 配置 | 命中 | 总注入 | 常驻层 | 检索层 | 检索层噪声 | 边界正文泄露 | 边界注入 | 平均耗时 |",
+          "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
     L += [f"| `{r['name']}` | **{r['hit']}/{r['total']}** | {r['chars']:.0f} 字 | {r['pin_chars']:.0f} 字 | "
-          f"{r['ret_chars']:.0f} 字 | {r['noise']:.0%} | {r['leak']} | {r['bchars']:.0f} 字 |" for r in rs]
+          f"{r['ret_chars']:.0f} 字 | {r['noise']:.2%} | {r['leak']} | {r['bchars']:.0f} 字 | "
+          f"{r['latency_ms']:.3f} ms |" for r in rs]
     L += ["", "> 「命中」按 18 条可答题计；边界题单列「边界正文泄露」（FORBIDDEN 词次数，红线 0）与注入字数。",
           "> 字数是 20 条问句的平均值。**噪声只统计检索层**：常驻层是固定画像开销，混进噪声会逼着砍人格。",
           "", "## 逐项解读", ""]
     explain = {
         "full": "证据闸门生效后的检索层基线：命中由字面/标签/激活/情绪证据决定；常驻层是固定画像，不经闸门。",
+        "bm25_on": "开启纯本地 BM25（C=8，weight=1），复用既有图激活、评分和证据闸门。",
         "no_gate": "关掉闸门即旧 top-k 行为：检索层噪声与字数回到未过滤水平；多出的命中靠凑满 top-8。",
         "no_spread": "激活扩散是证据之一：关掉后「面试结果」（靠 causal 边拿到 offer）与「我是不是嘴硬心软」掉出闸门。",
         "no_score_emotion": "情绪对齐算证据：关掉后带情绪词的问句失去匹配信号，面试结果、累、印象类共 4 条掉出闸门。",

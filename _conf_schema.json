@@ -56,6 +56,16 @@
     "type": "float",
     "default": 0.3
   },
+  "bm25_enabled": {
+    "description": "启用本地 BM25 字面检索；默认开启，关闭可恢复原图检索",
+    "type": "bool",
+    "default": true
+  },
+  "bm25_weight": {
+    "description": "BM25 词面分数对排序与证据闸门的权重",
+    "type": "float",
+    "default": 1.0
+  },
   "idle_flush_seconds": {
     "description": "白天空闲抽取的等待秒数；0 = 不抽，只在夜间批量抽取",
     "type": "int",

@@ -26,6 +26,7 @@ artifact = importlib.import_module("_seekmemory_contract.core.artifact")
 DB = importlib.import_module("_seekmemory_contract.store.db").DB
 Cache = importlib.import_module("_seekmemory_contract.store.cache").Cache
 Graph = importlib.import_module("_seekmemory_contract.core.graph").Graph
+HybridRetriever = importlib.import_module("_seekmemory_contract.recall.retriever").HybridRetriever
 Journal = importlib.import_module("_seekmemory_contract.webui.journal").Journal
 Jobs = importlib.import_module("_seekmemory_contract.webui.jobs").Jobs
 Buffer = importlib.import_module("_seekmemory_contract.perceive.buffer").Buffer
@@ -88,6 +89,7 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
             _nightly=asyncio.Event().wait,
             _weekly=asyncio.Event().wait,
         )
+        self.plugin.hybrid_retriever = HybridRetriever(self.plugin.graph, cache)
         self.plugin.buffer.add(
             "bot:FriendMessage:alice",
             "契约测试消息",

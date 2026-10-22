@@ -7,6 +7,7 @@ import datetime
 import json
 
 try:
+    from ..app.ports import Retriever
     from ..core.artifact import Artifact, content_of, revise, validate
     from ..core.graph import Graph
     from ..core.versioning import VersionError
@@ -15,6 +16,7 @@ try:
     from ..store.cache import Cache
     from ..store.db import DB
 except ImportError:
+    from app.ports import Retriever
     from core.artifact import Artifact, content_of, revise, validate
     from core.graph import Graph
     from core.versioning import VersionError
@@ -42,8 +44,10 @@ def timestamp(value: str) -> str:
 class ManagementService:
     """管理操作复用既有存储、缓存和 scope 规则。"""
 
-    def __init__(self, db: DB, cache: Cache, graph: Graph, conf: Conf) -> None:
+    def __init__(self, db: DB, cache: Cache, graph: Graph, conf: Conf,
+                 hybrid_retriever: Retriever | None = None) -> None:
         self.db, self.cache, self.graph, self.conf = db, cache, graph, conf
+        self.hybrid_retriever = hybrid_retriever
 
     def catalog(self) -> list[dict]:
         """将所有 Artifact 家族转换为统一的记忆库契约。
@@ -232,6 +236,7 @@ class ManagementService:
             owner,
             body["speaker"],
             dry_run=True,
+            hybrid_retriever=self.hybrid_retriever,
         )
         return {
             "block": block,

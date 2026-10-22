@@ -29,6 +29,7 @@ from .perceive.calls import log_call
 from .perceive.model import ProviderChatModel
 from .recall.designated import is_private
 from .recall.pipeline import build_block
+from .recall.retriever import HybridRetriever
 from .store.cache import Cache
 from .store.db import DB
 from .webui.jobs import Jobs
@@ -45,6 +46,7 @@ class Main(star.Star):
         self.cache: Cache | None = None
         self.tree: Tree | None = None
         self.graph: Graph | None = None
+        self.hybrid_retriever: HybridRetriever | None = None
         self.buffer: Buffer | None = None
         self.checkpoint: CheckpointManager | None = None
         self._flushing = False
@@ -90,6 +92,7 @@ class Main(star.Star):
             self.cache.load()
             self.tree = Tree(self.db, self.cache)
             self.graph = Graph(self.db, self.cache)
+            self.hybrid_retriever = HybridRetriever(self.graph, self.cache)
             self.buffer = Buffer(str(self.data_path.parent / "pending.json"))
             self.ready = True
             self.checkpoint = CheckpointManager(
@@ -191,6 +194,7 @@ class Main(star.Star):
             self.owner_umo,
             speaker,
             log=lambda msg: logger.info(f"[seekmemory] {msg}"),
+            hybrid_retriever=self.hybrid_retriever,
         )
 
     # ---------------- 写路径：缓冲 ----------------

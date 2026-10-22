@@ -27,6 +27,8 @@ jobs:
         run: python benchmarks/run.py
       - name: 规模基准
         run: SCALE_USERS=8 SCALE_DAYS=30 SCALE_MSGS=40 python benchmarks/scale.py
+      - name: BM25 旧集不退化与冻结验收
+        run: python benchmarks/bm25.py
 
   frontend-contract:
     runs-on: ubuntu-latest

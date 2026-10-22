@@ -112,6 +112,8 @@ class DB:
 ```python
 class Cache:
     def __init__(self, db: DB): ...
+    @property
+    def version(self) -> int: ...        # 单调递增的派生索引失效标识
     def load(self) -> None: ...          # 全量载入 active
     def put(self, art: Artifact) -> None: ...
     def get(self, node_id: str) -> Artifact | None: ...
@@ -136,14 +138,15 @@ def activate(seed_ids: list[str], graph: Graph, cache: Cache, rounds: int = 2) -
 
 ```python
 def score(art: Artifact, text: str, activation: float, now_days: float) -> float: ...
-def select(candidates: list[Artifact] | list[tuple[Artifact, float]],
+def select(candidates: list[Artifact] | list[tuple[Artifact, float]] | list[RetrievalCandidate],
            text: str, now_days: float, k: int = 8, explore: float = 0.1,
            seed: int | str | None = None, gate: bool = True,
-           min_ev_abs: float = 0.5, min_ev_rel: float = 0.3) -> list[Artifact]: ...
+           min_ev_abs: float | None = None, min_ev_rel: float | None = None,
+           lexical_weight: float = 2.0) -> list[Artifact]: ...
 def pinned(cache: Cache) -> list[Artifact]: ...   # recall/gate.py
 ```
 
-`gate=True` 时只保留相关性证据（字面 + 标签 + 情绪 + 激活）达到
+`gate=True` 时只保留相关性证据（字面 + lexical + 标签 + 情绪 + 激活）达到
 `max(min_ev_abs, top_evidence × min_ev_rel)` 的候选，没有候选达标就返回 `[]`；
 `weight` / `freshness` 只参与排序。纯问时间的时钟类消息直接返回 `[]`。
 `gate=False` 保持旧的 top-k 行为。`pinned(cache)` 返回常驻层
@@ -366,6 +369,7 @@ class RetrievalCandidate:
 ```
 
 `lexical` is reserved for normalized BM25 or another pluggable lexical retriever.
+语义相似度不得填入 lexical。本次不实现本地向量检索，不新增占位字段。
 
 ## store/db.py
 
@@ -413,6 +417,49 @@ Levels are full, paraphrase, hint and silence. Cross-session content never recei
 ```python
 class GraphRetriever:
     def retrieve(self, query: str, pool: list[Artifact]) -> list[RetrievalCandidate]: ...
+
+class HybridRetriever:
+    def __init__(self, graph: Graph, cache: Cache,
+                 index: BM25Index | None = None) -> None: ...
+    def retrieve(self, query: str, pool: list[Artifact]) -> list[RetrievalCandidate]: ...
 ```
 
-A future BM25 retriever implements the same candidate contract.
+二者复用 `app.ports.Retriever` 协议。HybridRetriever 保留图激活、按 ID 去重并补充 lexical；
+候选仍为调用方提供的 pool。索引首次使用时从活跃缓存建立，Cache.version 改变后重建；
+计分所用的文档数、df 和平均长度只来自本次 pool，不增加 SQL 或网络调用。
+
+## recall/tokenizer.py 与 recall/bm25.py
+
+```python
+def tokenize(text: str) -> list[str]: ...
+
+class BM25Index:
+    def __init__(self, calibration_c: float = 8.0) -> None: ...
+    def rebuild(self, artifacts: list[Artifact]) -> None: ...
+    def put(self, art: Artifact) -> None: ...
+    def remove(self, artifact_id: str) -> None: ...
+    def search(self, query: str, pool: list[Artifact]) -> dict[str, float]: ...
+```
+
+分词小写化、移除非字母数字、保留重复字符 bigram；单字符保留自身，空/纯标点无词项。
+不维护人工停词表。标签各自分词，不能在相邻标签之间拼出新词项。
+put 按 ID 新增或替换，只索引 active；search 返回本次 pool 中正分候选的 ID→分数。
+正文与标签分别计算 BM25（k1=1.2、b=0.75），经 `s/(s+C)` 后按 0.75/0.25 融合，
+当前 C=8。无命中为零，分数范围 [0,1]；calibration_c 必须为有限正数。
+
+## recall/pipeline.py 的可选检索器
+
+```python
+def build_block(cache: Cache, graph: Graph, db: DB, umo: str, text: str,
+                private: bool, conf: Conf, owner_umo: str, speaker: str = "",
+                log: Callable[[str], None] = lambda _msg: None, *,
+                dry_run: bool = False,
+                hybrid_retriever: Retriever | None = None) -> tuple[str, dict]: ...
+```
+
+`bm25_enabled=false` 时继续使用 GraphRetriever；启用时使用注入检索器，缺省可构造 HybridRetriever。
+配置默认开启；未提供 bm25_enabled 时也使用混合检索，显式 false 可恢复原检索路径。
+插件入口与 ManagementService 传递同一长生命周期实例。WebUI 诊断仍 dry_run，不消耗指定交付状态。
+新配置 bm25_weight 默认 1.0，由管线显式传入 select 的 lexical_weight；函数默认 2.0 保留旧调用兼容。
+显式关闭 bm25_enabled 时不读取 bm25_weight，忽略残留的无效权重配置。
+不改变已存在的 scope、披露、证据阈值或预算规则。实现决策与限制见 [ISSUE-0024](issues/ISSUE-0024.md)。

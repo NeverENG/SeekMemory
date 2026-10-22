@@ -10,6 +10,7 @@ from collections.abc import Callable
 from typing import Any
 
 try:  # 作为 astrbot 插件包的一部分导入
+    from ..app.ports import Retriever
     from ..core.disclosure import DisclosureLevel, RecallScene, decide, safe_text
     from ..core.graph import Graph
     from ..recall.assemble import build as assemble_text
@@ -19,12 +20,13 @@ try:  # 作为 astrbot 插件包的一部分导入
     from ..recall.gate import pinned
     from ..recall.history import trajectory
     from ..recall.intent import intent_of
-    from ..recall.retriever import GraphRetriever
+    from ..recall.retriever import GraphRetriever, HybridRetriever
     from ..recall.scope import visible
     from ..recall.score import select
     from ..store.cache import Cache
     from ..store.db import DB
 except ImportError:  # 作为顶层包导入（脚本 / 测试）
+    from app.ports import Retriever
     from core.disclosure import DisclosureLevel, RecallScene, decide, safe_text
     from core.graph import Graph
     from store.cache import Cache
@@ -37,7 +39,7 @@ except ImportError:  # 作为顶层包导入（脚本 / 测试）
     from recall.gate import pinned
     from recall.history import trajectory
     from recall.intent import intent_of
-    from recall.retriever import GraphRetriever
+    from recall.retriever import GraphRetriever, HybridRetriever
     from recall.scope import visible
     from recall.score import select
 
@@ -66,6 +68,7 @@ def build_block(
     log: Callable[[str], None] = lambda _msg: None,
     *,
     dry_run: bool = False,
+    hybrid_retriever: Retriever | None = None,
 ) -> tuple[str, dict]:
     """按常驻层、检索和偶然浮现组装会话的记忆注入文本。
 
@@ -81,6 +84,7 @@ def build_block(
         speaker: 实际发送者身份。
         log: 召回摘要回调。
         dry_run: 管理预览时跳过交付状态写入。
+        hybrid_retriever: 可选的长生命周期检索器，实现既有 Retriever 协议。
 
     Returns:
         注入文本与运行决策计数。
@@ -112,7 +116,13 @@ def build_block(
     mode = intent_of(text)
     picked: list = []
     if mode != "none" and pool:
-        candidates = GraphRetriever(graph, cache).retrieve(text, pool)
+        lexical_weight = 2.0
+        if bool(conf("bm25_enabled", True)):
+            retriever = hybrid_retriever or HybridRetriever(graph, cache)
+            lexical_weight = float(conf("bm25_weight", 1.0))
+        else:
+            retriever = GraphRetriever(graph, cache)
+        candidates = retriever.retrieve(text, pool)
         loose = mode == "loose"
         picked = select(
             candidates,
@@ -123,6 +133,7 @@ def build_block(
             gate=True,
             min_ev_abs=float(conf("recall_min_ev_abs", 0.5)),
             min_ev_rel=0.2 if loose else float(conf("recall_min_ev_rel", 0.3)),
+            lexical_weight=lexical_weight,
         )
 
     # 没有线索时也可能突然想起一件事——这不走 query 打分。

@@ -50,3 +50,19 @@ python3 benchmarks/run.py          # 生成 benchmarks/results/latest.md
 ## 结果
 
 最新一次：`benchmarks/results/latest.md`
+
+## BM25 对照与冻结验收
+
+`run.py`、`scale.py` 和 `ablation.py` 均实际运行图检索/BM25 两条路径，
+比较命中、候选或字数加权噪声、注入长度和耗时；不同噪声口径在报告中标明。
+这些组件基准不替代完整管线的 scope/disclosure 集成测试。
+
+```bash
+python benchmarks/bm25.py --calibrate --sizes --output benchmarks/results/bm25.json
+```
+
+校准仅使用原黄金集及 `bm25_cases.py` 的首五题；末五题曾被探索过，不称作 holdout。
+`bm25_holdout.py` 是独立代理在未看输出时冻结的五题验收集；先确定参数再运行，
+不得为提高结果而改金标或使用验收题调参。当前冻结 C=8、weight=1；
+CI 会检查原黄金题逐题不回退、噪声不增加、独立集命中提升及无证据/语义边界。
+`--sizes` 另外测量 5k/20k 文档索引开销；性能数字与机器有关，需与召回收益一起阅读。

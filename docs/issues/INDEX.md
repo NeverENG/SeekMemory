@@ -28,7 +28,7 @@
 | [ISSUE-0021](ISSUE-0021.md) | Pending backlog can starve extraction and flush can drop sessions | P1 | closed | Backlog flush and session-safe draining. |
 | [ISSUE-0022](ISSUE-0022.md) | Consolidate writes, disclosure and retrieval boundary | P1 | closed | All production writes use commit; disclosure and lexical candidate boundary. |
 | [ISSUE-0023](ISSUE-0023.md) | Topic buffer, subject attribution and event time | P1 | closed | Typed DialogueTurn buffer, subject_id, event_at and TTL trigger. |
-| [ISSUE-0024](ISSUE-0024.md) | BM25 hybrid retrieval for Chinese memory recall | P1 | open | Add tokenizer, BM25 index and HybridRetriever behind RetrievalCandidate. |
+| [ISSUE-0024](ISSUE-0024.md) | BM25 hybrid retrieval for Chinese memory recall | P1 | open | 默认开启本地 BM25，显式关闭可回滚；验收与后续边界统一记录于 Issue。 |
 | [ISSUE-0025](ISSUE-0025.md) | v0.3.2 local WebUI, private recall, BM25 shadow and persona timeline | P1 | open | GitHub #6 tracking issue. |
 
 ## 关系图（读的顺序）

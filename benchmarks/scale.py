@@ -32,6 +32,7 @@ from store.cache import Cache  # noqa: E402
 from store.db import DB  # noqa: E402
 
 from benchmarks import simdata
+from benchmarks.retrieval_compare import Query, comparison
 from benchmarks.simdata import (  # noqa: E402
     gen_messages,
     to_art,
@@ -229,6 +230,8 @@ def main() -> None:
         "- 跨 scope 零泄漏",
     ]
 
+    lines += comparison(cache, graph, owner_pool,
+                        [Query(text, tuple(expected)) for text, expected in queries])
     out_dir = os.path.join(ROOT, "benchmarks", "results")
     os.makedirs(out_dir, exist_ok=True)
     out = os.path.join(out_dir, "scale.md")

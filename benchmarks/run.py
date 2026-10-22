@@ -14,6 +14,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from benchmarks.dataset import build, decayed_events  # noqa: E402
+from benchmarks.retrieval_compare import Query, comparison  # noqa: E402
 from core.artifact import content_of, make  # noqa: E402
 from core.graph import Graph  # noqa: E402
 from recall.assemble import build as assemble  # noqa: E402
@@ -227,6 +228,8 @@ def main() -> None:
     for q, h, n, dt, snip in rows:
         lines.append(f"| {q} | {h}/{n} | {dt} | {snip.replace('|', '/')} |")
 
+    lines += comparison(cache, graph, cache.active(),
+                        [Query(q.text, tuple(q.expect)) for q in queries])
     out_dir = os.path.join(ROOT, "benchmarks", "results")
     os.makedirs(out_dir, exist_ok=True)
     out = os.path.join(out_dir, "latest.md")

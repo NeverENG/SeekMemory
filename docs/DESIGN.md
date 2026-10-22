@@ -648,3 +648,19 @@ WebUI 的 TypeScript 源码保存在 `dashboard/`，发版 CI 构建 `pages/memo
 生命周期日志保存最近 500 条，1 MiB 轮转并保留一个备份；重启把未结束任务标记为 interrupted。
 界面不改变已有 scope 语义：shared/shadow 进入跨会话候选，private 按归属过滤；shadow 正文仍由组装层遮蔽。
 详情和限制见 [WebUI 使用说明](webui/README.md)、[管理接口](CONTRACT.md#webui-管理接口)。
+
+## 16. 可选 BM25 字面检索（ISSUE-0024）
+
+默认使用字符 Dice 种子、图激活与本地 BM25 词面信号；`bm25_enabled=false` 时恢复原图检索路径。
+字符 bigram 保留词频，不维护人工中文停词表；单字符保留自身 token，纯标点无词项。
+正文/标签分别计分，以 `s/(s+8)` 归一化后按 0.75/0.25 融合；配置权重默认 1.0。
+词面信号同时用于排序与原证据闸门，不改变可见性、披露和预算规则。
+
+索引从活跃缓存派生，长生命周期 HybridRetriever 按 Cache.version 失效重建；
+IDF 与平均长度按本次可见池计算。聊天与只读诊断共用检索器，关闭开关可恢复旧路径。
+无需新增模型、运行依赖、网络请求或数据库迁移。完整约定与有限样本效果见
+[ISSUE-0024](issues/ISSUE-0024.md)。
+
+零 bigram 重合的语义改写仍不在 BM25 能力内。现有 Retriever 接口保留，
+未来语义信号须独立校准，不填入 lexical；后续本地向量的约束记录在 ISSUE-0024，
+限定用户预装模型、运行时离线；本次 BM25 可独立运行。
