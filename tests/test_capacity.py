@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from app.contracts import DialogueTurn
-from core.capacity import (
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from app.contracts import DialogueTurn  # noqa: E402
+from core.capacity import (  # noqa: E402
     NORMAL,
     PRESSURED,
     PROTECTIVE,
@@ -16,11 +19,11 @@ from core.capacity import (
     CapacityGovernor,
     CapacitySnapshot,
 )
-from core.artifact import make
-from core.source import Source
-from perceive.buffer import Buffer
-from store.db import DB
-from webui.journal import Journal
+from core.artifact import make  # noqa: E402
+from core.source import Source  # noqa: E402
+from perceive.buffer import Buffer  # noqa: E402
+from store.db import DB  # noqa: E402
+from webui.journal import Journal  # noqa: E402
 
 
 class CapacityGovernorTest(unittest.TestCase):

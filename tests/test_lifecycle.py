@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 import unittest
 
-from core.artifact import make
-from core.source import Source
-from maintain.lifecycle import forget_expired
-from store.cache import Cache
-from store.db import DB
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from core.artifact import make  # noqa: E402
+from core.source import Source  # noqa: E402
+from maintain.lifecycle import forget_expired  # noqa: E402
+from store.cache import Cache  # noqa: E402
+from store.db import DB  # noqa: E402
 
 
 class LifecycleTest(unittest.TestCase):
