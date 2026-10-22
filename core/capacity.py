@@ -26,6 +26,7 @@ class CapacityThresholds:
     artifact_saturated_bytes: int = 256 * 1024 * 1024
     context_saturated_chars: int = 4_000
     trace_pressured_rows: int = 300
+    trace_pressured_age_seconds: float = 3 * 24 * 60 * 60
     trace_saturated_rows: int = 450
     trace_saturated_age_seconds: float = 7 * 24 * 60 * 60
     source_alert_bytes: int = 1024 * 1024 * 1024
@@ -94,7 +95,7 @@ class CapacityGovernor:
         trace_soft = (
             snapshot.trace_rows >= limits.trace_pressured_rows
             or snapshot.trace_oldest_age_seconds
-            >= limits.trace_saturated_age_seconds
+            >= limits.trace_pressured_age_seconds
         )
         trace_hard = (
             snapshot.trace_rows >= limits.trace_saturated_rows

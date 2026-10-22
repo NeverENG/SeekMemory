@@ -57,6 +57,13 @@ class CapacityGovernorTest(unittest.TestCase):
         self.assertIn("degrade_recall", decision.actions)
         self.assertIn("trim_trace", decision.actions)
 
+    def test_trace_age_has_a_soft_stage_before_trimming(self) -> None:
+        decision = self.governor.evaluate(
+            CapacitySnapshot(trace_oldest_age_seconds=4 * 24 * 60 * 60)
+        )
+        self.assertEqual(decision.state, PRESSURED)
+        self.assertNotIn("trim_trace", decision.actions)
+
     def test_protective_state_exposes_every_alert_action(self) -> None:
         decision = self.governor.evaluate(
             CapacitySnapshot(
