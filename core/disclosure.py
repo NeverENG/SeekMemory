@@ -54,6 +54,12 @@ def audience_overlap(art: Artifact, scene: RecallScene,
 
 
 def subject_fit(art: Artifact, scene: RecallScene) -> float:
+    shareable = str(art.header.shareable or "")
+    scope = str(art.header.scope or "")
+    if shareable == "public":
+        return 1.0
+    if scope == "shared" and shareable != "secret":
+        return 0.7
     subject = str(art.header.subject_id or "")
     if not subject:
         return 0.5

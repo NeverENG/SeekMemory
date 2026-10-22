@@ -19,7 +19,7 @@ try:  # 作为 astrbot 插件包的一部分导入
     from ..recall.drift import should_drift
     from ..recall.gate import pinned
     from ..recall.history import trajectory
-    from ..recall.intent import intent_of
+    from ..recall.intent import intent_of, is_profile_recall, is_topic_recall
     from ..recall.retriever import GraphRetriever, HybridRetriever
     from ..recall.scope import visible
     from ..recall.score import select
@@ -38,7 +38,7 @@ except ImportError:  # 作为顶层包导入（脚本 / 测试）
     from recall.drift import should_drift
     from recall.gate import pinned
     from recall.history import trajectory
-    from recall.intent import intent_of
+    from recall.intent import intent_of, is_profile_recall, is_topic_recall
     from recall.retriever import GraphRetriever, HybridRetriever
     from recall.scope import visible
     from recall.score import select
@@ -53,6 +53,32 @@ def subject_of(speaker: str, owner_umo: str) -> str:
     if not talker:
         return "owner"
     return "owner" if owner_id and talker == owner_id else talker
+
+
+def recent_context(pool: list, subject: str, *, profile: bool = False,
+                   limit: int = 2) -> list:
+    """Return recent visible memory for an explicit recall question."""
+    if not subject:
+        return []
+    levels = ("fact", "scene", "detail") if profile else ("scene", "detail", "fact")
+    rows = []
+    for art in pool:
+        try:
+            if art.header.family != "memory":
+                continue
+            if str(art.header.scope or "") not in ("shared", "private"):
+                continue
+            if str(art.payload.get("level") or "") not in levels:
+                continue
+            subject_id = str(art.header.subject_id or "")
+            said_by = str(art.header.said_by or "")
+            if subject_id not in (subject, "owner") and said_by != subject:
+                continue
+            rows.append((str(art.header.time.created or ""), str(art.header.id), art))
+        except Exception:
+            continue
+    rows.sort(reverse=True)
+    return [row[2] for row in rows[:max(0, limit)]]
 
 
 def build_block(
@@ -108,6 +134,7 @@ def build_block(
             "picked_ids": (),
             "pinned_ids": (),
             "disclosure": {},
+            "fallback": "",
         }
 
     designated = [a for a in pool if a.header.family == "designated"]
@@ -137,6 +164,16 @@ def build_block(
         )
 
     # 没有线索时也可能突然想起一件事——这不走 query 打分。
+    fallback = ""
+    if not picked:
+        fallback_subject = owner_id if subject == "owner" else subject
+        if is_profile_recall(text):
+            picked = recent_context(pool, fallback_subject, profile=True)
+            fallback = "recent_profile" if picked else ""
+        elif is_topic_recall(text):
+            picked = recent_context(pool, fallback_subject)
+            fallback = "recent_topic" if picked else ""
+
     if not picked and should_drift(text, seed=text):
         one = drift_best(pool, seed=text)
         if one is not None:
@@ -196,5 +233,6 @@ def build_block(
         "picked_ids": tuple(a.header.id for a in picked),
         "disclosure": disclosure_info,
         "pinned_ids": tuple(a.header.id for a in pinned_arts),
+        "fallback": fallback,
     }
     return block, info
