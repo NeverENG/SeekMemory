@@ -174,6 +174,27 @@ class Journal:
         except OSError:
             self.persistence_error = True
 
+    def trim(self, target: int = 400) -> int:
+        """Drop the oldest Trace rows while preserving the newest bounded sample."""
+        target = max(0, min(int(target), self.events.maxlen or 500))
+        removed = max(0, len(self.events) - target)
+        for _ in range(removed):
+            self.events.popleft()
+        if not removed:
+            return 0
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = self.path.with_suffix(self.path.suffix + ".tmp")
+            with temporary.open("w", encoding="utf-8") as stream:
+                for event in self.events:
+                    stream.write(json.dumps(event, ensure_ascii=False) + "\n")
+            temporary.replace(self.path)
+            self.path.with_suffix(".jsonl.1").unlink(missing_ok=True)
+            self.persistence_error = False
+        except OSError:
+            self.persistence_error = True
+        return removed
+
     @contextmanager
     def span(
         self, kind: str, stage: str, **context: Scalar

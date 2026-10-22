@@ -32,6 +32,7 @@
 | [ISSUE-0025](ISSUE-0025.md) | v0.3.2 local WebUI, private recall, BM25 shadow and persona timeline | P1 | open | GitHub #6 tracking issue. |
 | [ISSUE-0026](ISSUE-0026.md) | Recall feel fallback and shared disclosure | P1 | open | Explicit recall fallback plus same-session shared exposure. |
 | [ISSUE-0027](ISSUE-0027.md) | Public interface guide and contract tests | P2 | open | GitHub #13 contributor infrastructure. |
+| [ISSUE-0028](ISSUE-0028.md) | Capacity governance and Source-backed pending projection | P2 | in_progress | GitHub #12; Governor + extraction_state migration. |
 
 ## 关系图（读的顺序）
 

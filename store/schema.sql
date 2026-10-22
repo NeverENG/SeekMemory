@@ -110,3 +110,22 @@ CREATE TABLE IF NOT EXISTS artifact_evidence (
     PRIMARY KEY (entity, revision, source)
 );
 CREATE INDEX IF NOT EXISTS idx_artifact_evidence_entity ON artifact_evidence(entity, revision);
+
+-- Pending extraction is a projection over immutable Source plus this state table.
+-- Content is deliberately not duplicated here; queued rows are rebuilt by join.
+-- state: pending | retrying | deferred | extracted | dead.
+-- deferred rows wait for capacity headroom, dead rows exhausted max_attempts.
+CREATE TABLE IF NOT EXISTS extraction_state (
+    source_id       TEXT PRIMARY KEY,
+    turn_id         TEXT NOT NULL DEFAULT '',
+    session_id      TEXT NOT NULL,
+    topic_id        TEXT NOT NULL DEFAULT '',
+    state           TEXT NOT NULL DEFAULT 'pending',
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TEXT NOT NULL DEFAULT '',
+    last_error      TEXT NOT NULL DEFAULT '',
+    created_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_extraction_state_queue
+ON extraction_state(state, next_attempt_at, created_at, source_id);

@@ -92,4 +92,16 @@ The extractor returns `subject_kind`, `subject_id`, `event_at` and validity date
 - Live validation: group sources and group Artifacts are being produced. A matching query selected
   two live Artifacts and applied paraphrase/silence disclosure.
 - BM25 已接入，默认开启；实现及验收限制见 [ISSUE-0024](issues/ISSUE-0024.md)。
-- Not implemented yet: local vector retrieval, reflection wiring, RBAC, capacity governance and persona source policy.
+- Capacity governance is a pure `core/capacity.py` policy over Source, Pending,
+  Artifact, Context and Trace metrics. Pending is rebuilt by joining
+  `extraction_state` to immutable Source; it is not a second dialogue copy.
+  The governor selects a state and bounded scheduler actions, while Source and
+  Artifact history remain immutable/auditable.
+- Under `backpressure` admission closes: new turns still persist their Source row
+  but their extraction state is parked as `deferred`, and `release_deferred()`
+  promotes them back once the governor returns to `normal`. Failed extractions
+  back off and end in the terminal `dead` state instead of retrying forever.
+- Extraction batches rotate one topic per session. The scheduler keeps its own
+  bounded `webui/trace.py` ring for capacity samples, separate from the
+  business Journal event log.
+- Not implemented yet: local vector retrieval, reflection wiring, RBAC and persona source policy.

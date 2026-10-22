@@ -14,10 +14,12 @@ from pathlib import Path
 from typing import Any
 
 try:  # 作为 astrbot 插件包的一部分导入
+    from ..app.contracts import ExtractionState
     from ..core.artifact import Artifact, Header, Lineage, Strength, TimeSpan
     from ..core.source import Source
     from ..core.versioning import StateEvent, VersionError, assert_next_revision
 except ImportError:  # 作为顶层 store 包导入（脚本 / 测试）
+    from app.contracts import ExtractionState
     from core.artifact import Artifact, Header, Lineage, Strength, TimeSpan
     from core.source import Source
     from core.versioning import StateEvent, VersionError, assert_next_revision
@@ -45,6 +47,39 @@ _UPSERT = (
 def _now() -> str:
     """当前本地时间，精确到秒。"""
     return datetime.datetime.now().isoformat(timespec="seconds")
+
+
+EXTRACTION_MAX_ATTEMPTS = 5
+_EXTRACTION_BACKOFF_BASE_SECONDS = 30
+_EXTRACTION_BACKOFF_CAP_SECONDS = 3600
+
+
+def _backoff_at(now: str, attempt: int) -> str:
+    """Return the next retry instant for a bounded exponential backoff."""
+    base = _parse_time(now) or datetime.datetime.now()
+    delay = min(
+        _EXTRACTION_BACKOFF_CAP_SECONDS,
+        _EXTRACTION_BACKOFF_BASE_SECONDS * 2 ** max(0, attempt - 1),
+    )
+    return (base + datetime.timedelta(seconds=delay)).isoformat(timespec="seconds")
+
+
+def _parse_time(value: str) -> datetime.datetime | None:
+    """Parse an ISO timestamp without making malformed legacy rows fatal."""
+    try:
+        return datetime.datetime.fromisoformat(str(value or "").strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _age_seconds(value: datetime.datetime | None, now: datetime.datetime) -> float:
+    """Return a non-negative age even when legacy times use different tz awareness."""
+    if value is None:
+        return 0.0
+    try:
+        return max(0.0, now.timestamp() - value.timestamp())
+    except (OSError, OverflowError, ValueError):
+        return 0.0
 
 
 def _dump(value: Any) -> str:
@@ -99,10 +134,18 @@ class DB:
 
     def _migrate(self) -> None:
         cols = {r[1] for r in self.conn.execute("PRAGMA table_info(nodes)")}
+        state_cols = {
+            r[1] for r in self.conn.execute("PRAGMA table_info(extraction_state)")
+        }
         with self.conn:
             if "subject_id" not in cols:
                 self.conn.execute(
                     "ALTER TABLE nodes ADD COLUMN subject_id TEXT NOT NULL DEFAULT ''"
+                )
+            if state_cols and "next_attempt_at" not in state_cols:
+                self.conn.execute(
+                    "ALTER TABLE extraction_state ADD COLUMN "
+                    "next_attempt_at TEXT NOT NULL DEFAULT ''"
                 )
             self.conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_nodes_subject ON nodes(subject_id)"
@@ -335,6 +378,266 @@ class DB:
                 )
                 written += int(cur.rowcount or 0)
         return written
+
+    def enqueue_extraction(
+        self,
+        source: Source,
+        topic_id: str,
+        created_at: str = "",
+        *,
+        deferred: bool = False,
+    ) -> bool:
+        """Atomically append a Source and its rebuildable extraction state.
+
+        ``deferred`` parks the turn behind capacity admission; the Source row is
+        still immutable truth and the row can be released later.
+        """
+        source.validate()
+        flags = {
+            "turn_id": source.turn_id,
+            "speaker_id": source.speaker_id,
+            "reply_to": source.reply_to,
+            "metadata": source.metadata,
+        }
+        at = source.at or created_at or _now()
+        state = "deferred" if deferred else "pending"
+        with self.conn:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO blobs(hash, content, at) VALUES(?, ?, ?)",
+                (source.content_hash, source.text, at),
+            )
+            self.conn.execute(
+                "INSERT OR IGNORE INTO sources(id, umo, at, role, blob, flags) "
+                "VALUES(?, ?, ?, ?, ?, ?)",
+                (
+                    source.id,
+                    source.session_id,
+                    at,
+                    source.role,
+                    source.content_hash,
+                    _dump(flags),
+                ),
+            )
+            cur = self.conn.execute(
+                "INSERT OR IGNORE INTO extraction_state("
+                "source_id, turn_id, session_id, topic_id, state, attempts, "
+                "next_attempt_at, last_error, created_at) "
+                "VALUES(?, ?, ?, ?, ?, 0, '', '', ?)",
+                (source.id, source.turn_id, source.session_id, topic_id, state, at),
+            )
+        return bool(cur.rowcount)
+
+    def release_deferred(self, limit: int = 50) -> int:
+        """Promote parked turns back into the queue once capacity has headroom."""
+        limit = max(0, int(limit))
+        if not limit:
+            return 0
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE extraction_state SET state = 'pending', next_attempt_at = '' "
+                "WHERE source_id IN ("
+                "SELECT source_id FROM extraction_state WHERE state = 'deferred' "
+                "ORDER BY created_at, source_id LIMIT ?)",
+                (limit,),
+            )
+        return int(cur.rowcount or 0)
+
+    def put_extraction_state(self, state: ExtractionState) -> bool:
+        """Insert one queue state without duplicating Source content."""
+        if not state.source_id or not state.session_id:
+            raise ValueError("extraction state missing source or session")
+        if state.state not in {"pending", "retrying", "deferred", "extracted"}:
+            raise ValueError("unknown extraction state")
+        source = self.conn.execute(
+            "SELECT 1 FROM sources WHERE id = ?", (state.source_id,)
+        ).fetchone()
+        if source is None:
+            raise ValueError("extraction source missing")
+        with self.conn:
+            cur = self.conn.execute(
+                "INSERT OR IGNORE INTO extraction_state("
+                "source_id, turn_id, session_id, topic_id, state, attempts, "
+                "next_attempt_at, last_error, created_at) "
+                "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    state.source_id,
+                    state.turn_id,
+                    state.session_id,
+                    state.topic_id,
+                    state.state,
+                    max(0, int(state.attempts)),
+                    state.next_attempt_at,
+                    state.last_error[:200],
+                    state.created_at or _now(),
+                ),
+            )
+        return bool(cur.rowcount)
+
+    def pending_extractions(self, now: str = "") -> list[dict[str, Any]]:
+        """Rebuild queued turns by joining extraction state with immutable Source.
+
+        Args:
+            now: 可选 ISO 时间；给出时跳过仍在重试退避窗口内的行。
+        """
+        rows = self.conn.execute(
+            "SELECT e.source_id, e.turn_id, e.session_id, e.topic_id, e.state, "
+            "e.attempts, e.next_attempt_at, e.last_error, e.created_at, "
+            "s.role, s.at, s.flags, "
+            "b.content AS text FROM extraction_state e "
+            "JOIN sources s ON s.id = e.source_id "
+            "JOIN blobs b ON b.hash = s.blob "
+            "WHERE e.state IN ('pending', 'retrying') "
+            "AND (? = '' OR e.next_attempt_at = '' OR e.next_attempt_at <= ?) "
+            "ORDER BY e.created_at, e.source_id",
+            (str(now or ""), str(now or "")),
+        ).fetchall()
+        out = []
+        for row in rows:
+            flags = _loads(row["flags"])
+            out.append(
+                {
+                    "source_id": str(row["source_id"]),
+                    "turn_id": str(row["turn_id"]),
+                    "session_id": str(row["session_id"]),
+                    "speaker_id": str(flags.get("speaker_id") or ""),
+                    "role": str(row["role"]),
+                    "text": str(row["text"]),
+                    "at": str(row["at"]),
+                    "topic_id": str(row["topic_id"]),
+                    "state": str(row["state"]),
+                    "attempts": int(row["attempts"]),
+                    "next_attempt_at": str(row["next_attempt_at"]),
+                    "last_error": str(row["last_error"]),
+                    "created_at": str(row["created_at"]),
+                }
+            )
+        return out
+
+    def queue_counts(self) -> dict[str, int]:
+        """Count extraction rows per lifecycle state without reading text."""
+        counts = {
+            "pending": 0,
+            "retrying": 0,
+            "deferred": 0,
+            "extracted": 0,
+            "dead": 0,
+        }
+        for row in self.conn.execute(
+            "SELECT state, COUNT(*) AS rows FROM extraction_state GROUP BY state"
+        ).fetchall():
+            counts[str(row["state"])] = int(row["rows"])
+        return counts
+
+    def mark_extraction_succeeded(self, source_ids: list[str]) -> int:
+        """Mark projection rows complete while retaining their Source and audit row."""
+        ids = [str(value) for value in source_ids if value]
+        if not ids:
+            return 0
+        marks = ",".join("?" for _ in ids)
+        with self.conn:
+            cur = self.conn.execute(
+                f"UPDATE extraction_state SET state = 'extracted', last_error = '', "
+                f"next_attempt_at = '' "
+                f"WHERE source_id IN ({marks}) AND state != 'extracted'",
+                ids,
+            )
+        return int(cur.rowcount or 0)
+
+    def mark_extraction_failed(
+        self,
+        source_ids: list[str],
+        error_type: str,
+        *,
+        max_attempts: int = EXTRACTION_MAX_ATTEMPTS,
+        now: str = "",
+    ) -> int:
+        """Retry with bounded exponential backoff; park the row after max_attempts.
+
+        The terminal ``dead`` state keeps the immutable Source and the last error
+        type, so an operator can inspect or requeue it without content loss.
+        """
+        ids = [str(value) for value in source_ids if value]
+        if not ids:
+            return 0
+        marks = ",".join("?" for _ in ids)
+        limit = max(1, int(max_attempts))
+        current = now or _now()
+        changed = 0
+        with self.conn:
+            rows = self.conn.execute(
+                f"SELECT source_id, attempts FROM extraction_state "
+                f"WHERE source_id IN ({marks}) AND state != 'extracted'",
+                ids,
+            ).fetchall()
+            for row in rows:
+                attempts = int(row["attempts"]) + 1
+                terminal = attempts >= limit
+                cur = self.conn.execute(
+                    "UPDATE extraction_state SET state = ?, attempts = ?, "
+                    "next_attempt_at = ?, last_error = ? WHERE source_id = ?",
+                    (
+                        "dead" if terminal else "retrying",
+                        attempts,
+                        "" if terminal else _backoff_at(current, attempts),
+                        str(error_type or "Unknown")[:200],
+                        str(row["source_id"]),
+                    ),
+                )
+                changed += int(cur.rowcount or 0)
+        return changed
+
+    def ready_extraction_ids(self, now: str = "") -> set[str]:
+        """Return queued source ids whose retry backoff has already elapsed."""
+        current = now or _now()
+        rows = self.conn.execute(
+            "SELECT source_id FROM extraction_state "
+            "WHERE state IN ('pending', 'retrying') "
+            "AND (next_attempt_at = '' OR next_attempt_at <= ?)",
+            (current,),
+        ).fetchall()
+        return {str(row["source_id"]) for row in rows}
+
+    def capacity_usage(self, now: str = "") -> dict[str, int | float]:
+        """Return non-sensitive usage counters for the pure CapacityGovernor."""
+        source = self.conn.execute(
+            "SELECT COUNT(*) AS rows, "
+            "COALESCE(SUM(LENGTH(CAST(b.content AS BLOB))), 0) AS bytes "
+            "FROM sources s JOIN blobs b ON b.hash = s.blob"
+        ).fetchone()
+        active = self.conn.execute(
+            "SELECT COUNT(*) AS rows, "
+            "COALESCE(SUM(LENGTH(CAST(b.content AS BLOB))), 0) AS bytes "
+            "FROM nodes n JOIN blobs b ON b.hash = n.blob "
+            "WHERE n.state = 'active'"
+        ).fetchone()
+        pending = self.conn.execute(
+            "SELECT COUNT(*) AS rows, MIN(created_at) AS oldest "
+            "FROM extraction_state WHERE state IN ('pending', 'retrying')"
+        ).fetchone()
+        counts = self.queue_counts()
+        current = _parse_time(now) or datetime.datetime.now()
+        oldest = _parse_time(str(pending["oldest"] or ""))
+        pending_age = _age_seconds(oldest, current)
+        expired = 0
+        for row in self.conn.execute(
+            "SELECT time FROM nodes WHERE state = 'active'"
+        ).fetchall():
+            span = _loads(row["time"])
+            deadline = span.get("expires") or span.get("valid_to")
+            parsed = _parse_time(str(deadline or ""))
+            if parsed is not None and parsed.date() < current.date():
+                expired += 1
+        return {
+            "source_rows": int(source["rows"] or 0),
+            "source_bytes": int(source["bytes"] or 0),
+            "pending_rows": int(pending["rows"] or 0),
+            "pending_oldest_age_seconds": pending_age,
+            "deferred_rows": int(counts.get("deferred", 0)),
+            "dead_rows": int(counts.get("dead", 0)),
+            "artifact_count": int(active["rows"] or 0),
+            "artifact_bytes": int(active["bytes"] or 0),
+            "expired_artifacts": expired,
+        }
 
     def append_state_event(self, event: StateEvent) -> None:
         event.validate()

@@ -45,6 +45,22 @@ commit writes the new head, append-only version, evidence, ledger and optional s
 
 State events and history support reinforcement and audit. Production revisions should commit their state event together with the Artifact through ArtifactStore.commit.
 
+### ExtractionStore
+
+    def enqueue_extraction(source: Source, topic_id: str, created_at="", *, deferred=False) -> bool
+    def put_extraction_state(state: ExtractionState) -> bool
+    def pending_extractions(now="") -> list[dict]
+    def queue_counts() -> dict[str, int]
+    def release_deferred(limit=50) -> int
+    def ready_extraction_ids(now="") -> set[str]
+    def mark_extraction_succeeded(source_ids: list[str]) -> int
+    def mark_extraction_failed(source_ids: list[str], error_type: str, *, max_attempts=5, now="") -> int
+
+The pending queue is a projection. Source and extraction_state are inserted
+atomically, content is read back from immutable Source, and completion never
+deletes either row. Deferred rows wait for capacity headroom, and retries honor
+`next_attempt_at` until they reach the terminal `dead` state.
+
 ## Shared DTOs in app/contracts.py
 
 - DialogueTurn: one buffered turn; session_id, speaker_id, role and text are required.
