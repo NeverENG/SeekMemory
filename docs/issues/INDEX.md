@@ -30,6 +30,7 @@
 | [ISSUE-0023](ISSUE-0023.md) | Topic buffer, subject attribution and event time | P1 | closed | Typed DialogueTurn buffer, subject_id, event_at and TTL trigger. |
 | [ISSUE-0024](ISSUE-0024.md) | BM25 hybrid retrieval for Chinese memory recall | P1 | open | 默认开启本地 BM25，显式关闭可回滚；验收与后续边界统一记录于 Issue。 |
 | [ISSUE-0025](ISSUE-0025.md) | v0.3.2 local WebUI, private recall, BM25 shadow and persona timeline | P1 | open | GitHub #6 tracking issue. |
+| [ISSUE-0026](ISSUE-0026.md) | Recall feel fallback and shared disclosure | P1 | open | Explicit recall fallback plus same-session shared exposure. |
 
 ## 关系图（读的顺序）
 

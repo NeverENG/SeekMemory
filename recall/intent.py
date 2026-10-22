@@ -26,11 +26,29 @@ OPERATE = re.compile(
 )
 RECALL = re.compile(
     r"(还记得|记不记得|上次|上回|之前|以前|那天|当时|我说过|我提过|我跟你说过|"
-    r"我叫什么|我的名字|我是干什么的|我是哪里人|你最了解我|你觉得我这个人)"
+    r"我叫什么|我的名字|我是干什么的|我是哪里人|你最了解我|你觉得我这个人|群聊里|群里.*聊|聊了啥|聊过什么|说过什么|基础信息|你了解我|知道我是谁)"
 )
 MOOD = re.compile(
     r"(累|难过|崩溃|烦|焦虑|压力|委屈|想哭|不开心|心情|睡不好|失眠|难受|撑不住)"
 )
+
+
+TOPIC_RECALL = re.compile(
+    r"(记得我们|我们.*聊|聊了啥|聊过什么|说过什么|群聊里.*聊|群里的.*聊|之前.*聊)"
+)
+PROFILE_RECALL = re.compile(
+    r"(基础信息|我的信息|我是谁|我的名字|我是做什么的|我是哪里人|你了解我|知道我是谁)"
+)
+
+
+def is_topic_recall(text: str) -> bool:
+    """是否是明确的聊天回忆请求。"""
+    return bool(TOPIC_RECALL.search(str(text or "")))
+
+
+def is_profile_recall(text: str) -> bool:
+    """是否在询问个人基础信息。"""
+    return bool(PROFILE_RECALL.search(str(text or "")))
 
 
 def intent_of(text: str) -> str:
@@ -40,7 +58,7 @@ def intent_of(text: str) -> str:
         return "strict"
     if CLOCK.search(line) or GREET.match(line):
         return "none"
-    if RECALL.search(line):
+    if RECALL.search(line) or PROFILE_RECALL.search(line):
         return "loose"
     if MOOD.search(line):
         return "loose"
