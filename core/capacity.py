@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, fields, replace
+from typing import Any, Mapping
 
 NORMAL = "normal"
 PRESSURED = "pressured"
 SATURATED = "saturated"
 PROTECTIVE = "protective"
+
+ENV_PREFIX = "SEEKMEMORY_CAPACITY_"
 
 
 @dataclass(frozen=True)
@@ -30,6 +34,52 @@ class CapacityThresholds:
     trace_saturated_rows: int = 450
     trace_saturated_age_seconds: float = 7 * 24 * 60 * 60
     source_alert_bytes: int = 1024 * 1024 * 1024
+    defer_limit: int = 400
+    release_batch: int = 50
+    extraction_max_attempts: int = 5
+
+
+def _coerce(default: Any, raw: Any) -> Any:
+    """Coerce one raw override to the declared field type."""
+    if isinstance(default, bool):
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(raw)
+    if isinstance(default, float):
+        return float(raw)
+    if isinstance(default, int):
+        return int(float(raw))
+    return raw
+
+
+def load_thresholds(
+    values: Mapping[str, Any] | None = None,
+    *,
+    env_prefix: str = ENV_PREFIX,
+) -> CapacityThresholds:
+    """Build thresholds from defaults, environment variables and an override map.
+
+    Environment keys use ``SEEKMEMORY_CAPACITY_<FIELD_NAME>``; mapping keys use
+    the plain field name. Invalid overrides keep their default instead of
+    failing plugin start-up.
+    """
+    base = CapacityThresholds()
+    names = {field.name for field in fields(CapacityThresholds)}
+    raw: dict[str, Any] = {}
+    for name in names:
+        key = f"{env_prefix}{name.upper()}"
+        if key in os.environ:
+            raw[name] = os.environ[key]
+    for key, value in (values or {}).items():
+        if str(key) in names:
+            raw[str(key)] = value
+    updates = {}
+    for name, value in raw.items():
+        try:
+            updates[name] = _coerce(getattr(base, name), value)
+        except (TypeError, ValueError):
+            continue
+    return replace(base, **updates) if updates else base
 
 
 @dataclass(frozen=True)
@@ -40,6 +90,7 @@ class CapacitySnapshot:
     source_bytes: int = 0
     pending_rows: int = 0
     pending_oldest_age_seconds: float = 0.0
+    deferred_rows: int = 0
     artifact_count: int = 0
     artifact_bytes: int = 0
     expired_artifacts: int = 0
@@ -55,6 +106,7 @@ class CapacityDecision:
     state: str
     actions: tuple[str, ...]
     reasons: tuple[str, ...] = ()
+    pressure: float = 0.0
 
 
 class CapacityGovernor:
@@ -142,4 +194,14 @@ class CapacityGovernor:
             actions.append("trim_trace")
         if state == PROTECTIVE:
             actions.append("alert")
-        return CapacityDecision(state, tuple(actions), tuple(reasons))
+
+        pressure = max(
+            snapshot.pending_rows / max(1, limits.pending_saturated_rows),
+            snapshot.artifact_count / max(1, limits.artifact_saturated_count),
+            snapshot.trace_rows / max(1, limits.trace_saturated_rows),
+            snapshot.context_chars_per_turn / max(1, limits.context_saturated_chars),
+            snapshot.source_bytes / max(1, limits.source_alert_bytes),
+        )
+        return CapacityDecision(
+            state, tuple(actions), tuple(reasons), round(min(1.0, pressure), 3)
+        )

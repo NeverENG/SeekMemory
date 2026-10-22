@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import json
 from functools import partial
 from pathlib import Path
 
@@ -19,7 +20,7 @@ from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 
 from .app.checkpoint import CheckpointManager
 from .app.contracts import DialogueTurn
-from .app.flush_policy import decide_flush
+from .app.flush_policy import decide_flush, select_topic_batches
 from .core.capacity import (
     NORMAL,
     PROTECTIVE,
@@ -28,6 +29,7 @@ from .core.capacity import (
     CapacityGovernor,
     CapacitySnapshot,
     CapacityThresholds,
+    load_thresholds,
 )
 from .core.graph import Graph
 from .core.source import Source, make_source_id
@@ -44,6 +46,7 @@ from .store.db import DB
 from .webui.jobs import Jobs
 from .webui.journal import Journal
 from .webui.routes import WebRoutes
+from .webui.trace import Trace
 
 
 class Main(star.Star):
@@ -68,18 +71,16 @@ class Main(star.Star):
             else Path(get_astrbot_plugin_data_path()) / "seekmemory" / "memory.db"
         )
         self.journal = Journal(self.data_path.parent / "lifecycle.jsonl")
+        self.trace = Trace()
         self.jobs = Jobs(self.journal)
         artifact_limit = max(1, int(self._c("max_episodes", 500)))
-        self.capacity = CapacityGovernor(
-            CapacityThresholds(
-                artifact_pressured_count=max(1, int(artifact_limit * 0.8)),
-                artifact_saturated_count=artifact_limit,
-            )
-        )
+        self.capacity = CapacityGovernor(self._thresholds(artifact_limit))
         self._capacity_state = NORMAL
         self._capacity_action_mark = ""
         self._degrade_recall = False
         self._last_context_chars = 0
+        self._backpressure = False
+        self._deferred_rows = 0
         self._init_engine()
         self.web = WebRoutes(self)
         self.web.register()
@@ -93,6 +94,30 @@ class Main(star.Star):
             return type(default)(v)
         except Exception:
             return default
+
+    def _threshold_overrides(self) -> dict:
+        """Read ``capacity_thresholds`` as a dict or a JSON object string."""
+        raw = self.cfg.get("capacity_thresholds", "")
+        if isinstance(raw, dict):
+            return raw
+        try:
+            data = json.loads(str(raw or "").strip() or "{}")
+        except (TypeError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _thresholds(self, artifact_limit: int) -> CapacityThresholds:
+        """Build capacity limits from defaults, config overrides and env keys."""
+        values = dict(self._threshold_overrides())
+        values.setdefault("artifact_pressured_count", max(1, int(artifact_limit * 0.8)))
+        values.setdefault("artifact_saturated_count", max(1, artifact_limit))
+        return load_thresholds(values)
+
+    def _admit_deferred(self) -> bool:
+        """Park new extraction work while capacity admission is closed."""
+        if not self._backpressure:
+            return False
+        return self._deferred_rows < self.capacity.thresholds.defer_limit
 
     @property
     def owner_umo(self) -> str:
@@ -271,6 +296,7 @@ class Main(star.Star):
                 now,
                 source=source,
                 turn_id=turn_id,
+                deferred=self._admit_deferred(),
             )
             event.set_extra("_seekmemory_turn_id", turn_id)
             event.set_extra("_seekmemory_source_id", source_id)
@@ -409,15 +435,8 @@ class Main(star.Star):
     def _capacity_snapshot(self) -> CapacitySnapshot:
         """Collect bounded usage metrics without exposing row content."""
         usage = self.db.capacity_usage() if self.db is not None else {}
-        trace_rows = len(self.journal.events)
-        trace_age = 0.0
-        if self.journal.events:
-            try:
-                oldest = datetime.datetime.fromisoformat(str(self.journal.events[0]["at"]))
-                now = datetime.datetime.now(oldest.tzinfo)
-                trace_age = max(0.0, now.timestamp() - oldest.timestamp())
-            except (TypeError, ValueError):
-                trace_age = 0.0
+        trace_rows = self.trace.count
+        trace_age = self.trace.oldest_age_seconds()
         return CapacitySnapshot(
             source_rows=int(usage.get("source_rows", 0)),
             source_bytes=int(usage.get("source_bytes", 0)),
@@ -425,6 +444,7 @@ class Main(star.Star):
             pending_oldest_age_seconds=float(
                 usage.get("pending_oldest_age_seconds", 0.0)
             ),
+            deferred_rows=int(usage.get("deferred_rows", 0)),
             artifact_count=int(usage.get("artifact_count", 0)),
             artifact_bytes=int(usage.get("artifact_bytes", 0)),
             expired_artifacts=int(usage.get("expired_artifacts", 0)),
@@ -438,6 +458,8 @@ class Main(star.Star):
         snapshot = self._capacity_snapshot()
         decision = self.capacity.evaluate(snapshot)
         self._degrade_recall = "degrade_recall" in decision.actions
+        self._backpressure = "backpressure" in decision.actions
+        self._deferred_rows = snapshot.deferred_rows
         if decision.state != self._capacity_state:
             self.journal.record(
                 "capacity",
@@ -446,30 +468,55 @@ class Main(star.Star):
                 stage="governor",
                 context={
                     "pending": snapshot.pending_rows,
+                    "deferred": snapshot.deferred_rows,
                     "artifacts": snapshot.artifact_count,
                     "actions": len(decision.actions),
+                    "pressure": decision.pressure,
                 },
             )
             if decision.state == PROTECTIVE:
                 logger.warning("[seekmemory] 容量进入保护状态")
+            self.trace.record(
+                "capacity",
+                decision.state,
+                {
+                    "pending": snapshot.pending_rows,
+                    "deferred": snapshot.deferred_rows,
+                    "pressure": decision.pressure,
+                },
+            )
             self._capacity_state = decision.state
         return decision
 
     def _apply_capacity_maintenance(self, decision: CapacityDecision) -> None:
-        """Execute non-queue lifecycle actions at most once per hour."""
+        """Release parked writes on headroom; run lifecycle actions hourly."""
+        if decision.state == NORMAL and self._deferred_rows and self.db is not None:
+            released = self.db.release_deferred(self.capacity.thresholds.release_batch)
+            if released:
+                self._deferred_rows = max(0, self._deferred_rows - released)
+                if self.buffer is not None:
+                    self.buffer.reload()
+                self.journal.record(
+                    "capacity",
+                    "info",
+                    "积压写入已重新入队",
+                    stage="admission",
+                    context={"released": released},
+                )
+        actions = set(decision.actions)
         actionable = {
             "compact_artifacts",
             "forget_expired",
             "trim_trace",
             "alert",
         }
-        if not actionable.intersection(decision.actions):
+        if not actionable.intersection(actions):
             return
         mark = datetime.datetime.now().strftime("%Y%m%d%H")
         if mark == self._capacity_action_mark:
             return
         self._capacity_action_mark = mark
-        if "compact_artifacts" in decision.actions and self.db and self.cache:
+        if "compact_artifacts" in actions and self.db and self.cache:
             from .maintain.merge import merge_similar
 
             with self.journal.span("capacity", "compact_artifacts") as metrics:
@@ -479,15 +526,17 @@ class Main(star.Star):
                     threshold=0.6,
                     limit=50,
                 )
-        if "forget_expired" in decision.actions and self.db and self.cache:
+        if "forget_expired" in actions and self.db and self.cache:
             from .maintain.lifecycle import forget_expired
 
             with self.journal.span("capacity", "forget_expired") as metrics:
                 metrics["forgotten"] = forget_expired(self.db, self.cache)
-        if "trim_trace" in decision.actions:
+        if "trim_trace" in actions:
             with self.journal.span("capacity", "trim_trace") as metrics:
-                metrics["removed"] = self.journal.trim(400)
-        if "alert" in decision.actions:
+                metrics["removed"] = self.trace.trim(
+                    self.capacity.thresholds.trace_pressured_rows
+                )
+        if "alert" in actions:
             self.journal.record(
                 "capacity",
                 "warning",
@@ -495,6 +544,11 @@ class Main(star.Star):
                 stage="governor",
                 context={"state": decision.state},
             )
+        self.trace.record(
+            "maintenance",
+            decision.state,
+            {"actions": len(actions), "deferred": self._deferred_rows},
+        )
 
     def _batch_cap(self, decision: CapacityDecision) -> int:
         cap = max(1, int(self._c("max_sessions_per_flush", 6)))
@@ -547,16 +601,10 @@ class Main(star.Star):
     def _split_topics(
         self, items: list[DialogueTurn], cap: int | None = None
     ) -> list[tuple[str, str, list[DialogueTurn]]]:
-        """按上游话题归组与批次上限选择待抽取消息。"""
-        buckets: dict[tuple[str, str], list[DialogueTurn]] = {}
-        for turn in items:
-            key = (str(turn.session_id or ""), str(turn.topic_id or ""))
-            buckets.setdefault(key, []).append(turn)
-        cap = int(cap or self._c("max_sessions_per_flush", 6))
-        ordered = sorted(buckets.items(), key=lambda kv: len(kv[1]), reverse=True)
-        return [
-            (session, topic, rows) for (session, topic), rows in ordered[: max(1, cap)]
-        ]
+        """按会话轮询选择话题，保证长会话不会长期独占抽取批次。"""
+        return select_topic_batches(
+            items, int(cap or self._c("max_sessions_per_flush", 6))
+        )
 
     async def _flush(self, reason: str) -> None:
         """按上游会话与结果契约抽取，处理成功前保留缓冲。
@@ -580,9 +628,17 @@ class Main(star.Star):
             topics = self._split_topics(
                 list(self.buffer.items), cap=self._batch_cap(capacity)
             )
+            ready_ids = self.db.ready_extraction_ids()
             ready = []
             failure: Exception | None = None
             for umo, topic_id, part in topics:
+                part = [
+                    turn
+                    for turn in part
+                    if not turn.source_id or turn.source_id in ready_ids
+                ]
+                if not part:
+                    continue
                 try:
                     with self.journal.span(
                         "extract", "provider.resolve", session=umo, topic=topic_id
@@ -590,7 +646,11 @@ class Main(star.Star):
                         prov = await self.context.get_using_provider_async(umo or None)
                 except Exception as exc:
                     if self.buffer is not None:
-                        self.buffer.mark_failed(part, type(exc).__name__)
+                        self.buffer.mark_failed(
+                            part,
+                            type(exc).__name__,
+                            max_attempts=self.capacity.thresholds.extraction_max_attempts,
+                        )
                     failure = failure or exc
                     continue
                 if not prov:
@@ -636,7 +696,11 @@ class Main(star.Star):
                         if outcome.model_failed:
                             raise RuntimeError("模型抽取失败，保留待处理消息")
                 except Exception as exc:
-                    self.buffer.mark_failed(part, type(exc).__name__)
+                    self.buffer.mark_failed(
+                        part,
+                        type(exc).__name__,
+                        max_attempts=self.capacity.thresholds.extraction_max_attempts,
+                    )
                     failure = failure or exc
                     continue
                 # 成功后才推进投影状态；取消或模型失败不丢 Source。

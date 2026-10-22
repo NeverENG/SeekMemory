@@ -22,6 +22,7 @@ class ExtractionState:
     topic_id: str = ""
     state: str = "pending"
     attempts: int = 0
+    next_attempt_at: str = ""
     last_error: str = ""
     created_at: str = ""
 

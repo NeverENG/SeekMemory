@@ -475,6 +475,7 @@ class ExtractionState:
     topic_id: str = ""
     state: str = "pending"
     attempts: int = 0
+    next_attempt_at: str = ""
     last_error: str = ""
     created_at: str = ""
 
@@ -483,11 +484,20 @@ class CapacityGovernor:
 ```
 
 `extraction_state` contains queue metadata only; dialogue content remains in
-immutable Source. `pending_extractions()` joins both tables to rebuild the
-projection in creation order. Success changes state to `extracted`; failure uses
-`retrying` and increments `attempts`; neither path deletes Source.
+immutable Source. `pending_extractions(now="")` joins both tables to rebuild the
+projection in creation order; passing `now` skips rows still inside their retry
+backoff. States are `pending`, `retrying`, `deferred`, `extracted` and `dead`.
+Success moves to `extracted`; failure increments `attempts`, sets
+`next_attempt_at` with bounded exponential backoff (30s doubling, capped at 1h)
+and moves to `dead` after `extraction_max_attempts`; neither path deletes Source.
 
 Capacity states are `normal`, `pressured`, `saturated` and `protective`.
 Actions are `schedule_extraction`, `raise_batch_size`, `backpressure`,
 `compact_artifacts`, `forget_expired`, `degrade_recall`, `trim_trace` and
-`alert`. Source deletion is never a capacity action.
+`alert`. `CapacityDecision.pressure` is the 0..1 ratio to the hardest limit.
+`backpressure` closes ingestion admission: `Buffer.add(deferred=True)` writes
+Source plus a `deferred` extraction state, and `DB.release_deferred()` promotes
+parked rows back once the governor returns to `normal`. Extraction batches are
+selected round-robin across sessions. Thresholds accept `capacity_thresholds`
+(a JSON object in plugin config) or `SEEKMEMORY_CAPACITY_<FIELD>` environment
+overrides. Source deletion is never a capacity action.

@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -18,6 +19,7 @@ from core.capacity import (  # noqa: E402
     SATURATED,
     CapacityGovernor,
     CapacitySnapshot,
+    load_thresholds,
 )
 from core.artifact import make  # noqa: E402
 from core.source import Source  # noqa: E402
@@ -63,6 +65,26 @@ class CapacityGovernorTest(unittest.TestCase):
         )
         self.assertEqual(decision.state, PRESSURED)
         self.assertNotIn("trim_trace", decision.actions)
+
+    def test_pressure_reports_a_numeric_level(self) -> None:
+        calm = self.governor.evaluate(CapacitySnapshot(pending_rows=1))
+        self.assertLess(calm.pressure, 0.1)
+        full = self.governor.evaluate(CapacitySnapshot(pending_rows=200))
+        self.assertGreaterEqual(full.pressure, 0.99)
+        self.assertLessEqual(full.pressure, 1.0)
+
+    def test_thresholds_accept_mapping_and_env_overrides(self) -> None:
+        limits = load_thresholds({"pending_saturated_rows": 5, "unknown": "x"})
+        self.assertEqual(limits.pending_saturated_rows, 5)
+        self.assertEqual(limits.pending_pressured_rows, 80)
+        with patch.dict(
+            os.environ, {"SEEKMEMORY_CAPACITY_PENDING_SATURATED_ROWS": "7"}
+        ):
+            self.assertEqual(load_thresholds().pending_saturated_rows, 7)
+        self.assertEqual(
+            load_thresholds({"pending_saturated_rows": "bad"}).pending_saturated_rows,
+            200,
+        )
 
     def test_protective_state_exposes_every_alert_action(self) -> None:
         decision = self.governor.evaluate(
@@ -172,6 +194,34 @@ class ExtractionProjectionTest(unittest.TestCase):
             [("Travel itinerary", 1, "retrying")],
         )
         self.assertEqual(buffer.items, [turn])
+
+    def test_failures_back_off_then_reach_terminal_state(self) -> None:
+        buffer = Buffer(db=self.db)
+        turn = buffer.add("umo:a", "Travel itinerary", "alice")
+        self.assertEqual(buffer.mark_failed([turn], "TimeoutError", max_attempts=3), 1)
+        row = self.db.pending_extractions()[0]
+        self.assertEqual(row["state"], "retrying")
+        self.assertEqual(row["attempts"], 1)
+        self.assertGreater(row["next_attempt_at"], row["created_at"])
+        self.assertEqual(self.db.ready_extraction_ids(row["created_at"]), set())
+        self.assertEqual(len(self.db.pending_extractions(row["next_attempt_at"])), 1)
+        buffer.mark_failed([turn], "TimeoutError", max_attempts=3)
+        buffer.mark_failed([turn], "TimeoutError", max_attempts=3)
+        self.assertEqual(self.db.queue_counts()["dead"], 1)
+        self.assertEqual(self.db.pending_extractions(), [])
+        self.assertEqual(self.db.capacity_usage()["dead_rows"], 1)
+
+    def test_deferred_admission_parks_rows_until_release(self) -> None:
+        buffer = Buffer(db=self.db)
+        turn = buffer.add("umo:a", "Travel itinerary", "alice", deferred=True)
+        self.assertIsNotNone(turn)
+        self.assertEqual(buffer.items, [])
+        self.assertEqual(self.db.queue_counts()["deferred"], 1)
+        self.assertEqual(self.db.capacity_usage()["pending_rows"], 0)
+        self.assertEqual(buffer.reload(), 0)
+        self.assertEqual(self.db.release_deferred(10), 1)
+        self.assertEqual(buffer.reload(), 1)
+        self.assertEqual([row.text for row in buffer.items], ["Travel itinerary"])
 
     def test_projection_has_no_two_hundred_row_truncation(self) -> None:
         buffer = Buffer(db=self.db)

@@ -78,6 +78,7 @@ class Buffer:
         *,
         source: Source | None = None,
         turn_id: str = "",
+        deferred: bool = False,
     ) -> DialogueTurn | None:
         text = str(text or "").strip()
         if not text:
@@ -88,18 +89,31 @@ class Buffer:
         turn = DialogueTurn(turn.session_id, turn.speaker_id, turn.role, turn.text,
                             turn.at, turn.source_id, self._topic_for(turn, previous))
         if self._db is not None:
-            turn = self._enqueue(turn, source=source, turn_id=turn_id)
-        self.items.append(turn)
-        if self._db is None:
-            self.items = self.items[-LEGACY_KEEP:]
-        else:
-            self.items = self._unique_by_source(self.items)
+            turn = self._enqueue(turn, source=source, turn_id=turn_id, deferred=deferred)
+        if not deferred:
+            self.items.append(turn)
+            if self._db is None:
+                self.items = self.items[-LEGACY_KEEP:]
+            else:
+                self.items = self._unique_by_source(self.items)
         self.last_ts = time.time()
         self.save()
         return turn
 
+    def reload(self) -> int:
+        """Rebuild the in-memory queue from Source after admission release."""
+        if self._db is None:
+            return len(self.items)
+        self._load_projection()
+        return len(self.items)
+
     def _enqueue(
-        self, turn: DialogueTurn, *, source: Source | None, turn_id: str
+        self,
+        turn: DialogueTurn,
+        *,
+        source: Source | None,
+        turn_id: str,
+        deferred: bool = False,
     ) -> DialogueTurn:
         """Give a DB-backed turn its immutable Source and extraction state.
 
@@ -127,7 +141,7 @@ class Buffer:
             turn.text,
             at,
         )
-        self._db.enqueue_extraction(queued, turn.topic_id, at)
+        self._db.enqueue_extraction(queued, turn.topic_id, at, deferred=deferred)
         return turn
 
     @staticmethod
@@ -267,12 +281,16 @@ class Buffer:
         self.save()
         return changed
 
-    def mark_failed(self, rows: list[DialogueTurn], error_type: str) -> int:
+    def mark_failed(
+        self, rows: list[DialogueTurn], error_type: str, *, max_attempts: int = 5
+    ) -> int:
         """Retain failed rows and record only a bounded exception type."""
         source_ids = [turn.source_id for turn in rows if turn.source_id]
         if self._db is None:
             return 0
-        return self._db.mark_extraction_failed(source_ids, error_type)
+        return self._db.mark_extraction_failed(
+            source_ids, error_type, max_attempts=max_attempts
+        )
 
     def migrate_legacy(self) -> int:
         """Move pending.json into Source + extraction_state without content loss."""

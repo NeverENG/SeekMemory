@@ -47,15 +47,19 @@ State events and history support reinforcement and audit. Production revisions s
 
 ### ExtractionStore
 
-    def enqueue_extraction(source: Source, topic_id: str, created_at="") -> bool
+    def enqueue_extraction(source: Source, topic_id: str, created_at="", *, deferred=False) -> bool
     def put_extraction_state(state: ExtractionState) -> bool
-    def pending_extractions() -> list[dict]
+    def pending_extractions(now="") -> list[dict]
+    def queue_counts() -> dict[str, int]
+    def release_deferred(limit=50) -> int
+    def ready_extraction_ids(now="") -> set[str]
     def mark_extraction_succeeded(source_ids: list[str]) -> int
-    def mark_extraction_failed(source_ids: list[str], error_type: str) -> int
+    def mark_extraction_failed(source_ids: list[str], error_type: str, *, max_attempts=5, now="") -> int
 
 The pending queue is a projection. Source and extraction_state are inserted
 atomically, content is read back from immutable Source, and completion never
-deletes either row.
+deletes either row. Deferred rows wait for capacity headroom, and retries honor
+`next_attempt_at` until they reach the terminal `dead` state.
 
 ## Shared DTOs in app/contracts.py
 
