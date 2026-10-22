@@ -58,3 +58,10 @@ Excluded:
 ## Decision record
 
 - 2026-10-22: implement GitHub #12 on `feat/issue-12-capacity-governance`.
+- 2026-10-22: DB 模式 pending 的唯一事实是 Source + `extraction_state`。宿主侧
+  `Buffer.add()` 未提供 `source_id` 时生成 Source id 并原子入队；`pending.json`
+  只服务无 DB 的 legacy 路径与迁移，宿主集成测试改为断言投影。
+- 2026-10-22: `backpressure` 暂停摄入与按会话轮转的批次公平性本 PR 不做，
+  显式延后到后续 issue（改动消息写入时序与持久化游标，需要单独评估）。
+- 2026-10-22: Trace 年龄维度拆出软阈值 `trace_pressured_age_seconds`（3 天），
+  7 天才进入饱和并裁剪。
