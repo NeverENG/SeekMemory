@@ -14,10 +14,12 @@ from pathlib import Path
 from typing import Any
 
 try:  # 作为 astrbot 插件包的一部分导入
+    from ..app.contracts import ExtractionState
     from ..core.artifact import Artifact, Header, Lineage, Strength, TimeSpan
     from ..core.source import Source
     from ..core.versioning import StateEvent, VersionError, assert_next_revision
 except ImportError:  # 作为顶层 store 包导入（脚本 / 测试）
+    from app.contracts import ExtractionState
     from core.artifact import Artifact, Header, Lineage, Strength, TimeSpan
     from core.source import Source
     from core.versioning import StateEvent, VersionError, assert_next_revision
@@ -45,6 +47,24 @@ _UPSERT = (
 def _now() -> str:
     """当前本地时间，精确到秒。"""
     return datetime.datetime.now().isoformat(timespec="seconds")
+
+
+def _parse_time(value: str) -> datetime.datetime | None:
+    """Parse an ISO timestamp without making malformed legacy rows fatal."""
+    try:
+        return datetime.datetime.fromisoformat(str(value or "").strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _age_seconds(value: datetime.datetime | None, now: datetime.datetime) -> float:
+    """Return a non-negative age even when legacy times use different tz awareness."""
+    if value is None:
+        return 0.0
+    try:
+        return max(0.0, now.timestamp() - value.timestamp())
+    except (OSError, OverflowError, ValueError):
+        return 0.0
 
 
 def _dump(value: Any) -> str:
@@ -335,6 +355,172 @@ class DB:
                 )
                 written += int(cur.rowcount or 0)
         return written
+
+    def enqueue_extraction(
+        self, source: Source, topic_id: str, created_at: str = ""
+    ) -> bool:
+        """Atomically append a Source and its rebuildable extraction state."""
+        source.validate()
+        flags = {
+            "turn_id": source.turn_id,
+            "speaker_id": source.speaker_id,
+            "reply_to": source.reply_to,
+            "metadata": source.metadata,
+        }
+        at = source.at or created_at or _now()
+        with self.conn:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO blobs(hash, content, at) VALUES(?, ?, ?)",
+                (source.content_hash, source.text, at),
+            )
+            self.conn.execute(
+                "INSERT OR IGNORE INTO sources(id, umo, at, role, blob, flags) "
+                "VALUES(?, ?, ?, ?, ?, ?)",
+                (
+                    source.id,
+                    source.session_id,
+                    at,
+                    source.role,
+                    source.content_hash,
+                    _dump(flags),
+                ),
+            )
+            cur = self.conn.execute(
+                "INSERT OR IGNORE INTO extraction_state("
+                "source_id, turn_id, session_id, topic_id, state, attempts, "
+                "last_error, created_at) VALUES(?, ?, ?, ?, 'pending', 0, '', ?)",
+                (source.id, source.turn_id, source.session_id, topic_id, at),
+            )
+        return bool(cur.rowcount)
+
+    def put_extraction_state(self, state: ExtractionState) -> bool:
+        """Insert one queue state without duplicating Source content."""
+        if not state.source_id or not state.session_id:
+            raise ValueError("extraction state missing source or session")
+        if state.state not in {"pending", "retrying", "extracted"}:
+            raise ValueError("unknown extraction state")
+        source = self.conn.execute(
+            "SELECT 1 FROM sources WHERE id = ?", (state.source_id,)
+        ).fetchone()
+        if source is None:
+            raise ValueError("extraction source missing")
+        with self.conn:
+            cur = self.conn.execute(
+                "INSERT OR IGNORE INTO extraction_state("
+                "source_id, turn_id, session_id, topic_id, state, attempts, "
+                "last_error, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    state.source_id,
+                    state.turn_id,
+                    state.session_id,
+                    state.topic_id,
+                    state.state,
+                    max(0, int(state.attempts)),
+                    state.last_error[:200],
+                    state.created_at or _now(),
+                ),
+            )
+        return bool(cur.rowcount)
+
+    def pending_extractions(self) -> list[dict[str, Any]]:
+        """Rebuild queued turns by joining extraction state with immutable Source."""
+        rows = self.conn.execute(
+            "SELECT e.source_id, e.turn_id, e.session_id, e.topic_id, e.state, "
+            "e.attempts, e.last_error, e.created_at, s.role, s.at, s.flags, "
+            "b.content AS text FROM extraction_state e "
+            "JOIN sources s ON s.id = e.source_id "
+            "JOIN blobs b ON b.hash = s.blob "
+            "WHERE e.state IN ('pending', 'retrying') "
+            "ORDER BY e.created_at, e.source_id"
+        ).fetchall()
+        out = []
+        for row in rows:
+            flags = _loads(row["flags"])
+            out.append(
+                {
+                    "source_id": str(row["source_id"]),
+                    "turn_id": str(row["turn_id"]),
+                    "session_id": str(row["session_id"]),
+                    "speaker_id": str(flags.get("speaker_id") or ""),
+                    "role": str(row["role"]),
+                    "text": str(row["text"]),
+                    "at": str(row["at"]),
+                    "topic_id": str(row["topic_id"]),
+                    "state": str(row["state"]),
+                    "attempts": int(row["attempts"]),
+                    "last_error": str(row["last_error"]),
+                    "created_at": str(row["created_at"]),
+                }
+            )
+        return out
+
+    def mark_extraction_succeeded(self, source_ids: list[str]) -> int:
+        """Mark projection rows complete while retaining their Source and audit row."""
+        ids = [str(value) for value in source_ids if value]
+        if not ids:
+            return 0
+        marks = ",".join("?" for _ in ids)
+        with self.conn:
+            cur = self.conn.execute(
+                f"UPDATE extraction_state SET state = 'extracted', last_error = '' "
+                f"WHERE source_id IN ({marks}) AND state != 'extracted'",
+                ids,
+            )
+        return int(cur.rowcount or 0)
+
+    def mark_extraction_failed(self, source_ids: list[str], error_type: str) -> int:
+        """Retain failed turns for retry and record only a bounded error type."""
+        ids = [str(value) for value in source_ids if value]
+        if not ids:
+            return 0
+        marks = ",".join("?" for _ in ids)
+        with self.conn:
+            cur = self.conn.execute(
+                f"UPDATE extraction_state SET state = 'retrying', "
+                f"attempts = attempts + 1, last_error = ? "
+                f"WHERE source_id IN ({marks}) AND state != 'extracted'",
+                [str(error_type or "Unknown")[:200], *ids],
+            )
+        return int(cur.rowcount or 0)
+
+    def capacity_usage(self, now: str = "") -> dict[str, int | float]:
+        """Return non-sensitive usage counters for the pure CapacityGovernor."""
+        source = self.conn.execute(
+            "SELECT COUNT(*) AS rows, "
+            "COALESCE(SUM(LENGTH(CAST(b.content AS BLOB))), 0) AS bytes "
+            "FROM sources s JOIN blobs b ON b.hash = s.blob"
+        ).fetchone()
+        active = self.conn.execute(
+            "SELECT COUNT(*) AS rows, "
+            "COALESCE(SUM(LENGTH(CAST(b.content AS BLOB))), 0) AS bytes "
+            "FROM nodes n JOIN blobs b ON b.hash = n.blob "
+            "WHERE n.state = 'active'"
+        ).fetchone()
+        pending = self.conn.execute(
+            "SELECT COUNT(*) AS rows, MIN(created_at) AS oldest "
+            "FROM extraction_state WHERE state IN ('pending', 'retrying')"
+        ).fetchone()
+        current = _parse_time(now) or datetime.datetime.now()
+        oldest = _parse_time(str(pending["oldest"] or ""))
+        pending_age = _age_seconds(oldest, current)
+        expired = 0
+        for row in self.conn.execute(
+            "SELECT time FROM nodes WHERE state = 'active'"
+        ).fetchall():
+            span = _loads(row["time"])
+            deadline = span.get("expires") or span.get("valid_to")
+            parsed = _parse_time(str(deadline or ""))
+            if parsed is not None and parsed.date() < current.date():
+                expired += 1
+        return {
+            "source_rows": int(source["rows"] or 0),
+            "source_bytes": int(source["bytes"] or 0),
+            "pending_rows": int(pending["rows"] or 0),
+            "pending_oldest_age_seconds": pending_age,
+            "artifact_count": int(active["rows"] or 0),
+            "artifact_bytes": int(active["bytes"] or 0),
+            "expired_artifacts": expired,
+        }
 
     def append_state_event(self, event: StateEvent) -> None:
         event.validate()

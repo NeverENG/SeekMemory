@@ -20,6 +20,15 @@ from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 from .app.checkpoint import CheckpointManager
 from .app.contracts import DialogueTurn
 from .app.flush_policy import decide_flush
+from .core.capacity import (
+    NORMAL,
+    PROTECTIVE,
+    SATURATED,
+    CapacityDecision,
+    CapacityGovernor,
+    CapacitySnapshot,
+    CapacityThresholds,
+)
 from .core.graph import Graph
 from .core.source import Source, make_source_id
 from .core.tree import Tree
@@ -60,6 +69,17 @@ class Main(star.Star):
         )
         self.journal = Journal(self.data_path.parent / "lifecycle.jsonl")
         self.jobs = Jobs(self.journal)
+        artifact_limit = max(1, int(self._c("max_episodes", 500)))
+        self.capacity = CapacityGovernor(
+            CapacityThresholds(
+                artifact_pressured_count=max(1, int(artifact_limit * 0.8)),
+                artifact_saturated_count=artifact_limit,
+            )
+        )
+        self._capacity_state = NORMAL
+        self._capacity_action_mark = ""
+        self._degrade_recall = False
+        self._last_context_chars = 0
         self._init_engine()
         self.web = WebRoutes(self)
         self.web.register()
@@ -93,7 +113,10 @@ class Main(star.Star):
             self.tree = Tree(self.db, self.cache)
             self.graph = Graph(self.db, self.cache)
             self.hybrid_retriever = HybridRetriever(self.graph, self.cache)
-            self.buffer = Buffer(str(self.data_path.parent / "pending.json"))
+            self.buffer = Buffer(
+                str(self.data_path.parent / "pending.json"), db=self.db
+            )
+            migrated = self.buffer.migrate_legacy()
             self.ready = True
             self.checkpoint = CheckpointManager(
                 self.db, self.cache, int(self._c("checkpoint_seconds", 1800))
@@ -101,6 +124,13 @@ class Main(star.Star):
             self.journal.record(
                 "plugin", "ready", f"已加载 {self.cache.size()} 条有效记忆"
             )
+            if migrated:
+                self.journal.record(
+                    "capacity",
+                    "info",
+                    "旧 pending 已迁移为 Source 投影",
+                    context={"rows": migrated},
+                )
             logger.info(
                 f"[seekmemory] 已加载 {self.cache.size()} 条记忆，"
                 f"待抽取 {len(self.buffer.items)} 条"
@@ -154,6 +184,7 @@ class Main(star.Star):
             block, info = self._recall_block(
                 text, umo, is_private(event), str(event.get_sender_id())
             )
+            self._last_context_chars = len(block)
             log_call(self._calls_path(), umo, info)
             if self.checkpoint is not None:
                 for art_id in info.get("picked_ids", ()):
@@ -183,6 +214,16 @@ class Main(star.Star):
         self, text: str, umo: str = "", private: bool = False, speaker: str = ""
     ) -> tuple[str, dict]:
         """交给读路径模块：常驻层 + 检索 + 偶然浮现。"""
+        conf = self._c
+        if self._degrade_recall:
+            def reduced(key: str, default):
+                if key == "budget_chars":
+                    return max(80, int(self._c(key, default) * 0.5))
+                if key == "recall_k":
+                    return max(1, int(self._c(key, default) * 0.5))
+                return self._c(key, default)
+
+            conf = reduced
         return build_block(
             self.cache,
             self.graph,
@@ -190,7 +231,7 @@ class Main(star.Star):
             umo,
             text,
             private,
-            self._c,
+            conf,
             self.owner_umo,
             speaker,
             log=lambda msg: logger.info(f"[seekmemory] {msg}"),
@@ -222,9 +263,15 @@ class Main(star.Star):
             )
             turn_id = event_id or source_id
             source = Source(source_id, turn_id, umo, sender, "user", text, now)
-            if self.db is not None:
-                self.db.append_sources([source])
-            self.buffer.add(umo, text, sender, source_id, now)
+            self.buffer.add(
+                umo,
+                text,
+                sender,
+                source_id,
+                now,
+                source=source,
+                turn_id=turn_id,
+            )
             event.set_extra("_seekmemory_turn_id", turn_id)
             event.set_extra("_seekmemory_source_id", source_id)
         except Exception:
@@ -359,9 +406,104 @@ class Main(star.Star):
         return max((target - now).total_seconds(), 60)
 
     # ---------------- 抽取：空闲触发 + 夜间兜底 ----------------
-    def _should_flush(self) -> bool:
+    def _capacity_snapshot(self) -> CapacitySnapshot:
+        """Collect bounded usage metrics without exposing row content."""
+        usage = self.db.capacity_usage() if self.db is not None else {}
+        trace_rows = len(self.journal.events)
+        trace_age = 0.0
+        if self.journal.events:
+            try:
+                oldest = datetime.datetime.fromisoformat(str(self.journal.events[0]["at"]))
+                now = datetime.datetime.now(oldest.tzinfo)
+                trace_age = max(0.0, now.timestamp() - oldest.timestamp())
+            except (TypeError, ValueError):
+                trace_age = 0.0
+        return CapacitySnapshot(
+            source_rows=int(usage.get("source_rows", 0)),
+            source_bytes=int(usage.get("source_bytes", 0)),
+            pending_rows=int(usage.get("pending_rows", 0)),
+            pending_oldest_age_seconds=float(
+                usage.get("pending_oldest_age_seconds", 0.0)
+            ),
+            artifact_count=int(usage.get("artifact_count", 0)),
+            artifact_bytes=int(usage.get("artifact_bytes", 0)),
+            expired_artifacts=int(usage.get("expired_artifacts", 0)),
+            context_chars_per_turn=self._last_context_chars,
+            trace_rows=trace_rows,
+            trace_oldest_age_seconds=trace_age,
+        )
+
+    def _observe_capacity(self) -> CapacityDecision:
+        """Evaluate and journal capacity transitions for scheduler decisions."""
+        snapshot = self._capacity_snapshot()
+        decision = self.capacity.evaluate(snapshot)
+        self._degrade_recall = "degrade_recall" in decision.actions
+        if decision.state != self._capacity_state:
+            self.journal.record(
+                "capacity",
+                "warning" if decision.state != NORMAL else "info",
+                f"容量状态切换为 {decision.state}",
+                stage="governor",
+                context={
+                    "pending": snapshot.pending_rows,
+                    "artifacts": snapshot.artifact_count,
+                    "actions": len(decision.actions),
+                },
+            )
+            if decision.state == PROTECTIVE:
+                logger.warning("[seekmemory] 容量进入保护状态")
+            self._capacity_state = decision.state
+        return decision
+
+    def _apply_capacity_maintenance(self, decision: CapacityDecision) -> None:
+        """Execute non-queue lifecycle actions at most once per hour."""
+        actionable = {
+            "compact_artifacts",
+            "forget_expired",
+            "trim_trace",
+            "alert",
+        }
+        if not actionable.intersection(decision.actions):
+            return
+        mark = datetime.datetime.now().strftime("%Y%m%d%H")
+        if mark == self._capacity_action_mark:
+            return
+        self._capacity_action_mark = mark
+        if "compact_artifacts" in decision.actions and self.db and self.cache:
+            from .maintain.merge import merge_similar
+
+            with self.journal.span("capacity", "compact_artifacts") as metrics:
+                metrics["merged"] = merge_similar(
+                    self.db,
+                    self.cache,
+                    threshold=0.6,
+                    limit=50,
+                )
+        if "forget_expired" in decision.actions and self.db and self.cache:
+            from .maintain.lifecycle import forget_expired
+
+            with self.journal.span("capacity", "forget_expired") as metrics:
+                metrics["forgotten"] = forget_expired(self.db, self.cache)
+        if "trim_trace" in decision.actions:
+            with self.journal.span("capacity", "trim_trace") as metrics:
+                metrics["removed"] = self.journal.trim(400)
+        if "alert" in decision.actions:
+            self.journal.record(
+                "capacity",
+                "warning",
+                "容量保护告警",
+                stage="governor",
+                context={"state": decision.state},
+            )
+
+    def _batch_cap(self, decision: CapacityDecision) -> int:
+        cap = max(1, int(self._c("max_sessions_per_flush", 6)))
+        return min(24, cap * 2) if "raise_batch_size" in decision.actions else cap
+
+    def _should_flush(self, capacity: CapacityDecision | None = None) -> bool:
         if self._flushing or self.buffer is None or self.db is None:
             return False
+        capacity = capacity or self._observe_capacity()
         today = datetime.date.today().isoformat()
         if self._flush_day != today:
             self._flush_day, self._flush_count = today, 0
@@ -377,14 +519,21 @@ class Main(star.Star):
             topic_age_seconds=self.buffer.oldest_topic_age(),
             topic_ttl_seconds=float(self._c("topic_ttl_seconds", 86400)),
         )
-        return decision.should
+        if decision.should:
+            return True
+        return (
+            capacity.state in (SATURATED, PROTECTIVE)
+            and "schedule_extraction" in capacity.actions
+        )
 
     async def _idle_loop(self) -> None:
         """聊完安静一会儿就抽，不用等到半夜。"""
         while True:
             await asyncio.sleep(30)
             try:
-                if self._should_flush():
+                capacity = self._observe_capacity()
+                self._apply_capacity_maintenance(capacity)
+                if self._should_flush(capacity):
                     self.jobs.submit("idle", lambda: self._flush("空闲"))
             except Exception as e:  # noqa: BLE001
                 logger.error(f"[seekmemory] 空闲抽取失败：{e}")
@@ -392,17 +541,18 @@ class Main(star.Star):
 
     async def _nightly(self) -> None:
         """夜间兜底：把白天没来得及抽的尾巴抽掉。"""
+        self._apply_capacity_maintenance(self._observe_capacity())
         await self._flush("夜间")
 
     def _split_topics(
-        self, items: list[DialogueTurn]
+        self, items: list[DialogueTurn], cap: int | None = None
     ) -> list[tuple[str, str, list[DialogueTurn]]]:
         """按上游话题归组与批次上限选择待抽取消息。"""
         buckets: dict[tuple[str, str], list[DialogueTurn]] = {}
         for turn in items:
             key = (str(turn.session_id or ""), str(turn.topic_id or ""))
             buckets.setdefault(key, []).append(turn)
-        cap = int(self._c("max_sessions_per_flush", 6))
+        cap = int(cap or self._c("max_sessions_per_flush", 6))
         ordered = sorted(buckets.items(), key=lambda kv: len(kv[1]), reverse=True)
         return [
             (session, topic, rows) for (session, topic), rows in ordered[: max(1, cap)]
@@ -426,7 +576,10 @@ class Main(star.Star):
             return
         self._flushing = True
         try:
-            topics = self._split_topics(list(self.buffer.items))
+            capacity = self._observe_capacity()
+            topics = self._split_topics(
+                list(self.buffer.items), cap=self._batch_cap(capacity)
+            )
             ready = []
             failure: Exception | None = None
             for umo, topic_id, part in topics:
@@ -436,6 +589,8 @@ class Main(star.Star):
                     ):
                         prov = await self.context.get_using_provider_async(umo or None)
                 except Exception as exc:
+                    if self.buffer is not None:
+                        self.buffer.mark_failed(part, type(exc).__name__)
                     failure = failure or exc
                     continue
                 if not prov:
@@ -481,14 +636,11 @@ class Main(star.Star):
                         if outcome.model_failed:
                             raise RuntimeError("模型抽取失败，保留待处理消息")
                 except Exception as exc:
+                    self.buffer.mark_failed(part, type(exc).__name__)
                     failure = failure or exc
                     continue
-                # 成功后才移除快照中的项；取消或模型失败不丢消息，等待期间的新消息保留。
-                processed = {id(row) for row in part}
-                self.buffer.items = [
-                    row for row in self.buffer.items if id(row) not in processed
-                ]
-                self.buffer.save()
+                # 成功后才推进投影状态；取消或模型失败不丢 Source。
+                self.buffer.mark_succeeded(part)
                 written += outcome.written
                 logger.info(
                     f"[seekmemory] {reason}抽取 {umo or '未知会话'}："

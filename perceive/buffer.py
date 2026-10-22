@@ -8,13 +8,18 @@ import os
 import time
 from dataclasses import asdict
 from datetime import datetime
+from pathlib import Path
 
 try:
-    from ..app.contracts import DialogueTurn
+    from ..app.contracts import DialogueTurn, ExtractionState
+    from ..core.source import Source, make_source_id
+    from ..store.db import DB
 except ImportError:
-    from app.contracts import DialogueTurn
+    from app.contracts import DialogueTurn, ExtractionState
+    from core.source import Source, make_source_id
+    from store.db import DB
 
-KEEP = 200
+LEGACY_KEEP = 200
 TOPIC_GAP_SECONDS = 5400
 TOPIC_SIMILARITY = 0.12
 TOPIC_TTL_SECONDS = 86400
@@ -44,8 +49,15 @@ def _new_topic_id(turn: DialogueTurn) -> str:
 
 
 class Buffer:
-    def __init__(self, path: str = "") -> None:
+    """In-memory view of a Source-backed extraction projection.
+
+    A path-only Buffer keeps the legacy JSON test/support behavior. When a DB is
+    supplied, queued turns are rebuilt from Source plus extraction_state.
+    """
+
+    def __init__(self, path: str = "", db: DB | None = None) -> None:
         self.path = str(path or "")
+        self._db = db
         self.items: list[DialogueTurn] = []
         self.last_ts = 0.0
         self.load()
@@ -56,8 +68,17 @@ class Buffer:
                 return turn
         return None
 
-    def add(self, umo: str, text: str, sender: str = "", source_id: str = "",
-            at: str = "") -> DialogueTurn | None:
+    def add(
+        self,
+        umo: str,
+        text: str,
+        sender: str = "",
+        source_id: str = "",
+        at: str = "",
+        *,
+        source: Source | None = None,
+        turn_id: str = "",
+    ) -> DialogueTurn | None:
         text = str(text or "").strip()
         if not text:
             return None
@@ -66,8 +87,22 @@ class Buffer:
         previous = self._last_for_session(turn.session_id)
         turn = DialogueTurn(turn.session_id, turn.speaker_id, turn.role, turn.text,
                             turn.at, turn.source_id, self._topic_for(turn, previous))
+        if self._db is not None and turn.source_id:
+            queued = source or Source(
+                turn.source_id,
+                str(turn_id or turn.source_id),
+                turn.session_id,
+                turn.speaker_id,
+                turn.role,
+                turn.text,
+                turn.at,
+            )
+            self._db.enqueue_extraction(queued, turn.topic_id, turn.at)
         self.items.append(turn)
-        self.items = self.items[-KEEP:]
+        if self._db is None:
+            self.items = self.items[-LEGACY_KEEP:]
+        else:
+            self.items = list({item.source_id: item for item in self.items}.values())
         self.last_ts = time.time()
         self.save()
         return turn
@@ -122,11 +157,13 @@ class Buffer:
             return
         existing = set(self.items)
         restored = [row for row in rows if row not in existing]
-        self.items = (restored + self.items)[-KEEP:]
+        self.items = restored + self.items
+        if self._db is None:
+            self.items = self.items[-LEGACY_KEEP:]
         self.save()
 
     def save(self) -> None:
-        if not self.path:
+        if not self.path or (self._db is not None and all(t.source_id for t in self.items)):
             return
         try:
             os.makedirs(os.path.dirname(self.path), exist_ok=True)
@@ -137,25 +174,109 @@ class Buffer:
             pass
 
     def load(self) -> None:
+        if self._db is not None:
+            self._load_projection()
+            return
         if not self.path:
             return
-        try:
-            with open(self.path, encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            return
-        if not isinstance(data, dict):
-            return
+        data = self._read_file()
         kept: list[DialogueTurn] = []
         for row in data.get("items") or []:
             turn = self._from_row(row)
             if turn is not None:
                 kept.append(turn)
-        self.items = kept[-KEEP:]
+        self.items = kept[-LEGACY_KEEP:]
         try:
             self.last_ts = float(data.get("last") or 0.0)
         except (TypeError, ValueError):
             self.last_ts = 0.0
+
+    def _load_projection(self) -> None:
+        self.items = []
+        for row in self._db.pending_extractions():
+            self.items.append(
+                DialogueTurn(
+                    str(row["session_id"]),
+                    str(row["speaker_id"]),
+                    str(row["role"]),
+                    str(row["text"]),
+                    str(row["at"]),
+                    str(row["source_id"]),
+                    str(row["topic_id"]),
+                )
+            )
+        stamps = [_parse_at(turn.at) for turn in self.items]
+        valid = [stamp.timestamp() for stamp in stamps if stamp is not None]
+        self.last_ts = max(valid, default=0.0)
+
+    def _read_file(self) -> dict:
+        if not self.path:
+            return {}
+        try:
+            with open(self.path, encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def mark_succeeded(self, rows: list[DialogueTurn]) -> int:
+        """Mark rows extracted and refresh the projection without deleting Source."""
+        source_ids = [turn.source_id for turn in rows if turn.source_id]
+        changed = (
+            self._db.mark_extraction_succeeded(source_ids)
+            if self._db is not None
+            else 0
+        )
+        wanted = set(source_ids)
+        self.items = [item for item in self.items if item.source_id not in wanted]
+        self.save()
+        return changed
+
+    def mark_failed(self, rows: list[DialogueTurn], error_type: str) -> int:
+        """Retain failed rows and record only a bounded exception type."""
+        source_ids = [turn.source_id for turn in rows if turn.source_id]
+        if self._db is None:
+            return 0
+        return self._db.mark_extraction_failed(source_ids, error_type)
+
+    def migrate_legacy(self) -> int:
+        """Move pending.json into Source + extraction_state without content loss."""
+        if self._db is None or not self.path or not os.path.exists(self.path):
+            return 0
+        data = self._read_file()
+        migrated = 0
+        rows = data.get("items") or []
+        for row in rows:
+            turn = self._from_row(row)
+            if turn is None:
+                continue
+            source_id = turn.source_id or make_source_id(
+                session_id=turn.session_id,
+                speaker_id=turn.speaker_id,
+                role=turn.role,
+                text=turn.text,
+                at=turn.at,
+            )
+            source = Source(
+                source_id,
+                source_id,
+                turn.session_id,
+                turn.speaker_id,
+                turn.role,
+                turn.text,
+                turn.at,
+            )
+            self._db.enqueue_extraction(source, turn.topic_id, turn.at)
+            migrated += 1
+        if migrated and migrated == len(rows):
+            target = Path(self.path + ".migrated")
+            suffix = 1
+            while target.exists():
+                target = Path(f"{self.path}.migrated.{suffix}")
+                suffix += 1
+            Path(self.path).replace(target)
+        self._load_projection()
+        return migrated
 
     @staticmethod
     def _from_row(row) -> DialogueTurn | None:

@@ -1,6 +1,10 @@
 # 变更记录
 ## 未发布
 
+- 新增 Source-backed pending 投影与容量治理：旧 `pending.json` 可无损迁移到
+  `extraction_state`，重启后按 Source 重建且不再按 200 行静默截断；纯 Governor
+  统一输出 normal/pressured/saturated/protective 及抽取、降级、过期清理和告警动作。
+
 - 新增默认开启的本地 BM25 混合召回：标准库字符 bigram、正文/标签倒排索引、
   可见池统计隔离及缓存版本失效；聊天与诊断复用检索器，权重经对照校准为 1.0。
   补充独立验收，配置 `bm25_enabled=false` 可恢复原检索；本次不引入模型、联网检索、数据库迁移或运行依赖。

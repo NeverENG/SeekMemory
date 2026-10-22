@@ -8,8 +8,23 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.contracts import ChatRequest, ChatResponse, DialogueTurn, RecallRequest, RecallResult, WriteOutcome
-from app.ports import ArtifactStore, ChatModel, Retriever, SourceStore, StateStore
+from app.contracts import (
+    ChatRequest,
+    ChatResponse,
+    DialogueTurn,
+    ExtractionState,
+    RecallRequest,
+    RecallResult,
+    WriteOutcome,
+)
+from app.ports import (
+    ArtifactStore,
+    ChatModel,
+    ExtractionStore,
+    Retriever,
+    SourceStore,
+    StateStore,
+)
 from core.retrieval import RetrievalCandidate
 from perceive.model import ProviderChatModel
 from recall.retriever import HybridRetriever
@@ -26,6 +41,7 @@ class ProtocolSurfaceTest(unittest.TestCase):
         self.assertIsInstance(self.db, SourceStore)
         self.assertIsInstance(self.db, ArtifactStore)
         self.assertIsInstance(self.db, StateStore)
+        self.assertIsInstance(self.db, ExtractionStore)
 
     def test_builtin_retriever_and_chat_model_satisfy_public_protocols(self):
         self.assertIsInstance(HybridRetriever(self.cache, self.cache), Retriever)
@@ -62,6 +78,13 @@ class ContractDataclassTest(unittest.TestCase):
         self.assertEqual(turn.at, "")
         self.assertEqual(turn.source_id, "")
         self.assertEqual(turn.topic_id, "")
+
+    def test_extraction_state_defaults(self):
+        state = ExtractionState("source", "turn", "session")
+        self.assertEqual(state.topic_id, "")
+        self.assertEqual(state.state, "pending")
+        self.assertEqual(state.attempts, 0)
+        self.assertEqual(state.last_error, "")
 
     def test_retrieval_candidate_defaults(self):
         art = object()

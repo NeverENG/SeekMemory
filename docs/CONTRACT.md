@@ -463,3 +463,31 @@ def build_block(cache: Cache, graph: Graph, db: DB, umo: str, text: str,
 新配置 bm25_weight 默认 1.0，由管线显式传入 select 的 lexical_weight；函数默认 2.0 保留旧调用兼容。
 显式关闭 bm25_enabled 时不读取 bm25_weight，忽略残留的无效权重配置。
 不改变已存在的 scope、披露、证据阈值或预算规则。实现决策与限制见 [ISSUE-0024](issues/ISSUE-0024.md)。
+
+## v0.3.2 extraction projection and capacity
+
+```python
+@dataclass(frozen=True)
+class ExtractionState:
+    source_id: str
+    turn_id: str
+    session_id: str
+    topic_id: str = ""
+    state: str = "pending"
+    attempts: int = 0
+    last_error: str = ""
+    created_at: str = ""
+
+class CapacityGovernor:
+    def evaluate(snapshot: CapacitySnapshot) -> CapacityDecision: ...
+```
+
+`extraction_state` contains queue metadata only; dialogue content remains in
+immutable Source. `pending_extractions()` joins both tables to rebuild the
+projection in creation order. Success changes state to `extracted`; failure uses
+`retrying` and increments `attempts`; neither path deletes Source.
+
+Capacity states are `normal`, `pressured`, `saturated` and `protective`.
+Actions are `schedule_extraction`, `raise_batch_size`, `backpressure`,
+`compact_artifacts`, `forget_expired`, `degrade_recall`, `trim_trace` and
+`alert`. Source deletion is never a capacity action.

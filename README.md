@@ -137,7 +137,7 @@ SeekMemory 附带了一个供管理员使用的 AstrBot 插件视图。它显示
   - BM25 与混合检索（参见 issue #4）。  
   - 人设 Source 策略。  
   - 反思功能实现。  
-  - RBAC 与容量治理。  
+  - RBAC；容量治理已建立 Source-backed pending、Governor 和生命周期基线。
   - 延长记忆质量基准。
 
 ---
