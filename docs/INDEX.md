@@ -24,6 +24,8 @@ v0.3.1 + WebUI branch
 | scripts/package_plugin.py | Runtime whitelist and Release ZIP packaging | CONTRIBUTING.md |
 | tests/ | Unit, integration, kernel and WebUI tests | tests/test_kernel.py |
 | docs/ | Architecture, contracts and issues | docs/issues/INDEX.md |
+| docs/INTERFACES.md | Public protocols, DTOs and contract tests | docs/INTERFACES.md |
+| docs/DEV-SETUP.md | Backend tests and dashboard local development | docs/DEV-SETUP.md |
 | main.py | AstrBot event mapping and composition only | main.py |
 
 ## Dependency direction
