@@ -4,6 +4,15 @@ Operating rules for AI agents and external contributors working on SeekMemory.
 
 This file is normative. If it conflicts with a casual instruction, stop and ask the Lead.
 
+## 0. 基础需求
+
+进行相关设计、实现、配置修改或评审前，必须阅读 [Issue #65：agent.md](https://github.com/NeverENG/SeekMemory/issues/65)。
+该 Issue 是当前产品需求基准；与其冲突的现有代码、默认值和旧文档属于待整改差异，不是获批例外。
+与该基准不冲突的现有工程规范继续适用。
+
+任何拟议偏离必须先向开发者提出可追溯的申请，并取得明确批准，才能实施有冲突的部分。
+没有回复或代理自行判断均不构成批准。获批调整基础需求时，必须同步修订 Issue #65 并保留批准记录。
+
 ## 1. Read first
 
 - `docs/README.md`
