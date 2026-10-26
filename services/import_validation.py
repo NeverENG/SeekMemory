@@ -19,12 +19,10 @@ try:
         JSON_MAX_MESSAGES,
     )
     from ..app.ports import HistoryImportFiles, HistoryImportStore, HistoryReader
-    from ..core.source import SourceQueueEntry
     from .import_policy import (
         RoleSelection,
-        TopicCorrection,
-        iter_source_entries,
-        reply_targets,
+        build_source_entries,
+        reply_source_ids,
         resolve_roles,
     )
     from .import_utils import VALIDATION_BATCH, take
@@ -37,12 +35,10 @@ except ImportError:
         JSON_MAX_MESSAGES,
     )
     from app.ports import HistoryImportFiles, HistoryImportStore, HistoryReader
-    from core.source import SourceQueueEntry
     from services.import_policy import (
         RoleSelection,
-        TopicCorrection,
-        iter_source_entries,
-        reply_targets,
+        build_source_entries,
+        reply_source_ids,
         resolve_roles,
     )
     from services.import_utils import VALIDATION_BATCH, take
@@ -151,44 +147,33 @@ class HistoryImportValidator:
                     f"有 {inspection.missing_id_rows} 条可解析消息缺少 platformMessageId，不能导入"
                 )
             roles = resolve_roles(inspection, selection)
-            referenced = await asyncio.to_thread(reply_targets, str(path), self.reader)
-            batch: list[SourceQueueEntry] = []
+            messages = self.reader.iter_messages_sorted(str(path))
             totals = {"unique": 0, "duplicates": 0, "existing": 0}
             valid_rows = 0
+            previous = None
 
-            def flush() -> None:
-                nonlocal batch
-                if not batch:
-                    return
-                result = self.imports.validate_sources(stage_key, batch)
+            while True:
+                message_batch = await asyncio.to_thread(
+                    take, messages, VALIDATION_BATCH
+                )
+                if not message_batch:
+                    break
+                parent_topics = self.imports.preflight_user_topics(
+                    stage_key, reply_source_ids(message_batch, selection.target_umo)
+                )
+                entries, previous = await asyncio.to_thread(
+                    build_source_entries,
+                    message_batch,
+                    roles=roles,
+                    target_umo=selection.target_umo,
+                    platform=inspection.platform,
+                    previous=previous,
+                    parent_topics=parent_topics,
+                )
+                result = self.imports.validate_sources(stage_key, entries)
                 for key in totals:
                     totals[key] += int(result.get(key, 0))
-                batch = []
-
-            entries = iter_source_entries(
-                str(path),
-                self.reader,
-                roles=roles,
-                target_umo=selection.target_umo,
-                platform=inspection.platform,
-                referenced_ids=referenced,
-            )
-            while True:
-                items = await asyncio.to_thread(take, entries, VALIDATION_BATCH)
-                if not items:
-                    break
-                for item in items:
-                    if isinstance(item, TopicCorrection):
-                        flush()
-                        self.imports.retarget_preflight(
-                            stage_key, list(item.source_ids), item.topic_id
-                        )
-                        continue
-                    batch.append(item)
-                    valid_rows += 1
-                    if len(batch) >= VALIDATION_BATCH:
-                        flush()
-            flush()
+                valid_rows += len(entries)
             if valid_rows != inspection.accepted_messages:
                 raise HistoryImportError("预览后文件内容发生变化，请重新上传")
             duplicate_count = totals["duplicates"] + totals["existing"]

@@ -3,18 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterator
+from typing import Sequence
 
 try:
     from ..app.contracts import DialogueTurn
-    from ..app.history_import import HistoryInspection
-    from ..app.ports import HistoryReader
+    from ..app.history_import import HistoryInspection, HistoryMessage
     from ..app.topic_policy import assign_topic
     from ..core.source import Source, SourceQueueEntry, make_import_source_id
 except ImportError:
     from app.contracts import DialogueTurn
-    from app.history_import import HistoryInspection
-    from app.ports import HistoryReader
+    from app.history_import import HistoryInspection, HistoryMessage
     from app.topic_policy import assign_topic
     from core.source import Source, SourceQueueEntry, make_import_source_id
 
@@ -26,12 +24,6 @@ class RoleSelection:
     target_umo: str
     bot_member_id: str = ""
     target_member_id: str = ""
-
-
-@dataclass(frozen=True)
-class TopicCorrection:
-    source_ids: tuple[str, ...]
-    topic_id: str
 
 
 def resolve_roles(
@@ -73,31 +65,39 @@ def resolve_roles(
     return {bot_member: "assistant", target_member: "user"}
 
 
-def reply_targets(path: str, reader: HistoryReader) -> set[str]:
-    """Collect only IDs referenced by valid replies for bounded topic state."""
-    return {
-        message.reply_to_message_id
-        for message in reader.iter_messages(path)
-        if message.reply_to_message_id
-    }
+def reply_source_ids(
+    messages: Sequence[HistoryMessage], target_umo: str
+) -> list[str]:
+    """Return the bounded stable IDs referenced by one message batch."""
+    canonical_umo = target_umo.strip()
+    return list(
+        dict.fromkeys(
+            make_import_source_id(
+                format_id="chatlab",
+                conversation_id=canonical_umo,
+                external_message_id=message.reply_to_message_id,
+            )
+            for message in messages
+            if message.reply_to_message_id
+        )
+    )
 
 
-def iter_source_entries(
-    path: str,
-    reader: HistoryReader,
+def build_source_entries(
+    messages: Sequence[HistoryMessage],
     *,
     roles: dict[str, str],
     target_umo: str,
     platform: str,
-    referenced_ids: set[str],
-) -> Iterator[SourceQueueEntry | TopicCorrection]:
-    """Build stable Sources and apply the shared live topic policy."""
-    previous: DialogueTurn | None = None
+    previous: DialogueTurn | None,
+    parent_topics: dict[str, str],
+) -> tuple[list[SourceQueueEntry], DialogueTurn | None]:
+    """Build one bounded batch of stable Sources and topic assignments."""
     user_topics: dict[str, str] = {}
-    waiting: dict[str, list[str]] = {}
     canonical_umo = target_umo.strip()
+    entries: list[SourceQueueEntry] = []
 
-    for message in reader.iter_messages_sorted(path):
+    for message in messages:
         role = roles.get(message.sender_id)
         if role not in {"user", "assistant"}:
             raise ValueError("文件包含未映射的发言者")
@@ -117,7 +117,14 @@ def iter_source_entries(
         )
         parent = None
         if role == "assistant" and message.reply_to_message_id:
-            parent_topic = user_topics.get(message.reply_to_message_id)
+            parent_source_id = make_import_source_id(
+                format_id="chatlab",
+                conversation_id=canonical_umo,
+                external_message_id=message.reply_to_message_id,
+            )
+            parent_topic = user_topics.get(
+                message.reply_to_message_id
+            ) or parent_topics.get(parent_source_id)
             if parent_topic:
                 parent = DialogueTurn(
                     canonical_umo, "", "user", "", message.at, topic_id=parent_topic
@@ -154,13 +161,9 @@ def iter_source_entries(
             },
         )
 
-        if role == "assistant" and message.reply_to_message_id and parent is None:
-            waiting.setdefault(message.reply_to_message_id, []).append(source_id)
-        if role == "user" and message.external_message_id in referenced_ids:
+        if role == "user":
             user_topics[message.external_message_id] = turn.topic_id
-            late_replies = waiting.pop(message.external_message_id, [])
-            if late_replies:
-                yield TopicCorrection(tuple(late_replies), turn.topic_id)
 
         previous = turn
-        yield SourceQueueEntry(source, turn.topic_id)
+        entries.append(SourceQueueEntry(source, turn.topic_id))
+    return entries, previous

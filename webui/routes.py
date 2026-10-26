@@ -93,6 +93,7 @@ class WebRoutes:
             raise RuntimeError("任务执行器不可用")
 
         async def operation() -> None:
+            plugin.active_import_started_task_id = task_id
             await plugin.services.import_service.run(task_id, selection)
 
         plugin.jobs.submit(
@@ -104,6 +105,7 @@ class WebRoutes:
         def clear_active(_task) -> None:
             if getattr(plugin, "active_import_task_id", "") == task_id:
                 plugin.active_import_task_id = ""
+                plugin.active_import_started_task_id = ""
 
         if plugin.jobs.task is not None:
             plugin.jobs.task.add_done_callback(clear_active)
@@ -353,7 +355,18 @@ class WebRoutes:
                     or plugin.jobs.task.done()
                 ):
                     return error_response("导入任务已结束或不存在", status_code=409)
+                task_started = (
+                    getattr(plugin, "active_import_started_task_id", "") == task_id
+                )
+                task_stage = import_service.imports.task_stage(task_id)
                 plugin.jobs.task.cancel()
+                if not task_started:
+                    stage_key = str((task_stage or {}).get("stage_key") or "")
+                    import_service.imports.finish_task(
+                        task_id, "cancelled", persona_status="not_run"
+                    )
+                    if stage_key:
+                        import_service.files.delete(stage_key)
                 return json_response({"id": task_id})
             if action == "importRetry":
                 if body.get("confirmed") is not True:

@@ -182,6 +182,7 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
         )
         self.plugin.services.import_service.run = AsyncMock(return_value=None)
         self.plugin.active_import_task_id = ""
+        self.plugin.active_import_started_task_id = ""
         self.plugin.run_traces = TraceStore(Path(self.temp.name) / "runs.jsonl")
         self.plugin.buffer.add(
             "bot:FriendMessage:alice",
@@ -502,6 +503,54 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
             allow_run.set()
             if self.plugin.jobs.task is not None:
                 await asyncio.gather(self.plugin.jobs.task, return_exceptions=True)
+
+    async def test_cancel_before_import_runner_starts_terminalizes_task(self):
+        service = self.plugin.services.import_service
+        staged = await self.plugin.import_files.save_upload(self.Upload())
+        selection = RoleSelection(
+            bot_platform_id="bot-1",
+            target_platform_id="user-1",
+            target_umo="qq:FriendMessage:user-1",
+            bot_member_id="bot-1",
+            target_member_id="user-1",
+        )
+        await service.validate_stage(staged.key, selection)
+        runner_started = asyncio.Event()
+
+        async def run_import(*_args):
+            runner_started.set()
+            await asyncio.Event().wait()
+
+        service.run = AsyncMock(side_effect=run_import)
+        confirmation = await self.call(
+            "importConfirm",
+            {
+                "stageKey": staged.key,
+                "botPlatformId": selection.bot_platform_id,
+                "targetPlatformId": selection.target_platform_id,
+                "targetUmo": selection.target_umo,
+                "botMemberId": selection.bot_member_id,
+                "targetMemberId": selection.target_member_id,
+                "confirmed": True,
+            },
+        )
+        task_id = confirmation["id"]
+        result = await self.call("importCancel", {"id": task_id, "confirmed": True})
+        await asyncio.gather(self.plugin.jobs.task, return_exceptions=True)
+
+        task = service.task(task_id)
+        self.assertEqual(result["id"], task_id)
+        self.assertFalse(runner_started.is_set())
+        self.assertEqual(task["status"], "cancelled")
+        self.assertFalse(task["can_retry"])
+        from _seekmemory_contract.webui.import_files import ImportFileError
+
+        with self.assertRaises(ImportFileError):
+            service.files.path_for_key(staged.key)
+        self.plugin.jobs.task = None
+        self.plugin.jobs.kind = ""
+        self.plugin.active_import_task_id = ""
+        self.plugin.active_import_started_task_id = ""
 
     async def test_trace_auth_filter_and_content_exclusion(self):
         extras = {}

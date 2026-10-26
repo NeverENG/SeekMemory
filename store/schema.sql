@@ -167,6 +167,8 @@ CREATE TABLE IF NOT EXISTS history_import_preflight (
     source_id  TEXT NOT NULL,
     fingerprint TEXT NOT NULL,
     topic_id   TEXT NOT NULL,
+    role       TEXT NOT NULL DEFAULT '',
+    reply_to   TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
     PRIMARY KEY (stage_key, source_id)
 );

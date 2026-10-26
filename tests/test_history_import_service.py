@@ -16,16 +16,34 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.contracts import WriteOutcome
 from adapters.chatlab import ChatLabReader
-from services.import_policy import RoleSelection
+from services.import_policy import RoleSelection, build_source_entries, reply_source_ids
 from services.import_service import ImportService
+from services.import_utils import VALIDATION_BATCH, take
 from store import open_store
 from webui.import_files import ImportFileError, ImportFileStore
 from webui.journal import Journal
 
 
 class Upload:
-    filename = "history.json"
     size = None
+
+    def __init__(self, messages: list[dict] | None = None) -> None:
+        self.filename = "history.json"
+        self.messages = messages or [
+            {
+                "platformMessageId": "user-message",
+                "sender": "user-1",
+                "timestamp": 1_700_000_000,
+                "content": "hello",
+            },
+            {
+                "platformMessageId": "bot-message",
+                "sender": "bot-1",
+                "timestamp": 1_700_000_001,
+                "content": "hello there",
+                "replyToMessageId": "user-message",
+            },
+        ]
 
     async def save(self, path: Path) -> None:
         path.write_text(
@@ -37,25 +55,52 @@ class Upload:
                         {"platformId": "bot-1", "accountName": "Bot"},
                         {"platformId": "user-1", "accountName": "User"},
                     ],
-                    "messages": [
-                        {
-                            "platformMessageId": "user-message",
-                            "sender": "user-1",
-                            "timestamp": 1_700_000_000,
-                            "content": "hello",
-                        },
-                        {
-                            "platformMessageId": "bot-message",
-                            "sender": "bot-1",
-                            "timestamp": 1_700_000_001,
-                            "content": "hello there",
-                            "replyToMessageId": "user-message",
-                        },
-                    ],
+                    "messages": self.messages,
                 }
             ),
             encoding="utf-8",
         )
+
+
+class LargeReplyJsonlUpload:
+    filename = "history.jsonl"
+    size = None
+    pairs = 25_001
+
+    async def save(self, path: Path) -> None:
+        with path.open("w", encoding="utf-8") as stream:
+            rows = [
+                {
+                    "_type": "header",
+                    "chatlab": {"version": "0.0.2"},
+                    "meta": {"name": "private", "platform": "qq", "type": "private"},
+                },
+                {"_type": "member", "platformId": "bot-1", "accountName": "Bot"},
+                {"_type": "member", "platformId": "user-1", "accountName": "User"},
+            ]
+            for row in rows:
+                stream.write(json.dumps(row) + "\n")
+            for index in range(self.pairs):
+                user_id = f"user-{index}"
+                timestamp = 1_700_000_000 + index * 2
+                for row in (
+                    {
+                        "_type": "message",
+                        "platformMessageId": user_id,
+                        "sender": "user-1",
+                        "timestamp": timestamp,
+                        "content": "same topic question",
+                    },
+                    {
+                        "_type": "message",
+                        "platformMessageId": f"bot-{index}",
+                        "sender": "bot-1",
+                        "timestamp": timestamp + 1,
+                        "content": "same topic answer",
+                        "replyToMessageId": user_id,
+                    },
+                ):
+                    stream.write(json.dumps(row) + "\n")
 
 
 class FakeIngest:
@@ -155,6 +200,86 @@ class HistoryImportServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("hello there", json.dumps(list(self.journal.events)))
         with self.assertRaises(ImportFileError):
             self.files.path_for_key(staged.key)
+
+    async def test_reply_to_future_user_keeps_parent_topic_across_batches(self):
+        first_at = 1_700_000_000
+        messages = [
+            {
+                "platformMessageId": "early-bot-reply",
+                "sender": "bot-1",
+                "timestamp": first_at,
+                "content": "answer",
+                "replyToMessageId": "later-user-message",
+            }
+        ]
+        messages.extend(
+            {
+                "platformMessageId": f"user-{index}",
+                "sender": "user-1",
+                "timestamp": first_at + index,
+                "content": "same topic message",
+            }
+            for index in range(1, 500)
+        )
+        messages.append(
+            {
+                "platformMessageId": "later-user-message",
+                "sender": "user-1",
+                "timestamp": first_at + 6_000,
+                "content": "a new topic after the time gap",
+            }
+        )
+        staged = await self.files.save_upload(Upload(messages))
+        await self.service.inspect_upload(staged.key)
+        preview = await self.service.validate_stage(staged.key, self.selection)
+        self.assertEqual(preview["uniqueSourceCount"], 501)
+        task_id = self.service.create_task(staged.key, self.selection)
+        await self.service.run(task_id, self.selection)
+
+        imported_turns = [turn for call in self.ingest.calls for turn in call["turns"]]
+        bot_reply = next(turn for turn in imported_turns if turn.role == "assistant")
+        parent = next(
+            turn
+            for turn in imported_turns
+            if turn.role == "user" and turn.text == "a new topic after the time gap"
+        )
+        self.assertEqual(self.service.task(task_id)["status"], "completed")
+        self.assertEqual(bot_reply.topic_id, parent.topic_id)
+
+    async def test_large_jsonl_reply_references_are_processed_in_bounded_batches(self):
+        staged = await self.files.save_upload(LargeReplyJsonlUpload())
+        path = self.files.preview_path(staged.key)
+        reader = self.service.validator.reader
+        inspection = await asyncio.to_thread(reader.inspect, path)
+        messages = reader.iter_messages_sorted(str(path))
+        previous = None
+        processed = 0
+        max_batch = 0
+        max_reply_ids = 0
+
+        while True:
+            message_batch = await asyncio.to_thread(take, messages, VALIDATION_BATCH)
+            if not message_batch:
+                break
+            reply_ids = reply_source_ids(
+                message_batch, self.selection.target_umo
+            )
+            entries, previous = await asyncio.to_thread(
+                build_source_entries,
+                message_batch,
+                roles={"bot-1": "assistant", "user-1": "user"},
+                target_umo=self.selection.target_umo,
+                platform=inspection.platform,
+                previous=previous,
+                parent_topics={},
+            )
+            processed += len(entries)
+            max_batch = max(max_batch, len(entries))
+            max_reply_ids = max(max_reply_ids, len(reply_ids))
+
+        self.assertEqual(processed, 50_002)
+        self.assertLessEqual(max_batch, VALIDATION_BATCH)
+        self.assertLessEqual(max_reply_ids, VALIDATION_BATCH)
 
     async def test_target_umo_must_match_the_confirmed_user_id(self):
         staged = await self.files.save_upload(Upload())

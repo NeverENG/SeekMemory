@@ -10,13 +10,11 @@ try:
     from ..app.contracts import DialogueTurn
     from ..app.flush_policy import chunk_turns
     from ..app.ports import HistoryImportFiles, HistoryImportStore, HistoryReader
-    from ..core.source import SourceQueueEntry
     from ..perceive.model import ProviderChatModel
     from .import_policy import (
         RoleSelection,
-        TopicCorrection,
-        iter_source_entries,
-        reply_targets,
+        build_source_entries,
+        reply_source_ids,
         resolve_roles,
     )
     from .import_utils import VALIDATION_BATCH, take
@@ -24,13 +22,11 @@ except ImportError:
     from app.contracts import DialogueTurn
     from app.flush_policy import chunk_turns
     from app.ports import HistoryImportFiles, HistoryImportStore, HistoryReader
-    from core.source import SourceQueueEntry
     from perceive.model import ProviderChatModel
     from services.import_policy import (
         RoleSelection,
-        TopicCorrection,
-        iter_source_entries,
-        reply_targets,
+        build_source_entries,
+        reply_source_ids,
         resolve_roles,
     )
     from services.import_utils import VALIDATION_BATCH, take
@@ -82,29 +78,27 @@ class ImportTaskRunner:
             path = self.files.path_for_key(stage_key)
             inspection = await asyncio.to_thread(self.reader.inspect, path)
             roles = resolve_roles(inspection, selection)
-            referenced = await asyncio.to_thread(reply_targets, str(path), self.reader)
-            batch: list[SourceQueueEntry] = []
-            entries = iter_source_entries(
-                str(path),
-                self.reader,
-                roles=roles,
-                target_umo=selection.target_umo,
-                platform=inspection.platform,
-                referenced_ids=referenced,
-            )
+            messages = self.reader.iter_messages_sorted(str(path))
+            previous = None
             while True:
-                items = await asyncio.to_thread(take, entries, VALIDATION_BATCH)
-                if not items:
+                message_batch = await asyncio.to_thread(
+                    take, messages, VALIDATION_BATCH
+                )
+                if not message_batch:
                     break
-                for item in items:
-                    if isinstance(item, TopicCorrection):
-                        continue
-                    batch.append(item)
-                    if len(batch) >= VALIDATION_BATCH:
-                        self.imports.admit_sources(task_id, batch, stage_key=stage_key)
-                        batch = []
-            if batch:
-                self.imports.admit_sources(task_id, batch, stage_key=stage_key)
+                parent_topics = self.imports.preflight_user_topics(
+                    stage_key, reply_source_ids(message_batch, selection.target_umo)
+                )
+                entries, previous = await asyncio.to_thread(
+                    build_source_entries,
+                    message_batch,
+                    roles=roles,
+                    target_umo=selection.target_umo,
+                    platform=inspection.platform,
+                    previous=previous,
+                    parent_topics=parent_topics,
+                )
+                self.imports.admit_sources(task_id, entries, stage_key=stage_key)
 
             await self._extract_task(task_id, selection, errors)
             counts = self.imports.counts(task_id)

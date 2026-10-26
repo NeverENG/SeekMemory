@@ -91,6 +91,7 @@ class AstrBotPlugin(AstrBotHooks):
         self.tool_policy: ToolPolicy | None = None
         self.jobs: Jobs | None = None
         self.active_import_task_id = ""
+        self.active_import_started_task_id = ""
         self.import_files: ImportFileStore | None = None
         self.capacity: CapacityGovernor | None = None
         self._last_runtime_prune_at = 0.0

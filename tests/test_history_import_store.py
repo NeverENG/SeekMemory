@@ -21,16 +21,84 @@ class HistoryImportStoreTests(unittest.TestCase):
         self.db = open_store(":memory:")
         self.addCleanup(self.db.close)
 
-    def _source(self, text: str = "history", *, source_id: str = "si_1") -> Source:
+    def test_legacy_preflight_schema_migrates_reply_lookup_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "legacy.sqlite3"
+            legacy = sqlite3.connect(path)
+            legacy.execute(
+                "CREATE TABLE history_import_preflight ("
+                "stage_key TEXT NOT NULL, source_id TEXT NOT NULL, "
+                "fingerprint TEXT NOT NULL, topic_id TEXT NOT NULL, "
+                "created_at TEXT NOT NULL, PRIMARY KEY(stage_key, source_id))"
+            )
+            legacy.close()
+
+            migrated = open_store(str(path))
+            try:
+                columns = {
+                    str(row[1])
+                    for row in migrated.conn.execute(
+                        "PRAGMA table_info(history_import_preflight)"
+                    )
+                }
+                indexes = {
+                    str(row[1])
+                    for row in migrated.conn.execute(
+                        "PRAGMA index_list(history_import_preflight)"
+                    )
+                }
+            finally:
+                migrated.close()
+
+        self.assertTrue({"role", "reply_to"}.issubset(columns))
+        self.assertIn("idx_history_import_preflight_reply", indexes)
+
+    def _source(
+        self,
+        text: str = "history",
+        *,
+        source_id: str = "si_1",
+        role: str = "assistant",
+        reply_to: str | None = None,
+    ) -> Source:
         return Source(
             source_id,
             source_id,
             "qq:FriendMessage:target",
             "bot-platform-id",
-            "assistant",
+            role,
             text,
             "2026-10-01T00:00:00+00:00",
+            reply_to=reply_to,
             metadata={"origin": {"format_id": "chatlab", "external_message_id": "m1"}},
+        )
+
+    def test_late_parent_user_retargets_preflighted_assistant_topic(self) -> None:
+        imports = self.db.imports
+        assistant = SourceQueueEntry(
+            self._source(source_id="assistant-id", reply_to="user-id"),
+            "assistant-topic",
+        )
+        parent = SourceQueueEntry(
+            self._source(source_id="user-id", role="user"), "parent-topic"
+        )
+
+        imports.validate_sources("stage-one", [assistant])
+        self.assertEqual(
+            imports.preflight_user_topics("stage-one", ["user-id"]), {}
+        )
+        imports.validate_sources("stage-one", [parent])
+
+        self.assertEqual(
+            imports.preflight_user_topics("stage-one", ["user-id"]),
+            {"user-id": "parent-topic"},
+        )
+        imports.create_task("task-one", "stage-one")
+        imports.set_status("task-one", "running")
+        imports.admit_sources("task-one", [assistant, parent], stage_key="stage-one")
+        rows = imports.topic_sources("task-one", "parent-topic")
+        self.assertEqual(
+            {row["source_id"] for row in rows}, {"assistant-id", "user-id"}
         )
 
     def test_import_queue_is_hidden_from_live_projection_until_terminal(self) -> None:

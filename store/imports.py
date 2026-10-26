@@ -261,6 +261,22 @@ class HistoryImportRepository(SqliteRepository):
             )
         return int(cur.rowcount or 0)
 
+    def preflight_user_topics(
+        self, stage_key: str, source_ids: list[str]
+    ) -> dict[str, str]:
+        """Read only the bounded user-topic references for a message batch."""
+        ids = list(dict.fromkeys(str(value) for value in source_ids if value))
+        if not ids:
+            return {}
+        rows = self.conn.execute(
+            "SELECT source_id, topic_id FROM history_import_preflight "
+            "WHERE stage_key = ? AND role = 'user' AND source_id IN ("
+            + ",".join("?" for _ in ids)
+            + ")",
+            [str(stage_key), *ids],
+        ).fetchall()
+        return {str(row["source_id"]): str(row["topic_id"]) for row in rows}
+
     def prune_preflight(self, *, now: str, retention_hours: int = 1) -> int:
         with self.conn:
             cur = self.conn.execute(
@@ -305,28 +321,27 @@ class HistoryImportRepository(SqliteRepository):
                 if existing_source is not None:
                     existing_count += 1
                 self.conn.execute(
-                    "INSERT INTO history_import_preflight(stage_key, source_id, fingerprint, topic_id, created_at) "
-                    "VALUES(?, ?, ?, ?, ?)",
-                    (str(stage_key), source.id, fingerprint, entry.topic_id, moment),
+                    "INSERT INTO history_import_preflight("
+                    "stage_key, source_id, fingerprint, topic_id, role, reply_to, created_at) "
+                    "VALUES(?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        str(stage_key),
+                        source.id,
+                        fingerprint,
+                        entry.topic_id,
+                        source.role,
+                        source.reply_to or "",
+                        moment,
+                    ),
                 )
+                if source.role == "user":
+                    self.conn.execute(
+                        "UPDATE history_import_preflight SET topic_id = ? "
+                        "WHERE stage_key = ? AND role = 'assistant' AND reply_to = ?",
+                        (entry.topic_id, str(stage_key), source.id),
+                    )
                 unique += 1
         return {"unique": unique, "duplicates": duplicates, "existing": existing_count}
-
-    def retarget_preflight(
-        self, stage_key: str, source_ids: list[str], topic_id: str
-    ) -> int:
-        ids = list(dict.fromkeys(str(value) for value in source_ids if value))
-        if not ids:
-            return 0
-        with self.conn:
-            cur = self.conn.execute(
-                "UPDATE history_import_preflight SET topic_id = ? "
-                "WHERE stage_key = ? AND source_id IN ("
-                + ",".join("?" for _ in ids)
-                + ")",
-                [str(topic_id), str(stage_key), *ids],
-            )
-        return int(cur.rowcount or 0)
 
     def admit_sources(
         self,
