@@ -41,6 +41,7 @@ This is the repository's single operating guide; there is no root `AGENTS.md`. T
 Read only the reference needed for the current work:
 
 - Before branch/worktree, issue, PR, commit, merge or release actions: [collaboration and repository workflow](reference/collaboration.md).
+- When changing public interfaces, persistence formats, or cross-module contracts: [contract ownership and change workflow](reference/contracts.md).
 - When changing behavior or selecting checks: [test design and risk-based verification](reference/testing.md).
 - When changing the dashboard or visible copy: [UI and copy quality](reference/ui-quality.md).
 - When changing persisted data/public configuration or writing release notes: [changelog and compatibility decisions](reference/changelog-compatibility.md).
