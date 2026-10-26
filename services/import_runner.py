@@ -106,7 +106,7 @@ class ImportTaskRunner:
             if batch:
                 self.imports.admit_sources(task_id, batch, stage_key=stage_key)
 
-            await self._extract_task(task_id, errors)
+            await self._extract_task(task_id, selection, errors)
             counts = self.imports.counts(task_id)
             persona = await self.maintenance.import_persona_update()
             persona_status = str(persona.get("status") or "unchanged")
@@ -183,7 +183,9 @@ class ImportTaskRunner:
             if not retain_stage:
                 self.files.delete(stage_key)
 
-    async def _extract_task(self, task_id: str, errors: set[str]) -> None:
+    async def _extract_task(
+        self, task_id: str, selection: RoleSelection, errors: set[str]
+    ) -> None:
         while True:
             counts = self.imports.counts(task_id)
             if counts["pending"] == 0:
@@ -230,6 +232,7 @@ class ImportTaskRunner:
                 outcome = await self.ingest.extract(
                     chunk,
                     ProviderChatModel(provider),
+                    owner_id=selection.target_platform_id,
                     strict=True,
                     require_evidence=True,
                 )

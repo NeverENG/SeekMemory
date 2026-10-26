@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections import Counter
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -15,6 +16,7 @@ class WebRoutes:
 
     def __init__(self, plugin: Main) -> None:
         self.plugin = plugin
+        self._import_start_lock = asyncio.Lock()
 
     def register(self) -> None:
         """宿主支持插件 Web API 时，注册原生接口处理器。"""
@@ -325,20 +327,21 @@ class WebRoutes:
             if action == "importConfirm":
                 if body.get("confirmed") is not True:
                     raise ValueError("请先确认导入结果")
-                if self._jobs_busy():
-                    return error_response("另一个维护任务正在运行，请稍后导入", status_code=409)
                 selection = self._role_selection(body)
-                task_id = import_service.create_task(
-                    str(body.get("stageKey") or ""), selection
-                )
-                try:
-                    self._submit_import(task_id, selection)
-                except RuntimeError:
-                    import_service.imports.finish_task(
-                        task_id, "failed", persona_status="not_run", retain_stage=True
+                async with self._import_start_lock:
+                    if self._jobs_busy():
+                        return error_response("另一个维护任务正在运行，请稍后导入", status_code=409)
+                    task_id = import_service.create_task(
+                        str(body.get("stageKey") or ""), selection
                     )
-                    raise
-                return json_response({"id": task_id})
+                    try:
+                        self._submit_import(task_id, selection)
+                    except RuntimeError:
+                        import_service.imports.finish_task(
+                            task_id, "failed", persona_status="not_run", retain_stage=True
+                        )
+                        raise
+                    return json_response({"id": task_id})
             if action == "importCancel":
                 task_id = str(body.get("id") or "")
                 if (
@@ -355,13 +358,20 @@ class WebRoutes:
             if action == "importRetry":
                 if body.get("confirmed") is not True:
                     raise ValueError("请先确认重新导入")
-                if self._jobs_busy():
-                    return error_response("另一个维护任务正在运行，请稍后重试", status_code=409)
-                task_id, selection = await import_service.retry_task(
-                    str(body.get("id") or "")
-                )
-                self._submit_import(task_id, selection)
-                return json_response({"id": task_id})
+                async with self._import_start_lock:
+                    if self._jobs_busy():
+                        return error_response("另一个维护任务正在运行，请稍后重试", status_code=409)
+                    task_id, selection = await import_service.retry_task(
+                        str(body.get("id") or "")
+                    )
+                    try:
+                        self._submit_import(task_id, selection)
+                    except RuntimeError:
+                        import_service.imports.finish_task(
+                            task_id, "failed", persona_status="not_run", retain_stage=True
+                        )
+                        raise
+                    return json_response({"id": task_id})
             if action == "importAbandon":
                 if body.get("confirmed") is not True:
                     raise ValueError("请先确认放弃任务")

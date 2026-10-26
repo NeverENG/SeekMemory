@@ -62,11 +62,12 @@ class FakeIngest:
     def __init__(self) -> None:
         self.calls: list[dict] = []
 
-    async def extract(self, turns, model, *, strict, require_evidence):
+    async def extract(self, turns, model, *, owner_id, strict, require_evidence):
         self.calls.append(
             {
                 "turns": turns,
                 "model": model,
+                "owner_id": owner_id,
                 "strict": strict,
                 "require_evidence": require_evidence,
             }
@@ -137,6 +138,9 @@ class HistoryImportServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.maintenance.calls, 1)
         self.assertEqual(self.provider_sessions, ["qq:FriendMessage:user-1"])
         self.assertTrue(self.ingest.calls)
+        self.assertTrue(
+            all(call["owner_id"] == "user-1" for call in self.ingest.calls)
+        )
         self.assertTrue(all(call["strict"] for call in self.ingest.calls))
         self.assertTrue(all(call["require_evidence"] for call in self.ingest.calls))
         imported_turns = [turn for call in self.ingest.calls for turn in call["turns"]]

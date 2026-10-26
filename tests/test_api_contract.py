@@ -42,6 +42,9 @@ ContextBudget = importlib.import_module("_seekmemory_contract.app.budget").Conte
 ImportService = importlib.import_module("_seekmemory_contract.services.import_service").ImportService
 ImportFileStore = importlib.import_module("_seekmemory_contract.webui.import_files").ImportFileStore
 ChatLabReader = importlib.import_module("_seekmemory_contract.adapters.chatlab").ChatLabReader
+RoleSelection = importlib.import_module(
+    "_seekmemory_contract.services.import_policy"
+).RoleSelection
 
 
 class ApiContractTests(unittest.IsolatedAsyncioTestCase):
@@ -422,6 +425,83 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
         await self.call("records", expected=503)
         await self.call("status")
         await self.call("events")
+
+    async def test_concurrent_import_retries_are_serialized(self):
+        service = self.plugin.services.import_service
+        staged = await self.plugin.import_files.save_upload(self.Upload())
+        selection = RoleSelection(
+            bot_platform_id="bot-1",
+            target_platform_id="user-1",
+            target_umo="qq:FriendMessage:user-1",
+            bot_member_id="bot-1",
+            target_member_id="user-1",
+        )
+        await service.validate_stage(staged.key, selection)
+        old_task_id = service.create_task(staged.key, selection)
+        self.plugin.store.imports.finish_task(
+            old_task_id, "failed", persona_status="not_run", retain_stage=True
+        )
+
+        validation_started = asyncio.Event()
+        allow_validation = asyncio.Event()
+        run_started = asyncio.Event()
+        allow_run = asyncio.Event()
+        validation_calls = 0
+        original_validate = service.validator.validate_stage
+
+        async def delayed_validate(*args, **kwargs):
+            nonlocal validation_calls
+            validation_calls += 1
+            validation_started.set()
+            await allow_validation.wait()
+            return await original_validate(*args, **kwargs)
+
+        async def hold_run(_task_id, _selection):
+            run_started.set()
+            await allow_run.wait()
+
+        service.validator.validate_stage = delayed_validate
+        service.run = hold_run
+        body = {"id": old_task_id, "confirmed": True}
+        transport = ModuleType("astrbot.api.web")
+        transport.request = SimpleNamespace(
+            username="admin",
+            method="POST",
+            query={},
+            body=AsyncMock(return_value=json.dumps(body).encode()),
+            json=AsyncMock(return_value=body),
+            files=AsyncMock(return_value={}),
+        )
+        transport.json_response = lambda data, status_code=200: SimpleNamespace(
+            data=data, status_code=status_code
+        )
+        transport.error_response = lambda message, status_code=400: SimpleNamespace(
+            data={"status": "error", "message": message, "data": None},
+            status_code=status_code,
+        )
+        try:
+            with patch.dict(sys.modules, {"astrbot.api.web": transport}):
+                first = asyncio.create_task(self.routes.handle("importRetry"))
+                await validation_started.wait()
+                second = asyncio.create_task(self.routes.handle("importRetry"))
+                await asyncio.sleep(0)
+                allow_validation.set()
+                responses = await asyncio.gather(first, second)
+                await run_started.wait()
+
+            self.assertEqual(
+                sorted(response.status_code for response in responses), [200, 409]
+            )
+            self.assertEqual(validation_calls, 1)
+            task_rows = self.plugin.store.conn.execute(
+                "SELECT COUNT(*) FROM history_import_tasks"
+            ).fetchone()[0]
+            self.assertEqual(task_rows, 2)
+        finally:
+            allow_validation.set()
+            allow_run.set()
+            if self.plugin.jobs.task is not None:
+                await asyncio.gather(self.plugin.jobs.task, return_exceptions=True)
 
     async def test_trace_auth_filter_and_content_exclusion(self):
         extras = {}
