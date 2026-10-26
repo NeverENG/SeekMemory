@@ -10,7 +10,7 @@
 
 ## Choose validation by risk
 
-Run the narrowest checks that give adequate evidence. Use [docs/TESTING.md](../../../../docs/TESTING.md) for test layers and commands; do not run the full suite locally by habit.
+Run the narrowest checks that give adequate evidence. Use the [development guide](../../../../docs/zh/guides/development.md) for test layers and commands; do not run the full suite locally by habit.
 
 | Change area | Local evidence to choose |
 |---|---|

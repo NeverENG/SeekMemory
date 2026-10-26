@@ -172,7 +172,7 @@ AstrBot 生态（同平台，单独列，因为它们才是 SeekMemory 的直接
 
 ### 学了谁
 
-- **PowerContext**：`Source` / `Artifact` 分离（原话只追加、理解可修订）、"通用头 + 类型化 payload"（加能力是加 `family`，不是给表加列）、`PreparedContext` 的有界预算视图、写入的决策门控。这四条在 `docs/DESIGN.md` 开头就写明了。
+- **PowerContext**：`Source` / `Artifact` 分离（原话只追加、理解可修订）、"通用头 + 类型化 payload"（加能力是加 `family`，不是给表加列）、`PreparedContext` 的有界预算视图、写入的决策门控。这四条在 `docs/zh/architecture/overview.md` 开头就写明了。
 - **git**：内容寻址（sha256 存 blob，天然去重）、追加日志、哈希链（`ledger.prev_hash/self_hash`）、可 diff 任意时间点。
 - **认知科学**：艾宾浩斯 `R = e^(−t/S)`、首因效应（最早三条不衰减）、激活扩散（语义网络里的 spread activation，落到 `similar/causal/temporal` 三型边）、闪光灯记忆（高唤醒 × 负效价几乎不忘）、metamemory（区分"我忘了"和"你没说过"）。
 

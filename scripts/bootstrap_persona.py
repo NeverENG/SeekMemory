@@ -5,7 +5,7 @@
     python scripts/bootstrap_persona.py --db <memory.db> --file <persona.json>
 
 它只做管理侧的一次写入：不创建 Source、不触发抽取、不写第二份人格存储。
-人格内容由 `docs/PERSONA_SEED.md` 定义的 persona 文件提供；写入后由召回
+人格内容由 persona seed 文件提供；格式、校验和演化方式见 `docs/zh/guides/persona-seed.md`；写入后由召回
 常驻层每轮注入，Dream 之后在同一人格链上做增量修订。
 
 退出码：

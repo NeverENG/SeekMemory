@@ -14,9 +14,9 @@
 </div>
 
 <p align="center">
-  <a href="docs/ARCHITECTURE.md">架构</a> /
-  <a href="docs/CONTRACT.md">契约</a> /
-  <a href="docs/TESTING.md">测试</a> /
+  <a href="docs/zh/architecture/overview.md">架构</a> /
+  <a href="docs/zh/index.md">文档</a> /
+  <a href="docs/en/index.md">English</a> /
   <a href="#quick-start">快速开始</a> /
   <a href="https://github.com/NeverENG/SeekMemory">GitHub</a>
 </p>
@@ -319,15 +319,12 @@ version: 0.4.1
 
 ## 文档
 
-- [架构](docs/ARCHITECTURE.md)
-- [契约](docs/CONTRACT.md)
-- [不变量](docs/INVARIANTS.md)
-- [测试](docs/TESTING.md)
-- [WebUI](docs/webui/README.md)
-- [贡献](CONTRIBUTING.md)
+- [中文文档](docs/zh/index.md) / [English documentation](docs/en/index.md)
+- [架构总览](docs/zh/architecture/overview.md)
+- [开发环境与验证](docs/zh/guides/development.md)
+- [管理界面操作](docs/zh/guides/webui.md)
+- [贡献指南](CONTRIBUTING.md)
 - [Issues](https://github.com/NeverENG/SeekMemory/issues) / [Pull Requests](https://github.com/NeverENG/SeekMemory/pulls)
-
----
 
 ## 许可证
 
