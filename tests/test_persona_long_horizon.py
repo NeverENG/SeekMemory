@@ -191,6 +191,7 @@ class PersonaLongHorizonTest(PersonaCase):
         model = _Model()
         service = self.service(model)
         checkpoints: dict[int, int] = {}
+        checkpoint_texts: list[str] = []
         concurrent_days: list[int] = []
         started = time.monotonic()
 
@@ -274,6 +275,7 @@ class PersonaLongHorizonTest(PersonaCase):
                     current = self.cache.active("persona")[0]
                     checkpoints[day] = current.header.revision
                     payload = current.payload
+                    checkpoint_texts.append(str(payload["text"]))
                     self.assertEqual(payload["corpus_count"], 12)
                     self.assertEqual(len(payload["corpus_hash"]), 64)
                     if payload.get("origin") == "dream":
@@ -291,6 +293,9 @@ class PersonaLongHorizonTest(PersonaCase):
         self.assertLess(elapsed, 10.0)
         self.assertEqual(concurrent_days, [45])
         self.assertEqual(set(checkpoints), {7, 30, 60, 90})
+        # The persona evolves instead of staying static, without losing identity.
+        self.assertGreaterEqual(len(set(checkpoint_texts)), 2)
+        self.assertNotEqual(checkpoint_texts[-1], "你是长期测试人格。")
         self.assertLess(checkpoints[7], checkpoints[30])
         self.assertLess(checkpoints[30], checkpoints[60])
         self.assertLess(checkpoints[60], checkpoints[90])

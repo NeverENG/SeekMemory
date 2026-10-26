@@ -12,6 +12,7 @@ import json
 import unittest
 from contextlib import contextmanager
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from persona_support import PersonaCase
 from app.persona_synthesis import (
@@ -61,12 +62,12 @@ class _FakeModel:
         return SimpleNamespace(text=self.text, usage_in=1, usage_cached=0, usage_out=1)
 
 
-def _seed() -> dict:
+def _seed(text: str = "你是契约测试人格。") -> dict:
     return {
         "id": "contract_persona",
         "version": "1.0.0",
         "name": "契约人格",
-        "persona": "你是契约测试人格。",
+        "persona": text,
         "style": {"tone": "稳定"},
         "boundaries": ["不编造"],
     }
@@ -86,9 +87,12 @@ def _draft(day: int = 1, persona: str | None = None) -> str:
 
 class PersonaLifecycleContractTest(PersonaCase):
     def bootstrap(self) -> None:
-        ManagementService(
+        self.manager().bootstrap_persona(_seed())
+
+    def manager(self) -> ManagementService:
+        return ManagementService(
             self.db.artifacts, self.db.sources, self.db.ledger, self.cache, None
-        ).bootstrap_persona(_seed())
+        )
 
     def service(self, fake: _FakeModel, clock=None, **config) -> MaintenanceService:
         async def factory():
@@ -121,6 +125,7 @@ class PersonaLifecycleContractTest(PersonaCase):
         shareable: str = "public",
         sources: tuple[str, ...] = ("s1",),
         level: str = "scene",
+        weight: float = 2.0,
     ):
         now = datetime.datetime.now().isoformat(timespec="seconds")
         art = make(
@@ -129,7 +134,7 @@ class PersonaLifecycleContractTest(PersonaCase):
             scope=scope,
             shareable=shareable,
             said_by="owner",
-            strength=Strength(weight=2.0, confidence=1.0),
+            strength=Strength(weight=weight, confidence=1.0),
             lineage=Lineage(sources=sources),
             time=TimeSpan(created=now, updated=now),
         )
@@ -390,13 +395,15 @@ class PersonaLifecycleContractTest(PersonaCase):
             )
 
     def test_rollback_to_seed_restores_a_trusted_seed_payload(self) -> None:
-        """Documented behavior: seed rollback restores corpus to stay trusted.
+        """TEMPORARY current behavior, not the desired invariant (owner: #88).
 
         ``trusted_self_persona`` accepts a seed payload only when corpus is
-        absent with zero count/hash, or present with matching count/hash. A
-        corpus-less seed revision is therefore not trusted today; issue #88's
-        "corpus only on the initial revision" checkpoint is asserted for
-        synthesized revisions, and this test pins the seed-rollback trade-off.
+        absent with zero count/hash, or present with matching count/hash, so
+        restoring revision 1 currently re-materializes the full corpus in the
+        new revision. That contradicts the "corpus only on the initial revision"
+        invariant (#88, seed-pack form tracked in #91). This test pins today's
+        behavior until #88 decides whether to relax trust for count-only seed
+        revisions or strip corpus and accept an untrusted historical revision.
         """
         seed = _seed()
         seed["corpus"] = [
@@ -500,13 +507,8 @@ class PersonaLifecycleContractTest(PersonaCase):
             [active[0].header.id],
         )
 
-    def test_restart_preserves_persona_history_and_active_selection(self) -> None:
-        self.bootstrap()
-        self.add_memory("公开摘要")
-        asyncio.run(self.service(_FakeModel(_draft())).weekly())
-        persona_id = self.cache.active("persona")[0].header.id
+    def restart_store(self) -> None:
         path = self.db.path
-
         self.db.close()
         from store import open_store
         from store.cache import Cache
@@ -516,12 +518,134 @@ class PersonaLifecycleContractTest(PersonaCase):
         self.cache = Cache(self.db.artifacts)
         self.cache.load()
 
+    def test_restart_preserves_persona_history_and_active_selection(self) -> None:
+        self.bootstrap()
+        self.add_memory("公开摘要")
+        asyncio.run(self.service(_FakeModel(_draft())).weekly())
+        persona_id = self.cache.active("persona")[0].header.id
+
+        self.restart_store()
+
         active = self.cache.active("persona")
         self.assertEqual(len(active), 1)
         self.assertEqual(active[0].header.id, persona_id)
         self.assertEqual(active[0].header.revision, 2)
         self.assertEqual(active[0].payload["origin"], "dream")
         self.assertEqual(len(self.db.artifacts.history(persona_id)), 2)
+
+    # ---- additional edge coverage ----------------------------------------
+
+    def test_bootstrap_failure_leaves_no_partial_persona(self) -> None:
+        legacy_one = self.seed(make("persona", {"text": "legacy one"}))
+        legacy_two = self.seed(make("persona", {"text": "legacy two"}))
+        real_commit = self.db.artifacts._commit_conn
+
+        def fail_on_retire(art, **kwargs):
+            if art.header.id == legacy_two.header.id:
+                raise RuntimeError("disk failure")
+            return real_commit(art, **kwargs)
+
+        with patch.object(self.db.artifacts, "_commit_conn", side_effect=fail_on_retire):
+            with self.assertRaises(RuntimeError):
+                self.bootstrap()
+        active = {
+            art.header.id: art.header.revision
+            for art in self.db.artifacts.list(family="persona", state="active")
+        }
+        self.assertEqual(
+            active, {legacy_one.header.id: 1, legacy_two.header.id: 1}
+        )
+        self.assertEqual(len(self.cache.active("persona")), 2)
+
+    def test_reinstall_with_same_text_retires_duplicates(self) -> None:
+        self.seed(make("persona", {"text": "legacy one"}))
+        self.seed(make("persona", {"text": "legacy two"}))
+        self.manager().bootstrap_persona(_seed("同一文本"))
+        self.manager().bootstrap_persona(_seed("同一文本"))
+        active = self.cache.active("persona")
+        self.assertEqual(len(active), 1)
+        persona_id = active[0].header.id
+        self.assertEqual(active[0].header.revision, 3)
+        self.assertEqual(active[0].payload["text"], "同一文本")
+        states = {
+            art.header.id: art.header.state
+            for art in self.db.artifacts.list(family="persona")
+        }
+        self.assertEqual(states.get(persona_id), "active")
+        self.assertEqual(sum(1 for state in states.values() if state == "active"), 1)
+        self.assertEqual(sum(1 for state in states.values() if state == "merged"), 1)
+
+    def test_synthesis_respects_evidence_limit(self) -> None:
+        self.bootstrap()
+        self.add_memory("标记一 MEM_ONE", weight=3.0)
+        self.add_memory("标记二 MEM_TWO", weight=2.0)
+        self.add_memory("标记三 MEM_THREE", weight=1.0)
+        fake = _FakeModel(_draft())
+        result = asyncio.run(
+            self.service(fake, persona_synthesis_evidence_limit=2).weekly()
+        )
+        self.assertEqual(result["persona_result"]["status"], "updated")
+        prompt = fake.request.prompt
+        self.assertIn("MEM_ONE", prompt)
+        self.assertIn("MEM_TWO", prompt)
+        self.assertNotIn("MEM_THREE", prompt)
+
+    def test_parse_accepts_fence_without_language_tag(self) -> None:
+        raw = "```\n" + _draft(3) + "\n```"
+        draft = parse_persona_draft(raw, {"text": "旧人格"})
+        self.assertIsNotNone(draft)
+        assert draft is not None
+        self.assertEqual(draft["persona"], "第 3 天的契约人格")
+
+    def test_empty_model_response_keeps_old_persona(self) -> None:
+        self.bootstrap()
+        self.add_memory("公开摘要")
+        result = asyncio.run(self.service(_FakeModel("")).weekly())
+        self.assertEqual(result["persona_result"]["status"], "failed")
+        active = self.cache.active("persona")
+        self.assertEqual(len(active), 1)
+        self.assertEqual(active[0].header.revision, 1)
+
+    def test_repeated_rollback_to_same_target_appends_revisions(self) -> None:
+        self.bootstrap()
+        self.manager().bootstrap_persona(_seed("第二版"))
+        persona_id = self.cache.active("persona")[0].header.id
+        manager = ManagementService(
+            self.db.artifacts, self.db.sources, self.db.ledger, self.cache, None
+        )
+        body = {
+            "id": persona_id,
+            "revision": 1,
+            "reason": "重复回滚",
+            "confirmed": True,
+        }
+        first = manager.rollback_persona(dict(body))
+        second = manager.rollback_persona(dict(body))
+        self.assertEqual((first["revision"], second["revision"]), (3, 4))
+        history = self.db.artifacts.history(persona_id)
+        self.assertEqual([row["revision"] for row in history], [1, 2, 3, 4])
+        self.assertEqual(
+            [row["payload"]["text"] for row in history],
+            ["你是契约测试人格。", "第二版", "你是契约测试人格。", "你是契约测试人格。"],
+        )
+        self.assertEqual(len(self.cache.active("persona")), 1)
+
+    def test_rollback_after_restart_still_appends_a_revision(self) -> None:
+        self.bootstrap()
+        self.add_memory("公开摘要")
+        asyncio.run(self.service(_FakeModel(_draft())).weekly())
+        persona_id = self.cache.active("persona")[0].header.id
+        self.restart_store()
+        result = ManagementService(
+            self.db.artifacts, self.db.sources, self.db.ledger, self.cache, None
+        ).rollback_persona(
+            {"id": persona_id, "revision": 1, "reason": "重启后回滚", "confirmed": True}
+        )
+        self.assertEqual(result["revision"], 3)
+        active = self.cache.active("persona")
+        self.assertEqual(len(active), 1)
+        self.assertEqual(active[0].payload["origin"], "seed")
+        self.assertEqual(len(self.db.artifacts.history(persona_id)), 3)
 
 
 if __name__ == "__main__":
