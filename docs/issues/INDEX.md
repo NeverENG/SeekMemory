@@ -37,6 +37,7 @@
 | [ISSUE-0031](ISSUE-0031.md) | 上下文预算：语料与群聊上下文该有上限 | P2 | merged | 单次调用 15k tokens 中语料占 4.5k；实测 248→166 对质量不变（3.79→3.77）。 |
 | [ISSUE-0032](ISSUE-0032.md) | Agent Run Trace（GitHub #11） | P2 | in_progress | 本地轨迹、时间轴与筛选已实现；待真实宿主验收与审核。 |
 | [ISSUE-0033](ISSUE-0033-token-source-context.md) | Token 控制、Source 证据召回与 Dream 分诊批处理 | P1 | verified | Memory 优先；Source 只做证据；Dream 分诊 + 同会话批处理；真实调用/token 预算与 usage 台账。 |
+| [ISSUE-0034](ISSUE-0034.md) | 人格注入被 180 字截断：seed 人格永远只到第一段 | P1 | merged | 人格句复用单条记忆的 `_clean(180)`；改为整段注入并补 bootstrap CLI 与回归测试。 |
 
 ## 关系图（读的顺序）
 

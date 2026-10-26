@@ -112,6 +112,19 @@ persona Artifact lineage. `POST manage/rollbackPersona` restores a historical
 revision by creating a new revision with the target payload and header snapshot;
 it never deletes history and never creates a parallel persona store.
 
+## CLI bootstrap
+
+```bash
+python scripts/bootstrap_persona.py --db <memory.db> --file <persona.json>
+python scripts/bootstrap_persona.py --db <memory.db> --file <persona.json> --dry-run
+```
+
+脚本只调用 `ManagementService.bootstrap_persona()`：不创建 Source、不触发抽取、
+不写第二份人格存储。`--dry-run` 只校验文件并打印 seed id/version、语料数量和文本长度。
+
+写入后人格由召回常驻层每轮注入；`budget_chars` 需要足够大（人格文本 + 常驻印象），
+否则人格会被预算裁剪影响可用长度。
+
 ## Trust rules
 
 - Seed-origin persona: trusted only with explicit seed provenance and an active
