@@ -21,4 +21,4 @@ Fixes # (issue)
 - [ ] I confirm the target branch is `main`
 - [ ] Code has passed local testing
 - [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] For feature changes, I checked whether docs need updating; if so, I updated the relevant pages in both `docs/zh/` and `docs/en/`, or explained why no docs update is needed / 对于 feature 改动，已检查文档是否需要更新；如需更新，已同步到中英文目录，或已说明无需更新的原因
+- [ ] For feature changes, I checked whether docs need updating; if so, I updated the relevant pages in both `docs/zh/` and `docs/en/`, or explained why no docs update is needed

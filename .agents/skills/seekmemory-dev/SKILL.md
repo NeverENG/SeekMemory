@@ -30,6 +30,7 @@ This is the repository's single operating guide; there is no root `AGENTS.md`. T
 
 ## Implementation conventions
 
+- Before editing a file, inspect its existing format, terminology, and neighboring content. Follow those conventions so the change stays consistent with the file and surrounding module.
 - Python targets 3.10+. Add type hints to public functions; prefer frozen dataclasses and small pure functions.
 - Reuse named DTOs such as `DialogueTurn`, `RetrievalCandidate` and `WriteOutcome`; do not introduce raw tuples where a named type belongs.
 - Keep modules focused (about 150 lines where practical; avoid exceeding 300 without a reason). Prefer the standard library; justify new dependencies. Do not add package/top-level import fallbacks unless both execution modes are required.
