@@ -20,12 +20,6 @@
 | docs/ | Architecture, contracts, operator guides and durable design decisions | docs/README.md |
 | docs/INTERFACES.md | Public protocols, DTOs and contract tests | docs/INTERFACES.md |
 | docs/README.md | Documentation entry point and status legend | docs/README.md |
-| docs/refactor/STEP-01-services.md | Services/lifecycle acceptance record | docs/refactor/STEP-01-services.md |
-| docs/refactor/STEP-02-open-store.md | Repository store boundary acceptance record | docs/refactor/STEP-02-open-store.md |
-| docs/refactor/STEP-03-repository-ports.md | Explicit repository port acceptance record | docs/refactor/STEP-03-repository-ports.md |
-| docs/refactor/STEP-04-single-write-paths.md | Single write path acceptance record | docs/refactor/STEP-04-single-write-paths.md |
-| docs/refactor/STEP-05-conversion-write-split.md | Conversion/write split acceptance record | docs/refactor/STEP-05-conversion-write-split.md |
-| docs/refactor/STEP-06-final-audit.md | Final consolidation audit | docs/refactor/STEP-06-final-audit.md |
 | .agents/skills/seekmemory-dev/SKILL.md | Normative development workflow; detailed topics live in its reference/ directory | ../.agents/skills/seekmemory-dev/SKILL.md |
 | docs/INVARIANTS.md | Non-negotiable identity, privacy, recovery and reinforcement rules | docs/INVARIANTS.md |
 | docs/TESTING.md | Test layers, commands and known coverage gaps | docs/TESTING.md |
