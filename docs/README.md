@@ -16,7 +16,7 @@ The root README is the product entry point; this page is the contributor entry p
 
 ### New contributor
 
-1. [Repository development skill](../skills/seekmemory-dev/SKILL.md) for collaboration and implementation conventions
+1. [Repository development skill](../.agents/skills/seekmemory-dev/SKILL.md) for collaboration and implementation conventions
 2. [ARCHITECTURE.md](ARCHITECTURE.md)
 3. [INTERFACES.md](INTERFACES.md)
 4. [INVARIANTS.md](INVARIANTS.md)
@@ -29,14 +29,12 @@ The root README is the product entry point; this page is the contributor entry p
 1. [ARCHITECTURE.md](ARCHITECTURE.md)
 2. [webui/README.md](webui/README.md)
 3. [CONTRACT.md](CONTRACT.md)
-4. [issues/INDEX.md](issues/INDEX.md)
 
 ### Reviewer
 
 1. [INVARIANTS.md](INVARIANTS.md)
 2. [TESTING.md](TESTING.md)
 3. [CONTRACT.md](CONTRACT.md)
-4. [issues/INDEX.md](issues/INDEX.md)
 
 ## Document index
 
@@ -52,13 +50,16 @@ The root README is the product entry point; this page is the contributor entry p
 | [INDEX.md](INDEX.md) | current | Code map and dependency direction |
 | [BASELINES.md](BASELINES.md) | historical | Benchmark baseline notes |
 | [BUGS.md](BUGS.md) | archive | Historical audit notes |
-| [issues/INDEX.md](issues/INDEX.md) | current | Issue and PR history |
 | [webui/README.md](webui/README.md) | current | WebUI operator guide |
 
 ## Documentation rules
 
 - Current behavior belongs in ARCHITECTURE, CONTRACT, INTERFACES, INVARIANTS or TESTING.
-- Proposed work belongs in an issue or proposal, not in a current-contract document.
+- Proposed work belongs in a GitHub issue or an RFC, not in a current-contract document.
 - Historical documents keep their original context and must say they are historical.
 - Any data-structure change needs an entry in INVARIANTS and a contract test.
 - Any public interface change needs an entry in INTERFACES and a contract test.
+
+## Project tracking
+
+Track planned work and review history in [GitHub Issues](https://github.com/NeverENG/SeekMemory/issues) and [Pull Requests](https://github.com/NeverENG/SeekMemory/pulls). Repository docs contain durable product and engineering guidance rather than copies of those work records.

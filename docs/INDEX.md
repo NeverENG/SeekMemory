@@ -1,12 +1,6 @@
 # Code Index
 
-> Start here: [docs/README.md](README.md), then read the [repository development skill](../skills/seekmemory-dev/SKILL.md) and the relevant technical contracts.
-
-## Current version
-
-```text
-v0.3.1 + WebUI branch
-```
+> Start here: [docs/README.md](README.md), then read the [repository development skill](../.agents/skills/seekmemory-dev/SKILL.md) and the relevant technical contracts.
 
 ## Directory map
 
@@ -23,7 +17,7 @@ v0.3.1 + WebUI branch
 | docs/webui/ | Plugin WebUI guide and screenshots | docs/webui/README.md |
 | scripts/package_plugin.py | Runtime whitelist and Release ZIP packaging | CONTRIBUTING.md |
 | tests/ | Unit, contract, integration, host and smoke tests; layer map in tests/layers.py | docs/TESTING.md |
-| docs/ | Architecture, contracts and issues | docs/issues/INDEX.md |
+| docs/ | Architecture, contracts, operator guides and durable design decisions | docs/README.md |
 | docs/INTERFACES.md | Public protocols, DTOs and contract tests | docs/INTERFACES.md |
 | docs/README.md | Documentation entry point and status legend | docs/README.md |
 | docs/refactor/STEP-01-services.md | Services/lifecycle acceptance record | docs/refactor/STEP-01-services.md |
@@ -32,7 +26,7 @@ v0.3.1 + WebUI branch
 | docs/refactor/STEP-04-single-write-paths.md | Single write path acceptance record | docs/refactor/STEP-04-single-write-paths.md |
 | docs/refactor/STEP-05-conversion-write-split.md | Conversion/write split acceptance record | docs/refactor/STEP-05-conversion-write-split.md |
 | docs/refactor/STEP-06-final-audit.md | Final consolidation audit | docs/refactor/STEP-06-final-audit.md |
-| skills/seekmemory-dev/SKILL.md | Normative development workflow; detailed topics live in its reference/ directory | ../skills/seekmemory-dev/SKILL.md |
+| .agents/skills/seekmemory-dev/SKILL.md | Normative development workflow; detailed topics live in its reference/ directory | ../.agents/skills/seekmemory-dev/SKILL.md |
 | docs/INVARIANTS.md | Non-negotiable identity, privacy, recovery and reinforcement rules | docs/INVARIANTS.md |
 | docs/TESTING.md | Test layers, commands and known coverage gaps | docs/TESTING.md |
 | docs/PERSONA_SEED.md | Persona file schema and one-time bootstrap contract | docs/PERSONA_SEED.md |
@@ -41,7 +35,7 @@ v0.3.1 + WebUI branch
 | main.py | Entry point composition only | main.py |
 | adapters/astrbot_plugin.py | AstrBot wiring and lifecycle | adapters/astrbot_plugin.py |
 | adapters/astrbot_hooks.py | AstrBot event mapping and handler registration | adapters/astrbot_hooks.py |
-| app/runtime/tracing.py + store/run_trace.py | Content-free run correlation and bounded JSONL traces | [Run Trace implementation](issues/PR-0032.md) |
+| app/runtime/tracing.py + store/run_trace.py | Content-free run correlation and bounded JSONL traces | [Run Trace contract](CONTRACT.md#agent-run-traces) |
 
 ## Dependency direction
 
@@ -118,7 +112,7 @@ Recall does not write. Reinforcement is queued and flushed by app/checkpoint.py.
 BM25 默认开启（`bm25_enabled=true`），配置权重默认为 1.0。插件入口与管理诊断共用
 长生命周期 HybridRetriever；Cache.version 变化后重建索引，查询统计只使用可见候选池。
 `recall/tokenizer.py` 提供无依赖字符 bigram；`recall/bm25.py` 提供正文/标签倒排表。
-校准与独立验收入口为 `benchmarks/bm25.py`，限制和回滚方式见 [ISSUE-0024](issues/ISSUE-0024.md)。
+校准与独立验收入口为 `benchmarks/bm25.py`；配置边界见 [CONTRACT.md](CONTRACT.md)，验收口径见 [benchmarks/README.md](../benchmarks/README.md)。
 
 ## WebUI path
 
@@ -133,12 +127,9 @@ AstrBot plugin page
 Management writes reuse Artifact commit with expected revision. Recall diagnostics do not consume
 one-time delivery state.
 
-## Active design work
+## Project tracking
 
-- BM25 hybrid retrieval（默认开启）：[实现与验收](issues/ISSUE-0024.md)。
-- 本地向量的后续约束同样记录在 ISSUE-0024：用户预装模型、运行时离线，本次不实现。
-- WebUI follow-up: server-side pagination, editable source view, and release download_url.
-- Future: reflection wiring, RBAC, capacity governance, persona source policy.
+Track planned work and review history in [GitHub Issues](https://github.com/NeverENG/SeekMemory/issues) and [Pull Requests](https://github.com/NeverENG/SeekMemory/pulls). Keep enduring design decisions and technical contracts in repository docs; do not copy per-issue or per-PR work logs here.
 
 ## Hard rules
 
@@ -147,4 +138,4 @@ one-time delivery state.
 3. All production writes use artifacts.commit with expected revision.
 4. Source is immutable truth; Artifact is derived interpretation.
 5. Cross-session content must pass disclosure before injection.
-6. New P0/P1 work needs an issue and a PR record.
+6. Track P0/P1 work in GitHub Issues and PRs; update durable technical docs when behavior or contracts change.

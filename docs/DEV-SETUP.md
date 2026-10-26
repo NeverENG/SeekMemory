@@ -41,8 +41,8 @@ Use the AstrBot plugin page for live data. For a local browser against a remote 
 Choose local checks by change risk; see [TESTING.md](TESTING.md) for layers and commands. Start with
 the narrowest relevant layer, then broaden for cross-layer, privacy, persistence, recovery, contract,
 schema/configuration or host-boundary changes. Manually review changed UI and visible copy using
-[the repository development skill](../skills/seekmemory-dev/SKILL.md). CI runs the full required
-suite for every PR. P0/P1 changes need an issue and a PR record.
+[the repository development skill](../.agents/skills/seekmemory-dev/SKILL.md). CI runs the full required
+suite for every PR. P0/P1 changes are tracked in GitHub Issues and PRs; update durable technical docs when behavior or contracts change.
 
 
 ## Read-only live probe

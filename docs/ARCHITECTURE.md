@@ -104,7 +104,7 @@ BM25 使用标准库字符 bigram 倒排索引，不调用模型或网络。正�
 `build_block(..., hybrid_retriever: Retriever | None = None)` 支持接口注入。
 `bm25_enabled=true`，新配置 `bm25_weight=1.0`；select 函数默认权重 2.0 保留旧调用兼容。
 BM25 本身无 SQL，现有 graph/source/history 路径仍可能查询 SQLite。
-本次不包含本地向量实现，不新增 semantic 字段或依赖；后续边界记录在 ISSUE-0024。
+本次不包含本地向量实现，不新增 semantic 字段或依赖；语义检索若进入范围，必须独立校准且不能复用 BM25 的 lexical 分数。
 
 ## Token and call budgets
 
@@ -178,7 +178,7 @@ The extractor returns `subject_kind`, `subject_id`, `event_at` and validity date
 - Recall applies disclosure before assembly; cross-session text is never injected raw.
 - Live validation: group sources and group Artifacts are being produced. A matching query selected
   two live Artifacts and applied paraphrase/silence disclosure.
-- BM25 已接入，默认开启；实现及验收限制见 [ISSUE-0024](issues/ISSUE-0024.md)。
+- BM25 已接入并默认开启；接口和配置约束见 [CONTRACT.md](CONTRACT.md)，校准与验收口径见 [benchmarks/README.md](../benchmarks/README.md)。
 - Capacity governance is a pure `core/capacity.py` policy over Source, Pending,
   Artifact, Context and Trace metrics. Pending is rebuilt by joining
   `extraction_state` to immutable Source; it is not a second dialogue copy.

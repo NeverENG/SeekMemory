@@ -325,7 +325,7 @@ version: 0.4.1
 - [测试](docs/TESTING.md)
 - [WebUI](docs/webui/README.md)
 - [贡献](CONTRIBUTING.md)
-- [Issue 历史](docs/issues)
+- [Issues](https://github.com/NeverENG/SeekMemory/issues) / [Pull Requests](https://github.com/NeverENG/SeekMemory/pulls)
 
 ---
 

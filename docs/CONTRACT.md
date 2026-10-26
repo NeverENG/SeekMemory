@@ -473,7 +473,7 @@ def build_block(cache: Cache, graph: Graph, artifacts: ArtifactStore,
 插件入口与 ManagementService 传递同一长生命周期实例。WebUI 诊断仍 dry_run，不消耗指定交付状态。
 新配置 bm25_weight 默认 1.0，由管线显式传入 select 的 lexical_weight；函数默认 2.0 保留旧调用兼容。
 显式关闭 bm25_enabled 时不读取 bm25_weight，忽略残留的无效权重配置。
-不改变已存在的 scope、披露、证据阈值或预算规则。实现决策与限制见 [ISSUE-0024](issues/ISSUE-0024.md)。
+不改变已存在的 scope、披露、证据阈值或预算规则。校准口径和验收数据见 [benchmarks/README.md](../benchmarks/README.md)。
 
 ## v0.3.2 extraction projection and capacity
 
