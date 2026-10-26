@@ -189,8 +189,12 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
     ) -> None:
         await self.plugin.initialize()
         await self.plugin.start_jobs()
-        expected_schedulers = 5 if self.plugin.services.background_service.dream_enabled else 6
-        self.assertEqual(len(self.plugin.services.background_service.tasks), expected_schedulers)
+        expected_schedulers = (
+            6 if self.plugin.services.background_service.dream_enabled else 7
+        )
+        self.assertEqual(
+            len(self.plugin.services.background_service.tasks), expected_schedulers
+        )
         tasks = list(self.plugin.services.background_service.tasks)
         await self.plugin.terminate()
         self.assertTrue(all(task.done() for task in tasks))
