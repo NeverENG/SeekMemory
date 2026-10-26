@@ -61,6 +61,30 @@ atomically, content is read back from immutable Source, and completion never
 deletes either row. Deferred rows wait for capacity headroom, and retries honor
 `next_attempt_at` until they reach the terminal `dead` state.
 
+### HistoryReader
+
+    def inspect(path: str | Path) -> HistoryInspection
+    def iter_messages(path: str | Path) -> Iterator[HistoryMessage]
+    def iter_messages_sorted(path: str | Path) -> Iterator[HistoryMessage]
+
+Format adapters implement `HistoryReader` and are injected at the host composition boundary.
+The import service consumes normalized metadata and messages without depending on a format adapter.
+The initial `ChatLabReader` accepts only ChatLab v0.0.2 JSON and JSONL.
+
+### HistoryImportStore
+
+    def create_task(task_id, stage_key, *, format_id, duplicate_count, skipped_count, selection)
+    def validate_sources(stage_key, entries: list[SourceQueueEntry]) -> dict[str, int]
+    def admit_sources(task_id, entries: list[SourceQueueEntry], *, stage_key="") -> int
+    def task(task_id) -> dict | None
+    def counts(task_id) -> dict[str, int]
+
+`HistoryImportStore` is the persistent projection for administrator-only initialization.
+Each bounded `admit_sources` batch commits immutable Source rows, extraction state and
+task–Source links atomically. Active imports are isolated from the live extraction queue;
+the importer processes their linked Sources through `IngestService` and never writes Artifacts
+directly. Task summaries omit the private retry role mapping and raw staged-file key.
+
 ## Shared DTOs in app/contracts.py
 
 - DialogueTurn: one buffered turn; session_id, speaker_id, role and text are required.

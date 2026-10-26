@@ -10,6 +10,7 @@ try:
     from .artifacts import ArtifactRepository
     from .dreams import DreamRepository
     from .extraction import ExtractionRepository
+    from .imports import HistoryImportRepository
     from .ledger import LedgerRepository
     from .metrics import StoreMetricsRepository
     from .runtime_episodes import RuntimeEpisodeRepository
@@ -20,6 +21,7 @@ except ImportError:  # standalone imports from the store directory
     from artifacts import ArtifactRepository
     from dreams import DreamRepository
     from extraction import ExtractionRepository
+    from imports import HistoryImportRepository
     from ledger import LedgerRepository
     from metrics import StoreMetricsRepository
     from runtime_episodes import RuntimeEpisodeRepository
@@ -37,6 +39,7 @@ class Store:
         self.artifacts = ArtifactRepository(self.database)
         self.sources = SourceRepository(self.database)
         self.extraction = ExtractionRepository(self.database)
+        self.imports = HistoryImportRepository(self.database)
         self.ledger = LedgerRepository(self.database)
         self.runtime_state = RuntimeStateRepository(self.database)
         self.runtime_episodes = RuntimeEpisodeRepository(self.database)

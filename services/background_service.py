@@ -23,6 +23,7 @@ class BackgroundService:
         capacity,
         ingest,
         maintenance,
+        import_service=None,
         dream,
         runtime_worker,
         journal,
@@ -35,6 +36,7 @@ class BackgroundService:
         self.capacity = capacity
         self.ingest = ingest
         self.maintenance = maintenance
+        self.import_service = import_service
         self.dream = dream
         self.runtime_worker = runtime_worker
         self.journal = journal
@@ -57,6 +59,7 @@ class BackgroundService:
             self._weekly_loop,
             self._checkpoint_loop,
             self._dream_loop,
+            self._import_cleanup_loop,
             self.runtime_worker.run_forever,
         ]
         if self.dream_enabled:
@@ -224,6 +227,17 @@ class BackgroundService:
                 self.logger.error(f"[seekmemory] dream scheduling failed: {exc}")
                 self.journal.record(
                     "scheduler", "failed", "dream scheduling failed", error=exc
+                )
+
+    async def _import_cleanup_loop(self) -> None:
+        while True:
+            await asyncio.sleep(3600)
+            try:
+                if self.import_service is not None:
+                    self.import_service.cleanup()
+            except Exception as exc:
+                self.journal.record(
+                    "history_import", "warning", "import retention cleanup failed", error=exc
                 )
 
     @staticmethod

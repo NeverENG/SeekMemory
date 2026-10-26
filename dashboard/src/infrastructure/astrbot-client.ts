@@ -3,6 +3,15 @@ import type { ApiRequest, ApiResponse } from "../contracts/api.ts"
 import { memoryCollectionSchema } from "../features/memory/model.ts"
 import { tracesSchema } from "../features/control/trace-model.ts"
 import {
+  chatLabPreviewSchema,
+  chatLabUploadSchema,
+  importConfirmCommandSchema,
+  importRetryCommandSchema,
+  importRoleCommandSchema,
+  importTaskResponseSchema,
+  importTasksResponseSchema,
+} from "../features/control/history-import-model.ts"
+import {
   detailSchema,
   diagnosticSchema,
   eventsSchema,
@@ -15,6 +24,7 @@ interface PluginBridge {
   ready(): Promise<unknown>
   apiGet(endpoint: string, query?: Record<string, string>): Promise<unknown>
   apiPost(endpoint: string, body: unknown): Promise<unknown>
+  upload(endpoint: string, file: File): Promise<unknown>
 }
 declare global {
   interface Window {
@@ -95,5 +105,54 @@ export const astrbotClient: ManagementClient = {
     const host = await bridge()
     const data = await host.apiPost("manage/cancel", body)
     idResponseSchema.parse(data)
+  },
+  historyImport: {
+    async uploadImport(file) {
+      const host = await bridge()
+      return chatLabUploadSchema.parse(
+        await host.upload("manage/importUpload", file)
+      )
+    },
+    async validateImport(command) {
+      const body = importRoleCommandSchema.parse(command)
+      const host = await bridge()
+      const data: unknown = await host.apiPost("manage/importValidate", body)
+      const parsed = z.object({ preview: z.unknown() }).parse(data)
+      return chatLabPreviewSchema.parse(parsed.preview)
+    },
+    async confirmImport(command) {
+      const body = importConfirmCommandSchema.parse(command)
+      const host = await bridge()
+      const data = await host.apiPost("manage/importConfirm", body)
+      return idResponseSchema.parse(data).id
+    },
+    async importTasks() {
+      const host = await bridge()
+      const data = await host.apiGet("manage/importTasks")
+      return importTasksResponseSchema.parse(data).tasks
+    },
+    async importTask(id) {
+      const host = await bridge()
+      const data = await host.apiGet("manage/importTask", { id })
+      return importTaskResponseSchema.parse(data).task
+    },
+    async cancelImport(id) {
+      const body = importRetryCommandSchema.parse({ id, confirmed: true })
+      const host = await bridge()
+      const data = await host.apiPost("manage/importCancel", body)
+      idResponseSchema.parse(data)
+    },
+    async retryImport(id) {
+      const body = importRetryCommandSchema.parse({ id, confirmed: true })
+      const host = await bridge()
+      const data = await host.apiPost("manage/importRetry", body)
+      return idResponseSchema.parse(data).id
+    },
+    async abandonImport(id) {
+      const body = importRetryCommandSchema.parse({ id, confirmed: true })
+      const host = await bridge()
+      const data = await host.apiPost("manage/importAbandon", body)
+      idResponseSchema.parse(data)
+    },
   },
 }

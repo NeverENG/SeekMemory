@@ -2,8 +2,8 @@ openapi: 3.1.0
 info:
   title: SeekMemory 管理接口
   version: 1.0.0
-  description: 描述 Context.register_web_api 注册的插件路由与 JSON 正文。实际 HTTP 前缀、管理员认证及 iframe 通信由 AstrBot 宿主负责；前端通过 AstrBotPluginPage.apiGet/apiPost
-    使用 manage/<action>，不自行拼接 URL。成功响应直接返回数据，失败使用宿主错误结构；宿主代理还可能在进入插件前拒绝请求。本契约版本独立于插件发布版本。
+  description: 描述 Context.register_web_api 注册的插件路由。实际 HTTP 前缀、管理员认证及 iframe 通信由 AstrBot 宿主负责；前端通过 AstrBotPluginPage 桥接方法使用
+    manage/<action>，不自行拼接 URL。成功响应直接返回数据，失败使用宿主错误结构；宿主代理还可能在进入插件前拒绝请求。本契约版本独立于插件发布版本。
 security:
 - AstrBotAdmin: []
 paths:
@@ -508,6 +508,190 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: 请求失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /astrbot_plugin_seekmemory/manage/importUpload:
+    post:
+      operationId: importUpload
+      summary: 上传一个 ChatLab JSON 或 JSONL 文件并生成安全预览
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required: [file]
+              additionalProperties: false
+      responses:
+        '200':
+          description: 上传和文件结构检查成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatLabUploadResponse'
+        default:
+          description: 文件或权限错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /astrbot_plugin_seekmemory/manage/importValidate:
+    post:
+      operationId: importValidate
+      summary: 预检角色映射与全文件稳定消息 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportRoleCommand'
+      responses:
+        '200':
+          description: 完成预检；尚未写入正式 Source。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportPreviewResponse'
+        default:
+          description: 预检或权限错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /astrbot_plugin_seekmemory/manage/importConfirm:
+    post:
+      operationId: importConfirm
+      summary: 确认预检结果并提交历史初始化任务
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportConfirmCommand'
+      responses:
+        '200':
+          description: 任务已提交。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        default:
+          description: 确认或权限错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /astrbot_plugin_seekmemory/manage/importTasks:
+    get:
+      operationId: importTasks
+      summary: 列出最近的导入任务摘要
+      responses:
+        '200':
+          description: 返回不含正文或原始用户标识的任务摘要。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportTaskListResponse'
+        default:
+          description: 查询或权限错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /astrbot_plugin_seekmemory/manage/importTask:
+    get:
+      operationId: importTask
+      summary: 查询一个导入任务的当前计数
+      parameters:
+      - name: id
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 返回当前任务计数。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportTaskResponse'
+        default:
+          description: 查询或权限错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /astrbot_plugin_seekmemory/manage/importCancel:
+    post:
+      operationId: importCancel
+      summary: 取消当前导入任务
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelCommand'
+      responses:
+        '200':
+          description: 取消请求已提交。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        default:
+          description: 任务或权限错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /astrbot_plugin_seekmemory/manage/importRetry:
+    post:
+      operationId: importRetry
+      summary: 使用保留文件重新预检并重试导入
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportRetryCommand'
+      responses:
+        '200':
+          description: 新的重试任务已提交。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        default:
+          description: 重试或权限错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /astrbot_plugin_seekmemory/manage/importAbandon:
+    post:
+      operationId: importAbandon
+      summary: 放弃可重试任务并删除保留文件
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelCommand'
+      responses:
+        '200':
+          description: 任务已放弃。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        default:
+          description: 任务或权限错误
           content:
             application/json:
               schema:
@@ -1256,6 +1440,276 @@ components:
       - id
       - confirmed
       additionalProperties: true
+    ChatLabMember:
+      type: object
+      properties:
+        platformId:
+          type: string
+          minLength: 1
+        accountName:
+          type: string
+      required: [platformId, accountName]
+      additionalProperties: false
+    ChatLabWarning:
+      type: object
+      properties:
+        row:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+      required: [row, reason]
+      additionalProperties: false
+    ChatLabPreview:
+      type: object
+      properties:
+        format:
+          type: string
+          enum: [json, jsonl]
+        version:
+          type: string
+          const: '0.0.2'
+        platform:
+          type: string
+        conversationType:
+          type: string
+          const: private
+        name:
+          type: string
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatLabMember'
+        senderCounts:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+        messageCount:
+          type: integer
+          minimum: 1
+        messageRows:
+          type: integer
+          minimum: 1
+        skippedCount:
+          type: integer
+          minimum: 0
+        missingIdCount:
+          type: integer
+          const: 0
+        firstAt:
+          type: string
+        lastAt:
+          type: string
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatLabWarning'
+        uniqueSourceCount:
+          type: integer
+          minimum: 0
+        duplicateCount:
+          type: integer
+          minimum: 0
+        targetUmo:
+          type: string
+        roleMapping:
+          type: object
+          properties:
+            assistantMemberId:
+              type: string
+            userMemberId:
+              type: string
+          required: [assistantMemberId, userMemberId]
+          additionalProperties: false
+      required:
+      - format
+      - version
+      - platform
+      - conversationType
+      - name
+      - members
+      - senderCounts
+      - messageCount
+      - messageRows
+      - skippedCount
+      - missingIdCount
+      - firstAt
+      - lastAt
+      - warnings
+      additionalProperties: false
+    ChatLabUploadResponse:
+      type: object
+      properties:
+        stageKey:
+          type: string
+          pattern: '^[0-9a-f]{32}$'
+        filename:
+          type: string
+          maxLength: 255
+        size:
+          type: integer
+          minimum: 1
+        preview:
+          $ref: '#/components/schemas/ChatLabPreview'
+      required: [stageKey, filename, size, preview]
+      additionalProperties: false
+    ImportRoleCommand:
+      type: object
+      properties:
+        stageKey:
+          type: string
+          pattern: '^[0-9a-f]{32}$'
+        botPlatformId:
+          type: string
+          maxLength: 256
+        targetPlatformId:
+          type: string
+          maxLength: 256
+        targetUmo:
+          type: string
+          minLength: 1
+          maxLength: 300
+        botMemberId:
+          type: string
+        targetMemberId:
+          type: string
+      required:
+      - stageKey
+      - botPlatformId
+      - targetPlatformId
+      - targetUmo
+      - botMemberId
+      - targetMemberId
+      additionalProperties: false
+    ImportPreviewResponse:
+      type: object
+      properties:
+        preview:
+          $ref: '#/components/schemas/ChatLabPreview'
+      required: [preview]
+      additionalProperties: false
+    ImportConfirmCommand:
+      type: object
+      properties:
+        stageKey:
+          type: string
+          pattern: '^[0-9a-f]{32}$'
+        botPlatformId:
+          type: string
+          maxLength: 256
+        targetPlatformId:
+          type: string
+          maxLength: 256
+        targetUmo:
+          type: string
+          minLength: 1
+          maxLength: 300
+        botMemberId:
+          type: string
+        targetMemberId:
+          type: string
+        confirmed:
+          type: boolean
+          const: true
+      required:
+      - stageKey
+      - botPlatformId
+      - targetPlatformId
+      - targetUmo
+      - botMemberId
+      - targetMemberId
+      - confirmed
+      additionalProperties: false
+    ImportRetryCommand:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        confirmed:
+          type: boolean
+          const: true
+      required:
+      - id
+      - confirmed
+      additionalProperties: false
+    ImportTaskSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [queued, running, interrupted, completed, partial, failed, cancelled, abandoned]
+        formatId:
+          type: string
+          const: chatlab
+        sourceCount:
+          type: integer
+          minimum: 0
+        duplicateCount:
+          type: integer
+          minimum: 0
+        skippedCount:
+          type: integer
+          minimum: 0
+        pendingCount:
+          type: integer
+          minimum: 0
+        extractedCount:
+          type: integer
+          minimum: 0
+        failedCount:
+          type: integer
+          minimum: 0
+        errorTypes:
+          type: array
+          items:
+            type: string
+        personaStatus:
+          type: string
+        canRetry:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        terminalAt:
+          type: string
+      required:
+      - id
+      - status
+      - formatId
+      - sourceCount
+      - duplicateCount
+      - skippedCount
+      - pendingCount
+      - extractedCount
+      - failedCount
+      - errorTypes
+      - personaStatus
+      - canRetry
+      - createdAt
+      - updatedAt
+      - terminalAt
+      additionalProperties: false
+    ImportTaskListResponse:
+      type: object
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportTaskSummary'
+      required: [tasks]
+      additionalProperties: false
+    ImportTaskResponse:
+      type: object
+      properties:
+        task:
+          $ref: '#/components/schemas/ImportTaskSummary'
+      required: [task]
+      additionalProperties: false
     IdResponse:
       type: object
       properties:

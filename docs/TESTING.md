@@ -11,6 +11,7 @@ Tests are organized by the responsibility they protect, not by file size. The la
 | contract | Protocols, DTOs, OpenAPI and generated client shapes | public_interfaces, api_contract |
 | integration | Several real components wired through a public use case | absorb, recall_pipeline, e2e_kernel |
 | host | Real AstrBot lifecycle and plugin page bridge | webui_host |
+| import | ChatLab parsing, stable Source admission, retry state and import use case | chatlab, history_import_store, history_import_service |
 | webui | Management service and journal behavior | webui, journal |
 | smoke | Packaging, import and startup surfaces | smoke, package |
 | benchmark | Retrieval quality, scale and ablations | benchmarks/*.py |
@@ -31,6 +32,14 @@ The direct compatibility command remains:
 
 ```bash
 python3 -m unittest discover -s tests -p 'test_*.py' -q
+```
+
+The dashboard's API contract workflow also exports real route responses before running
+the frontend contract adapter tests:
+
+```bash
+python3 tests/test_api_contract.py --export dashboard/node_modules/.tmp/backend-contract.json
+pnpm --dir dashboard test:contract
 ```
 
 ## Rules for new tests

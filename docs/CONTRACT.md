@@ -245,7 +245,8 @@ def signals(prev_user: str, cur_user: str) -> dict: ...
 宿主扫描 `pages/memory/index.html`，注入 `window.AstrBotPluginPage`。
 前端调用 `apiGet("manage/records")` 等相对 endpoint；宿主转发至插件注册的
 `/astrbot_plugin_seekmemory/manage/<action>`，并注入管理员请求上下文。
-接口拒绝没有 `request.username` 的调用。POST 请求体上限 64 KiB。
+接口拒绝没有 `request.username` 的调用。JSON POST 请求体上限 64 KiB；文件上传使用宿主
+`AstrBotPluginPage.upload(endpoint, file)` 桥接，并由插件按 JSON/JSONL 格式限制实际字节数。
 
 | 方法与 action | 输入 | 输出 / 行为 |
 |---|---|---|
@@ -257,6 +258,14 @@ def signals(prev_user: str, cur_user: str) -> dict: ...
 | POST diagnose | query/umo/speaker | `{block, info, visible, excluded}`；无数据库写入 |
 | POST task | kind=`extract` 或 `weekly`，confirmed=true | `{id}` 任务 ID；忙时 409 |
 | POST cancel | id，confirmed=true | `{id}`；仅取消当前匹配的活动任务 |
+| POST importUpload | multipart 字段 `file` | `{stageKey, filename, size, preview}`；只暂存并校验 ChatLab v0.0.2 私聊文件，不返回消息正文 |
+| POST importValidate | stageKey、Bot/用户平台 ID、目标私聊 UMO、文件成员映射 | `{preview}`；预检全文件身份与角色，不正式写入 Source |
+| POST importConfirm | 同预检映射、confirmed=true | `{id}`；创建后台初始化任务并立即返回 |
+| GET importTasks | 无 | `{tasks}`；最近任务摘要，不含用户 ID、消息正文或暂存路径 |
+| GET importTask | query `id` | `{task}`；单个任务摘要和 Source 提取进度 |
+| POST importCancel | id、confirmed=true | `{id}`；取消正在运行的历史初始化任务 |
+| POST importRetry | id、confirmed=true | `{id}`；在原文件保留期内用相同的已确认映射从头重试 |
+| POST importAbandon | id、confirmed=true | `{id}`；提前放弃可重试任务并清理原文件 |
 
 update 拒绝多余字段，reason 为 1–300 字符，payload 为对象且序列化长度不超过 50,000，
 使用原有 family 校验器，统一调用上游 `artifacts.commit()`，通过 expected_revision 检测版本冲突。

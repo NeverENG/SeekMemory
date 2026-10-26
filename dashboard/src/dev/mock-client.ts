@@ -10,6 +10,7 @@ import {
   type ManagementClient,
   type OperationEvent,
 } from "../features/control/model.ts"
+import type { ImportTask } from "../features/control/history-import-model.ts"
 import { demoTraces } from "./mock-traces.ts"
 import { mockMemories } from "./mock-data.ts"
 
@@ -353,6 +354,7 @@ let events: OperationEvent[] = [
 ]
   .map((event) => eventSchema.parse(event))
   .sort((a, b) => b.at.localeCompare(a.at))
+let historyTasks: ImportTask[] = []
 
 export const mockClient: ManagementClient = {
   async traces() {
@@ -566,5 +568,117 @@ export const mockClient: ManagementClient = {
   },
   async cancel() {
     throw new Error("Mock 中没有正在运行的真实任务")
+  },
+  historyImport: {
+    async uploadImport(file) {
+      return {
+        stageKey: "0123456789abcdef0123456789abcdef",
+        filename: file.name,
+        size: Math.max(1, file.size),
+        preview: {
+          format: file.name.toLowerCase().endsWith(".jsonl") ? "jsonl" : "json",
+          version: "0.0.2",
+          platform: "mock-platform",
+          conversationType: "private",
+          name: "虚构私聊示例",
+          members: [
+            { platformId: "bot-10001", accountName: "示例 Bot" },
+            { platformId: "user-20002", accountName: "示例用户" },
+          ],
+          senderCounts: { "bot-10001": 1, "user-20002": 1 },
+          messageCount: 2,
+          messageRows: 2,
+          skippedCount: 0,
+          missingIdCount: 0,
+          firstAt: "2026-10-20T03:00:00+00:00",
+          lastAt: "2026-10-20T03:00:01+00:00",
+          warnings: [],
+        },
+      }
+    },
+    async validateImport(command) {
+      return {
+        format: "json",
+        version: "0.0.2",
+        platform: "mock-platform",
+        conversationType: "private",
+        name: "虚构私聊示例",
+        members: [
+          { platformId: command.botMemberId, accountName: "示例 Bot" },
+          { platformId: command.targetMemberId, accountName: "示例用户" },
+        ],
+        senderCounts: { [command.botMemberId]: 1, [command.targetMemberId]: 1 },
+        messageCount: 2,
+        messageRows: 2,
+        skippedCount: 0,
+        missingIdCount: 0,
+        firstAt: "2026-10-20T03:00:00+00:00",
+        lastAt: "2026-10-20T03:00:01+00:00",
+        warnings: [],
+        uniqueSourceCount: 2,
+        duplicateCount: 0,
+        targetUmo: command.targetUmo,
+        roleMapping: {
+          assistantMemberId: command.botMemberId,
+          userMemberId: command.targetMemberId,
+        },
+      }
+    },
+    async confirmImport(_command) {
+      const id = `mock-import-${crypto.randomUUID()}`
+      historyTasks = [
+        {
+          id,
+          status: "completed",
+          formatId: "chatlab",
+          sourceCount: 2,
+          duplicateCount: 0,
+          skippedCount: 0,
+          pendingCount: 0,
+          extractedCount: 2,
+          failedCount: 0,
+          errorTypes: [],
+          personaStatus: "unchanged",
+          canRetry: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          terminalAt: new Date().toISOString(),
+        },
+        ...historyTasks,
+      ]
+      return id
+    },
+    async importTasks() {
+      return historyTasks
+    },
+    async importTask(id) {
+      const task = historyTasks.find((item) => item.id === id)
+      if (!task) throw new Error("Mock 导入任务不存在")
+      return task
+    },
+    async cancelImport(id) {
+      historyTasks = historyTasks.map((task) =>
+        task.id === id
+          ? { ...task, status: "cancelled", canRetry: false }
+          : task
+      )
+    },
+    async retryImport(id) {
+      const nextId = `mock-import-${crypto.randomUUID()}`
+      const old = historyTasks.find((task) => task.id === id)
+      if (!old) throw new Error("Mock 导入任务不存在")
+      historyTasks = [
+        { ...old, id: nextId, status: "completed", canRetry: false },
+        ...historyTasks,
+      ]
+      return nextId
+    },
+    async abandonImport(id) {
+      historyTasks = historyTasks.map((task) =>
+        task.id === id
+          ? { ...task, status: "abandoned", canRetry: false }
+          : task
+      )
+    },
   },
 }

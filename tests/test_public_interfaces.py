@@ -22,12 +22,14 @@ from app.ports import (
     ArtifactStore,
     ChatModel,
     ExtractionStore,
+    HistoryReader,
     LedgerStore,
     MetricsStore,
     Retriever,
     SourceStore,
 )
 from core.retrieval import RetrievalCandidate
+from adapters.chatlab import ChatLabReader
 from perceive.model import ProviderChatModel
 from recall.retriever import HybridRetriever
 from store.cache import Cache
@@ -52,6 +54,7 @@ class ProtocolSurfaceTest(unittest.TestCase):
     def test_builtin_retriever_and_chat_model_satisfy_public_protocols(self):
         self.assertIsInstance(HybridRetriever(self.cache, self.cache), Retriever)
         self.assertIsInstance(ProviderChatModel(object()), ChatModel)
+        self.assertIsInstance(ChatLabReader(), HistoryReader)
 
     def test_commit_surface_keeps_cas_and_state_events(self):
         names = inspect.signature(self.db.artifacts.commit).parameters

@@ -25,7 +25,14 @@ def validate_contract(action: str, data: object, status: int = 200, *, request=F
     """
     path = SPEC["paths"][f"/astrbot_plugin_seekmemory/manage/{action}"]
     operation = next(iter(path.values()))
-    body = operation["requestBody"] if request else operation["responses"][str(status)]
+    if request:
+        body = operation["requestBody"]
+    else:
+        body = operation["responses"].get(str(status)) or operation["responses"].get(
+            "default"
+        )
+        if body is None:
+            raise KeyError(f"{operation_id} has no response schema for {status}")
     schema = body["content"]["application/json"]["schema"]
     Draft202012Validator(
         {**schema, "components": SPEC["components"]}, format_checker=FormatChecker()

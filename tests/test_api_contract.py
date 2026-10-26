@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import importlib
 import json
+import logging
 import sys
 import tempfile
 import unittest
@@ -38,6 +39,9 @@ WebRoutes = importlib.import_module("_seekmemory_contract.webui.routes").WebRout
 TraceStore = importlib.import_module("_seekmemory_contract.store.run_trace").TraceStore
 RunTracer = importlib.import_module("_seekmemory_contract.app.runtime.tracing").RunTracer
 ContextBudget = importlib.import_module("_seekmemory_contract.app.budget").ContextBudget
+ImportService = importlib.import_module("_seekmemory_contract.services.import_service").ImportService
+ImportFileStore = importlib.import_module("_seekmemory_contract.webui.import_files").ImportFileStore
+ChatLabReader = importlib.import_module("_seekmemory_contract.adapters.chatlab").ChatLabReader
 
 
 class ApiContractTests(unittest.IsolatedAsyncioTestCase):
@@ -161,6 +165,20 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
             cache=cache,
             recall_service=self.plugin.services.recall_service,
         )
+        self.plugin.import_files = ImportFileStore(Path(self.temp.name) / "imports")
+        self.plugin.services.import_service = ImportService(
+            imports=db.imports,
+            extraction=db.extraction,
+            ingest=SimpleNamespace(),
+            maintenance=SimpleNamespace(),
+            files=self.plugin.import_files,
+            reader=ChatLabReader(),
+            provider_for=AsyncMock(return_value=None),
+            journal=journal,
+            logger=logging.getLogger("test.import"),
+        )
+        self.plugin.services.import_service.run = AsyncMock(return_value=None)
+        self.plugin.active_import_task_id = ""
         self.plugin.run_traces = TraceStore(Path(self.temp.name) / "runs.jsonl")
         self.plugin.buffer.add(
             "bot:FriendMessage:alice",
@@ -217,6 +235,7 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
         username="admin",
         query=None,
         expected=200,
+        files=None,
     ):
         """仅替代宿主传输边界，执行真实处理器并验证响应。
 
@@ -238,6 +257,7 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
             query=query or {},
             body=AsyncMock(return_value=json.dumps(body).encode()),
             json=AsyncMock(return_value=body),
+            files=AsyncMock(return_value=files or {}),
         )
         transport.json_response = lambda data, status_code=200: SimpleNamespace(
             data=data, status_code=status_code
@@ -246,7 +266,7 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
             data={"status": "error", "message": message, "data": None},
             status_code=status_code,
         )
-        if body is not None and expected == 200:
+        if body is not None and expected == 200 and action != "importUpload":
             validate_contract(action, body, request=True)
         with patch.dict(sys.modules, {"astrbot.api.web": transport}):
             response = await self.routes.handle(action)
@@ -254,6 +274,24 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
         data = json.loads(json.dumps(response.data))
         validate_contract(action, data, response.status_code)
         return data
+
+    class Upload:
+        filename = "history.json"
+        size = None
+
+        async def save(self, path):
+            path.write_text(json.dumps({
+                "chatlab": {"version": "0.0.2"},
+                "meta": {"name": "private", "platform": "qq", "type": "private"},
+                "members": [
+                    {"platformId": "bot-1", "accountName": "Bot"},
+                    {"platformId": "user-1", "accountName": "User"},
+                ],
+                "messages": [
+                    {"platformMessageId": "m-user", "sender": "user-1", "timestamp": 1700000000, "content": "Hello"},
+                    {"platformMessageId": "m-bot", "sender": "bot-1", "timestamp": 1700000001, "content": "Hi"},
+                ],
+            }), encoding="utf-8")
 
     async def test_all_operations_and_legacy_logs(self):
         records = await self.call("records")
@@ -277,7 +315,8 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0)
         await self.call("status")
         await self.call("cancel", {**task, "confirmed": True})
-        await self.plugin.jobs.close()
+        if self.plugin.jobs.task is not None:
+            await asyncio.gather(self.plugin.jobs.task, return_exceptions=True)
         self.plugin.journal.events.append(
             {
                 "id": "legacy",
@@ -290,9 +329,77 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
         )
         await self.call("events")
         await self.call("events", query={"kind": "extract", "search": task["id"]})
+        upload = await self.call(
+            "importUpload",
+            method="POST",
+            files={"file": self.Upload()},
+        )
+        role = {
+            "stageKey": upload["stageKey"],
+            "botPlatformId": "bot-1",
+            "targetPlatformId": "user-1",
+            "targetUmo": "qq:FriendMessage:user-1",
+            "botMemberId": "bot-1",
+            "targetMemberId": "user-1",
+        }
+        preview = await self.call("importValidate", role)
+        self.assertEqual(preview["preview"]["uniqueSourceCount"], 2)
+        imported = await self.call("importConfirm", {**role, "confirmed": True})
+        await asyncio.sleep(0)
+        self.assertNotIn("targetUmo", json.dumps(await self.call("importTasks")))
+        await self.call("importTask", query={"id": imported["id"]})
+
+        # A recoverable task retains its file and private role mapping for retry.
+        self.plugin.store.imports.finish_task(
+            imported["id"], "failed", persona_status="not_run", retain_stage=True
+        )
+        retry = await self.call("importRetry", {"id": imported["id"], "confirmed": True})
+        if self.plugin.jobs.task is not None:
+            await asyncio.gather(self.plugin.jobs.task, return_exceptions=True)
+        self.plugin.store.imports.finish_task(
+            retry["id"], "failed", persona_status="not_run", retain_stage=True
+        )
+        await self.call("importTask", query={"id": retry["id"]})
+        await self.call("importAbandon", {"id": retry["id"], "confirmed": True})
+        await self.call("importTasks")
+
+        cancel_id = "hi_cancel_api_contract"
+        self.plugin.store.imports.create_task(cancel_id, "stage-unused")
+        self.plugin.store.imports.set_status(cancel_id, "running")
+        self.plugin.jobs.task = asyncio.create_task(asyncio.Event().wait())
+        self.plugin.jobs.kind = "history_import"
+        self.plugin.active_import_task_id = cancel_id
+        await self.call("importCancel", {"id": cancel_id, "confirmed": True})
+        await asyncio.gather(self.plugin.jobs.task, return_exceptions=True)
+        self.plugin.jobs.task = None
+        self.plugin.jobs.kind = ""
+        self.plugin.active_import_task_id = ""
+        self.plugin.store.imports.finish_task(cancel_id, "cancelled", persona_status="not_run")
+        await self.plugin.jobs.close()
 
     async def test_errors_use_actual_status_and_host_envelope(self):
         await self.call("records", username=None, expected=401)
+        await self.call("importTasks", username=None, expected=401)
+        await self.call("importTask", username=None, query={"id": "missing"}, expected=401)
+        await self.call("importUpload", username=None, method="POST", expected=401)
+        await self.call(
+            "importValidate", {"stageKey": "missing"}, username=None, expected=401
+        )
+        await self.call(
+            "importConfirm", {"confirmed": True}, username=None, expected=401
+        )
+        await self.call(
+            "importCancel", {"id": "missing", "confirmed": True},
+            username=None, expected=401
+        )
+        await self.call(
+            "importRetry", {"id": "missing", "confirmed": True},
+            username=None, expected=401
+        )
+        await self.call(
+            "importAbandon", {"id": "missing", "confirmed": True},
+            username=None, expected=401
+        )
         await self.call("update", method="GET", expected=405)
         await self.call("detail", query={"id": "missing"}, expected=404)
         await self.call("update", {**self.command, "confirmed": False}, expected=400)
@@ -351,7 +458,7 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
     async def test_contract_rejects_mutated_shapes_and_requests(self):
         for schema in SPEC["components"]["schemas"].values():
             Draft202012Validator.check_schema(schema)
-        self.assertEqual(len(SPEC["paths"]), 9)
+        self.assertEqual(len(SPEC["paths"]), 17)
         result = await self.call("status")
         for bad in ({**result, "ready": "yes"}, {**result, "schedulerCount": -1}):
             with self.assertRaises(ValidationError):

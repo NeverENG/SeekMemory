@@ -80,6 +80,9 @@ class SqliteDatabase:
         episode_cols = {
             row[1] for row in self.conn.execute("PRAGMA table_info(runtime_episodes)")
         }
+        import_cols = {
+            row[1] for row in self.conn.execute("PRAGMA table_info(history_import_tasks)")
+        }
         with self.conn:
             for name, definition in (
                 ("subject_id", "TEXT NOT NULL DEFAULT ''"),
@@ -107,6 +110,11 @@ class SqliteDatabase:
                 self.conn.execute(
                     "ALTER TABLE runtime_episodes "
                     "ADD COLUMN run_id TEXT NOT NULL DEFAULT ''"
+                )
+            if import_cols and "selection_json" not in import_cols:
+                self.conn.execute(
+                    "ALTER TABLE history_import_tasks "
+                    "ADD COLUMN selection_json TEXT NOT NULL DEFAULT '{}'"
                 )
             self.conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_nodes_subject ON nodes(subject_id)"

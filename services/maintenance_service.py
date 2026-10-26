@@ -56,6 +56,47 @@ class MaintenanceService:
         self.persona_model = persona_model
         self.clock = clock or datetime.datetime.now
 
+    async def import_persona_update(self) -> dict:
+        """Update only evidence-backed Bot self-impressions/persona after import."""
+        try:
+            from ..core.bot_behavior import SELF_SUBJECT
+            from ..maintain.persona import distill_self_persona
+            from ..maintain.self_impression import build_self_impressions
+        except ImportError:
+            from core.bot_behavior import SELF_SUBJECT
+            from maintain.persona import distill_self_persona
+            from maintain.self_impression import build_self_impressions
+
+        if self.artifacts is None or self.sources is None or self.cache is None:
+            raise RuntimeError("persona_dependencies_unavailable")
+        before = {
+            (art.header.id, int(art.header.revision or 0))
+            for art in self.cache.active("persona")
+            if art.header.subject_id == SELF_SUBJECT
+        }
+        today = self.clock().date().isoformat()
+        impressions = build_self_impressions(
+            self.artifacts, self.sources, self.cache, today=today
+        )
+        persona = distill_self_persona(
+            self.artifacts, self.sources, self.cache, today=today
+        )
+        after = {
+            (art.header.id, int(art.header.revision or 0))
+            for art in self.cache.active("persona")
+            if art.header.subject_id == SELF_SUBJECT
+        }
+        status = "updated" if before != after else (
+            "below_threshold" if persona is None else "unchanged"
+        )
+        self.journal.record(
+            "history_import",
+            "info",
+            "Bot persona evidence update completed",
+            context={"selfImpressions": impressions, "status": status},
+        )
+        return {"status": status, "self_impressions": impressions}
+
     async def weekly(self) -> dict:
         try:
             from ..maintain.decay import decay_all

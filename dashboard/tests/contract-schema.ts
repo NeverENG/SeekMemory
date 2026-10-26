@@ -6,9 +6,10 @@ import { parse } from "yaml"
 import { z } from "zod"
 
 const contentSchema = z.object({
-  content: z.object({
-    "application/json": z.object({ schema: z.record(z.string(), z.json()) }),
-  }),
+  content: z.record(
+    z.string(),
+    z.object({ schema: z.record(z.string(), z.json()) })
+  ),
 })
 const raw: unknown = parse(
   readFileSync(new URL("../../openapi.yaml", import.meta.url), "utf8")
@@ -48,10 +49,14 @@ export function validateApi(
   const operation = apiOperations.find((item) => item.operationId === action)
   assert.ok(operation, `契约中缺少操作：${action}`)
   const body =
-    status === 0 ? operation.requestBody : operation.responses[String(status)]
+    status === 0
+      ? operation.requestBody
+      : (operation.responses[String(status)] ?? operation.responses["default"])
   assert.ok(body, `契约中缺少正文：${action}/${status}`)
+  const content = body.content["application/json"]
+  assert.ok(content, `契约中没有 JSON 正文：${action}/${status}`)
   const validate = ajv.compile<unknown>({
-    ...body.content["application/json"].schema,
+    ...content.schema,
     components: document.components,
   })
   assert.equal(
