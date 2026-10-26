@@ -15,3 +15,6 @@ __pycache__/
 
 # Legacy local build output.
 /views/memory/
+
+# macOS
+.DS_Store
