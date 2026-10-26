@@ -26,6 +26,7 @@ LAYERS: dict[str, tuple[str, ...]] = {
         "test_persona.py",
         "test_persona_bootstrap.py",
         "test_persona_injection.py",
+        "test_persona_lifecycle_contract.py",
         "test_persona_synthesis.py",
         "test_persona_synthesis_edges.py",
         "test_scope.py",

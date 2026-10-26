@@ -118,6 +118,10 @@ The table tracks covered regressions and known gaps. Rows marked as covered alre
 | Windows clock collisions silently lost runtime audit rows | covered by `tests/test_runtime_actions.py` |
 | Due wait/retry selection and per-session scheduler isolation were untested | covered by `tests/test_runtime_scheduler.py` |
 | Repeated run callbacks duplicated assistant Source, checkpoint or episode rows | covered by `tests/test_run_recorder.py` |
+| Persona lifecycle (bootstrap → Dream → rollback → recall) had no independent verification | covered by `tests/test_persona_lifecycle_contract.py`, `tests/test_persona_long_horizon.py` |
+| Persona synthesis could take private/secret evidence or raw Source text | covered by `tests/test_persona_lifecycle_contract.py` |
+| Concurrent persona synthesis could create duplicate active revisions | covered by `tests/test_persona_lifecycle_contract.py`, `tests/test_persona_long_horizon.py` |
+| Seed rollback re-materialized the full corpus in a later revision | pinned by `test_rollback_to_seed_restores_a_trusted_seed_payload`; decision tracked with #92 |
 
 ## Staging and model probes
 
