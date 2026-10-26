@@ -130,6 +130,27 @@ class HistoryImportStoreTests(unittest.TestCase):
             0,
         )
 
+    def test_topic_queue_pages_without_reloading_prior_topics(self) -> None:
+        imports = self.db.imports
+        imports.create_task("task-pages", "stage-pages")
+        imports.set_status("task-pages", "running")
+        entries = [
+            SourceQueueEntry(
+                self._source(source_id=f"source-{index}"), f"topic-{letter}"
+            )
+            for index, letter in enumerate(("a", "b", "c"), start=1)
+        ]
+        imports.validate_sources("stage-pages", entries)
+        imports.admit_sources("task-pages", entries, stage_key="stage-pages")
+
+        first = imports.topic_ids("task-pages", limit=2)
+        second = imports.topic_ids(
+            "task-pages", after_topic_id=first[-1], limit=2
+        )
+
+        self.assertEqual(first, ["topic-a", "topic-b"])
+        self.assertEqual(second, ["topic-c"])
+
     def test_conflicting_import_identity_rolls_back_entire_batch(self) -> None:
         self.db.imports.create_task("task-1", "stage-random")
         self.db.imports.set_status("task-1", "running")

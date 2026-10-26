@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections import deque
 from datetime import datetime
 
 try:
@@ -32,6 +33,7 @@ except ImportError:
     from services.import_utils import VALIDATION_BATCH, take
 
 IMPORT_TOPIC_CHUNK = 120
+IMPORT_TOPIC_PAGE = 500
 EXTRACTION_MAX_ATTEMPTS = 5
 
 
@@ -180,29 +182,51 @@ class ImportTaskRunner:
     async def _extract_task(
         self, task_id: str, selection: RoleSelection, errors: set[str]
     ) -> None:
+        topics = deque()
+        after_topic_id = ""
         while True:
-            counts = self.imports.counts(task_id)
-            if counts["pending"] == 0:
-                return
             now = _now_iso()
-            topic_id = self.imports.next_ready_topic(task_id, now=now)
-            if not topic_id:
-                next_at = self.imports.next_attempt_at(task_id)
-                if not next_at:
-                    raise RuntimeError("import_queue_state_unavailable")
-                try:
-                    retry_at = datetime.fromisoformat(next_at)
-                    current = datetime.now(retry_at.tzinfo) if retry_at.tzinfo else datetime.now()
-                    wait = max(0.25, (retry_at - current).total_seconds())
-                except ValueError:
-                    wait = 1.0
-                await asyncio.sleep(min(wait, 60.0))
+            if not topics:
+                page = self.imports.topic_ids(
+                    task_id,
+                    after_topic_id=after_topic_id,
+                    limit=IMPORT_TOPIC_PAGE,
+                )
+                if page:
+                    topics.extend(page)
+                    after_topic_id = page[-1]
+                else:
+                    retry_topic = self.imports.next_ready_topic(task_id, now=now)
+                    if retry_topic:
+                        topics.append(retry_topic)
+                    else:
+                        next_at = self.imports.next_attempt_at(task_id)
+                        if not next_at:
+                            return
+                        try:
+                            retry_at = datetime.fromisoformat(next_at)
+                            current = (
+                                datetime.now(retry_at.tzinfo)
+                                if retry_at.tzinfo
+                                else datetime.now()
+                            )
+                            wait = max(0.25, (retry_at - current).total_seconds())
+                        except ValueError:
+                            wait = 1.0
+                        await asyncio.sleep(min(wait, 60.0))
+                        continue
+            selected = None
+            for _ in range(len(topics)):
+                topic_id = topics.popleft()
+                rows = self.imports.topic_sources(
+                    task_id, topic_id, limit=IMPORT_TOPIC_CHUNK + 1, now=now
+                )
+                if rows:
+                    selected = (topic_id, rows)
+                    break
+            if selected is None:
                 continue
-            rows = self.imports.topic_sources(
-                task_id, topic_id, limit=IMPORT_TOPIC_CHUNK + 1, now=now
-            )
-            if not rows:
-                continue
+            topic_id, rows = selected
             turns = [
                 DialogueTurn(
                     str(row["session_id"]),
@@ -249,5 +273,15 @@ class ImportTaskRunner:
                     task_id,
                     context={"messages": len(source_ids), "errorType": error_type},
                 )
+                source_id_set = set(source_ids)
+                retryable = any(
+                    int(row["attempts"]) + 1 < EXTRACTION_MAX_ATTEMPTS
+                    for row in rows
+                    if str(row["source_id"]) in source_id_set
+                )
+                if retryable or len(rows) > len(source_ids):
+                    topics.append(topic_id)
                 continue
             self.extraction.mark_extraction_succeeded(source_ids)
+            if len(rows) > len(source_ids):
+                topics.append(topic_id)

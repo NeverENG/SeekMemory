@@ -427,24 +427,27 @@ class HistoryImportRepository(SqliteRepository):
             )
         return linked
 
-    def topic_ids(self, task_id: str) -> list[str]:
+    def topic_ids(
+        self, task_id: str, *, after_topic_id: str = "", limit: int = 500
+    ) -> list[str]:
+        size = max(1, min(500, int(limit)))
         rows = self.conn.execute(
-            "SELECT hs.topic_id, MIN(e.created_at) AS first_at FROM history_import_sources hs "
+            "SELECT hs.topic_id FROM history_import_sources hs "
             "JOIN extraction_state e ON e.source_id = hs.source_id "
-            "WHERE hs.task_id = ? AND e.state IN ('pending','retrying') "
-            "GROUP BY hs.topic_id ORDER BY first_at, hs.topic_id",
-            (str(task_id),),
+            "WHERE hs.task_id = ? AND hs.topic_id > ? "
+            "AND e.state IN ('pending','retrying') "
+            "GROUP BY hs.topic_id ORDER BY hs.topic_id LIMIT ?",
+            (str(task_id), str(after_topic_id), size),
         ).fetchall()
         return [str(row[0]) for row in rows]
 
     def next_ready_topic(self, task_id: str, *, now: str) -> str:
         row = self.conn.execute(
-            "SELECT hs.topic_id, MIN(s.at) AS first_at FROM history_import_sources hs "
-            "JOIN extraction_state e ON e.source_id = hs.source_id "
-            "JOIN sources s ON s.id = hs.source_id "
-            "WHERE hs.task_id = ? AND e.state IN ('pending','retrying') "
+            "SELECT hs.topic_id FROM extraction_state e "
+            "JOIN history_import_sources hs ON hs.source_id = e.source_id "
+            "WHERE hs.task_id = ? AND e.state = 'retrying' "
             "AND (e.next_attempt_at = '' OR e.next_attempt_at <= ?) "
-            "GROUP BY hs.topic_id ORDER BY first_at, hs.topic_id LIMIT 1",
+            "ORDER BY e.next_attempt_at, e.created_at, hs.topic_id LIMIT 1",
             (str(task_id), str(now)),
         ).fetchone()
         return str(row["topic_id"]) if row is not None else ""

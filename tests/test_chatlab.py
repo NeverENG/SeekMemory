@@ -11,6 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from app.history_import_limits import JSONL_MAX_LINE_BYTES
 from adapters.chatlab import (
     ChatLabFormatError,
     inspect_chatlab,
@@ -116,6 +117,50 @@ class ChatLabTests(unittest.TestCase):
         self.assertEqual(preview.warnings[0]["reason"], "invalid_json")
         with self.assertRaisesRegex(ValueError, "platformMessageId"):
             list(iter_chatlab_messages(path))
+
+    def test_jsonl_rejects_a_record_over_the_line_byte_limit(self) -> None:
+        path = self.root / "oversized.jsonl"
+        header = {
+            "_type": "header",
+            "chatlab": {"version": "0.0.2"},
+            "meta": {"name": "private", "platform": "qq", "type": "private"},
+        }
+        with path.open("wb") as stream:
+            stream.write(json.dumps(header).encode("utf-8") + b"\n")
+            stream.write(b"{" + b" " * JSONL_MAX_LINE_BYTES)
+
+        with self.assertRaisesRegex(ChatLabFormatError, "字节上限"):
+            inspect_chatlab(path)
+
+    def test_preview_rejects_more_than_two_private_chat_speakers(self) -> None:
+        path = self.root / "three-speakers.jsonl"
+        rows = [
+            {"_type": "header", "chatlab": {"version": "0.0.2"},
+             "meta": {"name": "private", "platform": "qq", "type": "private"}},
+            _message("one", sender="user-1"),
+            _message("two", sender="bot-1"),
+            _message("three", sender="extra-1"),
+        ]
+        path.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+
+        with self.assertRaisesRegex(ChatLabFormatError, "超过两位发言者"):
+            inspect_chatlab(path)
+
+    def test_preview_bounds_declared_private_member_metadata(self) -> None:
+        path = self.root / "three-members.json"
+        path.write_text(json.dumps({
+            "chatlab": {"version": "0.0.2"},
+            "meta": {"name": "private", "platform": "qq", "type": "private"},
+            "members": [
+                {"platformId": "user-1"},
+                {"platformId": "bot-1"},
+                {"platformId": "extra-1"},
+            ],
+            "messages": [_message("one", sender="user-1")],
+        }), encoding="utf-8")
+
+        with self.assertRaisesRegex(ChatLabFormatError, "最多包含两名成员"):
+            inspect_chatlab(path)
 
     def test_rejects_group_unsupported_version_and_late_member(self) -> None:
         for kind, version in (("group", "0.0.2"), ("private", "0.0.1")):

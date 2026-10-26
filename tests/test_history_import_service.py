@@ -9,6 +9,7 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -106,6 +107,7 @@ class LargeReplyJsonlUpload:
 class FakeIngest:
     def __init__(self) -> None:
         self.calls: list[dict] = []
+        self.fail_first_calls = 0
 
     async def extract(self, turns, model, *, owner_id, strict, require_evidence):
         self.calls.append(
@@ -117,6 +119,8 @@ class FakeIngest:
                 "require_evidence": require_evidence,
             }
         )
+        if len(self.calls) <= self.fail_first_calls:
+            raise RuntimeError("retryable model failure")
         return WriteOutcome(written=1)
 
 
@@ -200,6 +204,62 @@ class HistoryImportServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("hello there", json.dumps(list(self.journal.events)))
         with self.assertRaises(ImportFileError):
             self.files.path_for_key(staged.key)
+
+    async def test_many_chunks_do_not_rescan_all_task_counts_each_time(self):
+        messages = [
+            {
+                "platformMessageId": f"message-{index}",
+                "sender": "bot-1" if index == 0 else "user-1",
+                "timestamp": 1_700_000_000 + index,
+                "content": "same topic history message",
+            }
+            for index in range(250)
+        ]
+        staged = await self.files.save_upload(Upload(messages))
+        await self.service.inspect_upload(staged.key)
+        await self.service.validate_stage(staged.key, self.selection)
+        task_id = self.service.create_task(staged.key, self.selection)
+
+        count_calls = 0
+        original_counts = self.db.imports.counts
+
+        def counted(task: str):
+            nonlocal count_calls
+            count_calls += 1
+            return original_counts(task)
+
+        self.db.imports.counts = counted
+        await self.service.run(task_id, self.selection)
+
+        self.assertEqual(len(self.ingest.calls), 3)
+        # The task summary is read once while running and once when it is finalized.
+        self.assertEqual(count_calls, 3)
+
+    async def test_retry_wait_resumes_from_the_indexed_retry_queue(self):
+        from unittest.mock import patch
+
+        staged = await self.files.save_upload(Upload())
+        await self.service.inspect_upload(staged.key)
+        await self.service.validate_stage(staged.key, self.selection)
+        task_id = self.service.create_task(staged.key, self.selection)
+        self.ingest.fail_first_calls = 1
+        clock = [datetime(2026, 10, 1, 0, 0, 0)]
+
+        def now_iso():
+            return clock[0].isoformat(timespec="seconds")
+
+        async def advance_sleep(seconds: float) -> None:
+            clock[0] += timedelta(seconds=seconds)
+
+        with (
+            patch("services.import_runner._now_iso", side_effect=now_iso),
+            patch("store.extraction.now_iso", side_effect=now_iso),
+            patch("services.import_runner.asyncio.sleep", new=advance_sleep),
+        ):
+            await self.service.run(task_id, self.selection)
+
+        self.assertEqual(len(self.ingest.calls), 2)
+        self.assertEqual(self.service.task(task_id)["status"], "completed")
 
     async def test_reply_to_future_user_keeps_parent_topic_across_batches(self):
         first_at = 1_700_000_000
@@ -336,7 +396,7 @@ class HistoryImportServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(preview["uniqueSourceCount"], 0)
         self.assertEqual(preview["duplicateCount"], 2)
 
-    async def test_invalid_row_from_third_speaker_rejects_file_before_source_admission(self):
+    async def test_third_speaker_is_rejected_during_preview_before_source_admission(self):
         staged = await self.files.save_upload(Upload())
         path = self.files.preview_path(staged.key)
         document = json.loads(path.read_text(encoding="utf-8"))
@@ -349,10 +409,8 @@ class HistoryImportServiceTests(unittest.IsolatedAsyncioTestCase):
             }
         )
         path.write_text(json.dumps(document), encoding="utf-8")
-        preview = await self.service.inspect_upload(staged.key)
-        self.assertEqual(preview["senderCounts"]["third-party"], 1)
-        with self.assertRaisesRegex(ValueError, "两位发言者"):
-            await self.service.validate_stage(staged.key, self.selection)
+        with self.assertRaisesRegex(ValueError, "超过两位发言者"):
+            await self.service.inspect_upload(staged.key)
         self.assertEqual(
             self.db.conn.execute("SELECT COUNT(*) FROM sources").fetchone()[0], 0
         )

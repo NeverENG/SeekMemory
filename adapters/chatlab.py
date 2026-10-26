@@ -19,6 +19,7 @@ try:
         HistoryMember as ChatLabMember,
         HistoryMessage as ChatLabMessage,
     )
+    from ..app.history_import_limits import JSONL_MAX_LINE_BYTES
 except ImportError:
     from app.history_import import (
         HistoryFileError,
@@ -26,9 +27,12 @@ except ImportError:
         HistoryMember as ChatLabMember,
         HistoryMessage as ChatLabMessage,
     )
+    from app.history_import_limits import JSONL_MAX_LINE_BYTES
 
 CHATLAB_VERSION = "0.0.2"
 MAX_PREVIEW_WARNINGS = 50
+MAX_PRIVATE_CHAT_MEMBERS = 2
+MAX_ACCOUNT_NAME_CHARS = 256
 SORT_RUN_RECORDS = 50_000
 _SORT_RECORD = struct.Struct(">dQQIQ")
 
@@ -47,6 +51,24 @@ def _text_id(value: object) -> str:
     if isinstance(value, (str, int)):
         return str(value).strip()
     return ""
+
+
+def _account_name(value: object) -> str:
+    return str(value or "")[:MAX_ACCOUNT_NAME_CHARS]
+
+
+def _record_sender(
+    counts: Counter[str], member_map: dict[str, ChatLabMember], row: dict
+) -> None:
+    sender = _text_id(row.get("sender"))
+    if not sender:
+        return
+    if sender not in counts and len(counts) >= MAX_PRIVATE_CHAT_MEMBERS:
+        raise ChatLabFormatError("私聊记录包含超过两位发言者")
+    counts[sender] += 1
+    member_map.setdefault(
+        sender, ChatLabMember(sender, _account_name(row.get("accountName")))
+    )
 
 
 def _header(chatlab: object, meta: object) -> tuple[str, str, str, str]:
@@ -76,10 +98,12 @@ def _members(rows: object) -> dict[str, ChatLabMember]:
         platform_id = _text_id(row.get("platformId"))
         if not platform_id:
             raise ChatLabFormatError("ChatLab 成员缺少 platformId")
-        member = ChatLabMember(platform_id, str(row.get("accountName") or ""))
+        member = ChatLabMember(platform_id, _account_name(row.get("accountName")))
         old = result.get(platform_id)
         if old is not None and old != member:
             raise ChatLabFormatError("ChatLab 成员 platformId 冲突")
+        if old is None and len(result) >= MAX_PRIVATE_CHAT_MEMBERS:
+            raise ChatLabFormatError("私聊文件最多包含两名成员")
         result[platform_id] = member
     return result
 
@@ -138,10 +162,14 @@ def _jsonl_rows(path: Path) -> Iterator[tuple[int, dict | None, int, int]]:
         row_number = 0
         while True:
             offset = stream.tell()
-            raw_line = stream.readline()
+            raw_line = stream.readline(JSONL_MAX_LINE_BYTES + 1)
             if not raw_line:
                 break
             row_number += 1
+            if len(raw_line) > JSONL_MAX_LINE_BYTES:
+                raise ChatLabFormatError(
+                    f"JSONL 第 {row_number} 行超过 {JSONL_MAX_LINE_BYTES} 字节上限"
+                )
             try:
                 line = raw_line.decode("utf-8-sig" if row_number == 1 else "utf-8")
             except UnicodeDecodeError:
@@ -204,12 +232,10 @@ def inspect_chatlab(path: str | Path) -> ChatLabInspection:
                 missing_ids += 1
                 continue
             rows += 1
-            sender = _text_id(row.get("sender")) if isinstance(row, dict) else ""
             # Keep identifiable senders from invalid rows so a malformed body
             # cannot hide a third speaker from role validation.
-            if sender:
-                counts[sender] += 1
-                member_map.setdefault(sender, ChatLabMember(sender, str(row.get("accountName") or "")))
+            if isinstance(row, dict):
+                _record_sender(counts, member_map, row)
             if parsed is None:
                 skipped += 1
                 if len(warnings) < MAX_PREVIEW_WARNINGS:
@@ -248,6 +274,8 @@ def inspect_chatlab(path: str | Path) -> ChatLabInspection:
                 old = member_map.get(platform_id)
                 if old is not None and old != value:
                     raise ChatLabFormatError("JSONL 成员 platformId 冲突")
+                if old is None and len(member_map) >= MAX_PRIVATE_CHAT_MEMBERS:
+                    raise ChatLabFormatError("私聊文件最多包含两名成员")
                 member_map[platform_id] = value
                 continue
             if row_type != "message":
@@ -262,12 +290,9 @@ def inspect_chatlab(path: str | Path) -> ChatLabInspection:
                 continue
             parsed = _message(row, row_number, ordinal)
             rows += 1
-            sender = _text_id(row.get("sender"))
             # Keep identifiable senders from invalid rows so a malformed body
             # cannot hide a third speaker from role validation.
-            if sender:
-                counts[sender] += 1
-                member_map.setdefault(sender, ChatLabMember(sender, str(row.get("accountName") or "")))
+            _record_sender(counts, member_map, row)
             if parsed is None:
                 skipped += 1
                 if len(warnings) < MAX_PREVIEW_WARNINGS:
@@ -288,7 +313,7 @@ def inspect_chatlab(path: str | Path) -> ChatLabInspection:
         platform,
         kind,
         name,
-        tuple(member_map[key] for key in sorted(member_map)),
+        tuple(member_map[key] for key in sorted(counts)),
         dict(counts),
         rows,
         accepted,
