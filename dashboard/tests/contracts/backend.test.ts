@@ -75,6 +75,29 @@ void test("真实后端响应同时满足 OpenAPI 与前端 Zod，覆盖全部�
   )
 })
 
+void test("真实状态响应保留原文辅助检索预算，两端拒绝错误类型和越界值", () => {
+  const status = samples
+    .filter((sample) => sample.action === "status" && sample.status === 200)
+    .map((sample) => statusSchema.parse(sample.body))
+    .find((item) => item.budget?.source_recall_enabled === false)
+  assert.ok(status?.budget)
+  assert.equal(status.budget.source_recall_hours, 48)
+  assert.equal(status.budget.source_recall_max_candidates, 9)
+
+  for (const change of [
+    { source_recall_enabled: "false" },
+    { source_recall_hours: 0 },
+    { source_recall_max_candidates: -1 },
+  ]) {
+    const invalid: unknown = {
+      ...status,
+      budget: { ...status.budget, ...change },
+    }
+    assert.throws(() => validateApi("status", 200, invalid))
+    assert.equal(statusSchema.safeParse(invalid).success, false)
+  }
+})
+
 void test("生产桥接适配器消费全部成功响应，路径与请求体符合契约", async () => {
   const calls: Record<string, () => Promise<unknown>> = {
     records: () => astrbotClient.records(),

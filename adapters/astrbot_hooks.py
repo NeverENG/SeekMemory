@@ -116,7 +116,7 @@ class AstrBotHooks:
         except Exception as e:  # noqa: BLE001
             trace_status = "error"
             self.journal.record("recall", "failed", "召回失败", error=e)
-            logger.error(f"[seekmemory] 注入失败（不影响回复）：{e}")
+            logger.error(f"[seekmemory] 注入失败（不影响回复）：{type(e).__name__}")
         finally:
             if trace_allowed:
                 self.run_tracer.request(event, trace_info, trace_status)

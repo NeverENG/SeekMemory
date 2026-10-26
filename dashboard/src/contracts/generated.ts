@@ -269,6 +269,9 @@ export interface components {
             system_chars: number;
             group_context_messages: number;
             history_messages: number;
+            source_recall_enabled: boolean;
+            source_recall_hours: number;
+            source_recall_max_candidates: number;
             estimate_tokens: number;
         };
         DreamRun: {

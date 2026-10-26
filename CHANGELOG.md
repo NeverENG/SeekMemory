@@ -4,9 +4,13 @@
 
 ### 中文
 
+- 修复 Windows 补充验证发现的问题：状态接口定义补齐已有的原文辅助检索预算字段，90 天模拟重启后正确关闭数据库连接，宿主测试按初始化权限和当前运行入口验证消息捕获及记忆注入。记忆注入异常日志仅记录异常类型，避免泄露原文或路径。实际接口响应、数据库格式和配置保持不变。
+
 - 将仓库约定拆分为 repo skill 与四份主题 reference，通过 Codex/Claude Code symlink 共用；简化 PR 模板以收集范围、验证和兼容性证据。扫描器待 UI 规则明确后再加入。PR CI 继续全量检查，本地验证按风险选择。
 
 ### English
+
+- Fix findings from supplemental Windows validation: declare the existing Source recall budget fields in the status contract, close reopened database connections in the 90-day simulation, and exercise message capture and memory injection through initialized access policies and current runtime boundaries in host tests. Memory injection error logs now record only the exception type to avoid exposing message text or paths. Actual API responses, database format and configuration remain unchanged.
 
 - Split repository guidance into a repo skill and four focused references, shared through Codex and Claude Code symlinks; simplify the PR template to collect scope, verification and compatibility evidence. The UI scanner is deferred until its rules are settled. PR CI remains comprehensive; local checks are selected by risk.
 

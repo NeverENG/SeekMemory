@@ -37,9 +37,30 @@ Buffer = importlib.import_module("_seekmemory_contract.perceive.buffer").Buffer
 WebRoutes = importlib.import_module("_seekmemory_contract.webui.routes").WebRoutes
 TraceStore = importlib.import_module("_seekmemory_contract.store.run_trace").TraceStore
 RunTracer = importlib.import_module("_seekmemory_contract.app.runtime.tracing").RunTracer
+ContextBudget = importlib.import_module("_seekmemory_contract.app.budget").ContextBudget
 
 
 class ApiContractTests(unittest.IsolatedAsyncioTestCase):
+    async def test_status_reports_source_recall_budget_and_rejects_invalid_values(
+        self,
+    ) -> None:
+        self.plugin.budget = ContextBudget(
+            source_recall_enabled=False,
+            source_recall_hours=48,
+            source_recall_max_candidates=9,
+        )
+        result = await self.call("status")
+        self.assertEqual(result["budget"], self.plugin.budget.as_dict())
+        for change in (
+            {"source_recall_enabled": "false"},
+            {"source_recall_hours": 0},
+            {"source_recall_max_candidates": -1},
+        ):
+            with self.subTest(change=change), self.assertRaises(ValidationError):
+                validate_contract(
+                    "status", {**result, "budget": {**result["budget"], **change}}
+                )
+
     async def test_status_topics_exposes_counts_and_times_without_message_text(
         self,
     ) -> None:
@@ -88,6 +109,7 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
             _c={}.get,
             buffer=Buffer(),
             checkpoint=None,
+            budget=ContextBudget(),
             context=SimpleNamespace(
                 get_using_provider_async=AsyncMock(return_value=None)
             ),
@@ -127,7 +149,7 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
             graph=self.plugin.graph,
             artifacts=db.artifacts,
             sources=db.sources,
-            budget=SimpleNamespace(injection_chars=600),
+            budget=self.plugin.budget,
             config={}.get,
             owner_umo=lambda: "",
             hybrid_retriever=self.plugin.hybrid_retriever,

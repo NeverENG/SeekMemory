@@ -11,6 +11,7 @@ import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 HOST = ROOT.parents[2]
@@ -45,6 +46,32 @@ class HostContext:
         return self.provider
 
 
+class PrivateEvent:
+    """提供捕获和召回所需元数据的私聊宿主事件。"""
+
+    unified_msg_origin = "bot:FriendMessage:u1"
+
+    def __init__(self, text: str, message_id: str = "host-turn") -> None:
+        self.message_str = text
+        self.message_obj = SimpleNamespace(message_id=message_id)
+        self.extras: dict[str, object] = {}
+
+    def get_sender_id(self) -> str:
+        return "u1"
+
+    def get_self_id(self) -> str:
+        return "bot"
+
+    def is_private_chat(self) -> bool:
+        return True
+
+    def get_extra(self, key: str, default: object = None) -> object:
+        return self.extras.get(key, default)
+
+    def set_extra(self, key: str, value: object) -> None:
+        self.extras[key] = value
+
+
 @unittest.skipIf(Main is None, "AstrBot host is not installed")
 class HostTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
@@ -62,6 +89,12 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self) -> None:
         await self.plugin.terminate()
         self.temp.cleanup()
+
+    async def restart_plugin(self, **config: object) -> None:
+        """通过真实生命周期重建依赖配置的服务。"""
+        await self.plugin.terminate()
+        self.plugin.cfg.update(config)
+        await self.plugin.initialize()
 
     async def request(
         self,
@@ -291,21 +324,10 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("sources", timeline)
 
     async def test_capture_to_extraction_to_weekly_persona_uses_real_pairs(self) -> None:
-        self.plugin.cfg["open_to"] = "everyone"
-        class Event:
-            unified_msg_origin = "bot:FriendMessage:u1"
-            message_str = "事情很多，有点难过"
-            def __init__(self, index):
-                self.extras = {}
-                self.message_obj = SimpleNamespace(message_id=f"persona-turn-{index}")
-            def get_sender_id(self): return "u1"
-            def get_self_id(self): return "bot"
-            def is_private_chat(self): return True
-            def get_extra(self, key, default=None): return self.extras.get(key, default)
-            def set_extra(self, key, value): self.extras[key] = value
+        await self.restart_plugin(open_to="everyone")
         self.plugin.context.provider_sessions.clear()
         for i in range(3):
-            event = Event(i)
+            event = PrivateEvent("事情很多，有点难过", f"persona-turn-{i}")
             await self.plugin.buffer_message(event)
             await self.plugin.capture_reply(event, SimpleNamespace(role="assistant", completion_text="听起来你很难过，先缓缓"))
         self.assertEqual(self.plugin.context.provider_sessions, [])
@@ -334,114 +356,76 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         persona, = self.plugin.cache.active("persona")
         self.assertEqual(persona.header.subject_id, "bot:self")
         self.assertEqual(len(persona.header.lineage.sources), 6)
-        block, info = self.plugin._recall_block("你好", "bot:FriendMessage:stranger", True, "stranger")
+        block, info = self.plugin.services.recall_service.build(
+            "你好", "bot:FriendMessage:stranger", True, "stranger"
+        )
         self.assertIn(persona.header.id, info["final_ids"])
         self.assertIn("你先回应情绪", block)
 
     async def test_inject_memory_preserves_context_contract(self) -> None:
-        class Event:
-            unified_msg_origin = "bot:FriendMessage:alice"
-            message_str = "hello"
-
-            def __init__(self):
-                self.extras = {}
-
-            def is_private_chat(self):
-                return True
-
-            def get_sender_id(self):
-                return "u1"
-
-            def get_extra(self, key, default=None):
-                return self.extras.get(key, default)
-
-            def set_extra(self, key, value):
-                self.extras[key] = value
-
-        calls = []
-
-        def recall_block(text, umo="", private=False, speaker=""):
-            calls.append((text, umo, private, speaker))
-            return "memory block", {
-                "mode": "normal",
-                "picked": 2,
-                "chars": 12,
-                "pinned": 1,
-                "final_ids": ["a1", 2],
-            }
-
-        self.plugin.cfg["open_to"] = "everyone"
-        self.plugin._recall_block = recall_block
-        event = Event()
+        await self.restart_plugin(open_to="everyone")
+        artifact = importlib.import_module(f"{ROOT.name}.core.artifact")
+        source_module = importlib.import_module(f"{ROOT.name}.core.source")
+        text = "周末去青川公园散步"
+        event = PrivateEvent(text)
+        source = source_module.Source(
+            id="context-source", turn_id="context-turn",
+            session_id=event.unified_msg_origin, speaker_id="u1", role="user",
+            text=text, at="2026-01-01T00:00:00",
+        )
+        self.plugin.store.sources.append_sources([source])
+        memory = artifact.make(
+            "memory", {"text": text, "level": "fact"}, subject_id="u1",
+            lineage=artifact.Lineage(sources=(source.id,)),
+        )
+        self.plugin.store.artifacts.commit(
+            memory, expected_revision=0, op="create", source_ids=(source.id,)
+        )
+        self.plugin.cache.put(memory)
         req = SimpleNamespace(system_prompt="base")
         await self.plugin.inject_memory(event, req)
 
-        self.assertEqual(calls, [("hello", "bot:FriendMessage:alice", True, "u1")])
-        self.assertEqual(event.get_extra("_seekmemory_recall_ids"), ("a1", "2"))
+        self.assertEqual(event.get_extra("_seekmemory_recall_ids"), (memory.header.id,))
         self.assertTrue(req.system_prompt.startswith("base"))
-        self.assertIn("memory block", req.system_prompt)
-        self.assertEqual(self.plugin.services.capacity_service.context_chars, len("memory block"))
+        self.assertIn(text, req.system_prompt)
         journal_event = next(
             row for row in reversed(self.plugin.journal.events)
             if row["kind"] == "recall" and row["stage"] == "assemble"
         )
         self.assertEqual(journal_event["status"], "info")
-        self.assertEqual(
-            journal_event["context"],
-            {"mode": "normal", "picked": 2, "chars": 12},
-        )
+        self.assertEqual(journal_event["context"]["picked"], 1)
+        self.assertGreater(journal_event["context"]["chars"], 0)
+        self.assertEqual(self.plugin.services.capacity_service.context_chars,
+                         journal_event["context"]["chars"])
         with open(self.plugin._calls_path(), encoding="utf-8") as stream:
             logged = json.loads(stream.readlines()[-1])
         self.assertEqual(
             (logged["kind"], logged["mode"], logged["picked"], logged["chars"]),
-            ("FriendMessage", "normal", 2, 12),
+            ("FriendMessage", journal_event["context"]["mode"], 1,
+             journal_event["context"]["chars"]),
         )
-        self.assertNotIn("memory block", json.dumps(logged))
+        self.assertNotIn(text, json.dumps(logged, ensure_ascii=False))
 
-        def empty_recall(text, umo="", private=False, speaker=""):
-            return "", {
-                "mode": "strict",
-                "picked": 0,
-                "chars": 0,
-                "final_ids": ("a1",),
-            }
-
-        self.plugin._recall_block = empty_recall
-        empty_event = Event()
+        empty_event = PrivateEvent("现在几点了")
         empty_req = SimpleNamespace(system_prompt="base")
         await self.plugin.inject_memory(empty_event, empty_req)
         self.assertEqual(empty_req.system_prompt, "base")
-        self.assertEqual(empty_event.get_extra("_seekmemory_recall_ids"), ("a1",))
+        self.assertEqual(empty_event.get_extra("_seekmemory_recall_ids"), ())
         self.assertEqual(self.plugin.services.capacity_service.context_chars, 0)
 
     async def test_inject_memory_fails_open_without_leaking_error_detail(self) -> None:
-        class Event:
-            unified_msg_origin = "bot:FriendMessage:alice"
-            message_str = "private message body"
+        await self.restart_plugin(open_to="everyone")
 
-            def __init__(self):
-                self.extras = {}
+        class FailedMemoryContext:
+            def build_context(self, event):
+                raise RuntimeError(f"db path /secret: {event.text}")
 
-            def is_private_chat(self):
-                return True
-
-            def get_sender_id(self):
-                return "u1"
-
-            def get_extra(self, key, default=None):
-                return self.extras.get(key, default)
-
-            def set_extra(self, key, value):
-                self.extras[key] = value
-
-        def fail_recall(text, umo="", private=False, speaker=""):
-            raise RuntimeError("db path /secret")
-
-        self.plugin.cfg["open_to"] = "everyone"
-        self.plugin._recall_block = fail_recall
-        event = Event()
+        self.plugin.services.runtime.memory_context = FailedMemoryContext()
+        event = PrivateEvent("private message body")
         req = SimpleNamespace(system_prompt="base")
-        await self.plugin.inject_memory(event, req)
+        hooks = importlib.import_module(f"{ROOT.name}.adapters.astrbot_hooks")
+        with patch.object(hooks.logger, "error") as error_log:
+            await self.plugin.inject_memory(event, req)
 
         self.assertEqual(req.system_prompt, "base")
         self.assertIsNone(event.get_extra("_seekmemory_recall_ids"))
@@ -453,6 +437,25 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         serialized = json.dumps(journal_event)
         self.assertNotIn("private message body", serialized)
         self.assertNotIn("/secret", serialized)
+        logged = " ".join(str(call.args[0]) for call in error_log.call_args_list)
+        self.assertNotIn("/secret", logged)
+        self.assertNotIn("private message body", logged)
+        self.assertIn("RuntimeError", logged)
+
+    async def test_default_access_rejects_unconfigured_private_chat(self) -> None:
+        event = PrivateEvent("private message body")
+        req = SimpleNamespace(system_prompt="base")
+        await self.plugin.buffer_message(event)
+        await self.plugin.capture_reply(
+            event, SimpleNamespace(role="assistant", completion_text="private reply")
+        )
+        await self.plugin.inject_memory(event, req)
+
+        self.assertEqual(req.system_prompt, "base")
+        self.assertIsNone(event.get_extra("_seekmemory_recall_ids"))
+        self.assertEqual(self.plugin.store.extraction.pending_extractions(), [])
+        self.assertIsNone(self.plugin.store.sources.latest_user_source(event.unified_msg_origin))
+        self.assertFalse(any(row["kind"] == "recall" for row in self.plugin.journal.events))
 
     async def test_deferred_wait_dispatches_once(self) -> None:
         source_module = importlib.import_module(f"{ROOT.name}.core.source")

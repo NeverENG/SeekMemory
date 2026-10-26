@@ -830,6 +830,14 @@ components:
         history_messages:
           type: integer
           minimum: 0
+        source_recall_enabled:
+          type: boolean
+        source_recall_hours:
+          type: integer
+          minimum: 1
+        source_recall_max_candidates:
+          type: integer
+          minimum: 1
         estimate_tokens:
           type: integer
           minimum: 0
@@ -838,6 +846,9 @@ components:
       - system_chars
       - group_context_messages
       - history_messages
+      - source_recall_enabled
+      - source_recall_hours
+      - source_recall_max_candidates
       - estimate_tokens
       additionalProperties: false
     DreamRun:

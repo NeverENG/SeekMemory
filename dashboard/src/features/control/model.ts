@@ -93,6 +93,19 @@ export const statusSchema = z.object({
     })
     .nullable()
     .default(null),
+  budget: z
+    .object({
+      injection_chars: z.number().int().nonnegative(),
+      system_chars: z.number().int().nonnegative(),
+      group_context_messages: z.number().int().nonnegative(),
+      history_messages: z.number().int().nonnegative(),
+      source_recall_enabled: z.boolean(),
+      source_recall_hours: z.number().int().positive(),
+      source_recall_max_candidates: z.number().int().positive(),
+      estimate_tokens: z.number().int().nonnegative(),
+    })
+    .nullable()
+    .exactOptional(),
   checkpointPending: z.number().int().nonnegative().nullable(),
   schedulerCount: z.number().int().nonnegative(),
   config: z.record(z.string(), z.json()),

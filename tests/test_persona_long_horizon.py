@@ -112,6 +112,7 @@ class PersonaLongHorizonTest(PersonaCase):
         from store.cache import Cache
 
         self.db = open_store(path)
+        self.addCleanup(self.db.close)
         self.cache = Cache(self.db.artifacts)
         self.cache.load()
 
