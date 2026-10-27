@@ -3,7 +3,7 @@
 只做字段翻译，不做判断；矩阵平台（Telegram/微信/抖音/B站）以后各自实现同形状的
 映射函数，运行时只消费 RuntimeInput。
 
-设计口径见 `docs/EVENT-CONTRACT.md`：不引入 HostEvent 中间层。
+设计口径见 `docs/zh/architecture/event-contract.md`：不引入 HostEvent 中间层。
 """
 
 from __future__ import annotations

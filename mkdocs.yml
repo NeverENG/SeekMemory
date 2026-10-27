@@ -9,6 +9,7 @@ nav:
       - 首页: zh/index.md
       - 架构:
           - 总览: zh/architecture/overview.md
+          - 事件契约: zh/architecture/event-contract.md
           - 模块:
               - core: zh/architecture/modules/core.md
               - app: zh/architecture/modules/app.md
@@ -28,6 +29,7 @@ nav:
       - Home: en/index.md
       - Architecture:
           - Overview: en/architecture/overview.md
+          - Event contract: en/architecture/event-contract.md
           - Modules:
               - core: en/architecture/modules/core.md
               - app: en/architecture/modules/app.md
