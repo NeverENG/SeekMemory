@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import time
 
 try:
@@ -54,6 +55,20 @@ class AstrBotRuntimeAdapter:
             event_time=created_at,
             received_at=time.time(),
         )
+
+    @staticmethod
+    def source_event_time(source: dict | None) -> float:
+        """Map a persisted Source timestamp to epoch seconds; unknown -> 0."""
+        raw = str((source or {}).get("at") or "")
+        if not raw:
+            return 0.0
+        try:
+            value = datetime.datetime.fromisoformat(raw)
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=datetime.timezone.utc)
+            return value.timestamp()
+        except (TypeError, ValueError):
+            return 0.0
 
     @staticmethod
     def event_id(event) -> str:

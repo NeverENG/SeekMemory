@@ -417,5 +417,6 @@ class AstrBotPlugin(AstrBotHooks):
             text=str(source.get("text") or "").strip(),
             source_id=str(source.get("id") or ""),
             bot_id=str(getattr(self, "_self_id", "") or "bot"),
-            at=now,
+            event_time=AstrBotRuntimeAdapter.source_event_time(source),
+            received_at=now,
         )
