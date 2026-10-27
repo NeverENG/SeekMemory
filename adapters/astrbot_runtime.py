@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 try:
     from ..app.runtime.contracts import (
         RunDecision,
@@ -49,7 +51,8 @@ class AstrBotRuntimeAdapter:
             question=("?" in value or "\uff1f" in value),
             unread_count=max(0, int(unread_count)),
             unread_seq=max(0, int(unread_seq)),
-            at=created_at,
+            event_time=created_at,
+            received_at=time.time(),
         )
 
     @staticmethod

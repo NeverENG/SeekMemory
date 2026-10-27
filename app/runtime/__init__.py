@@ -1,19 +1,27 @@
 """Host-agnostic SeekMemory agent runtime."""
 
 from .contracts import (
+    ActionKind,
+    ActionRecord,
+    ActionSink,
+    ActionStatus,
     AttentionLevel,
+    Clock,
     MemoryContext,
     MemoryContextPort,
+    MemoryContextRequest,
     MessageSender,
     ModelGateway,
+    ProactiveDecision,
+    ProactivePolicy,
     RunContext,
     RunDecision,
     RunResult,
     RuntimeInput,
-    UserRunReceipt,
     SessionState,
     SessionStateStore,
     TraceSink,
+    UserRunReceipt,
     WakeAction,
 )
 from .episode import (
@@ -42,8 +50,13 @@ from .wake import WakePolicy
 from .worker import RuntimeWorker
 
 __all__ = [
+    "ActionKind",
+    "ActionRecord",
+    "ActionSink",
+    "ActionStatus",
     "AgentRuntime",
     "AttentionLevel",
+    "Clock",
     "RepoEpisodeStore",
     "RepoStateStore",
     "EpisodeOutcome",
@@ -52,6 +65,9 @@ __all__ = [
     "JsonlEpisodeStore",
     "InMemoryStateStore",
     "MemoryContext",
+    "MemoryContextRequest",
+    "ProactiveDecision",
+    "ProactivePolicy",
     "RecordedReply",
     "RecordedTurn",
     "RunRecorder",

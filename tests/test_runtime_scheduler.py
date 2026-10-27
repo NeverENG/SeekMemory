@@ -92,7 +92,7 @@ class RuntimeWorkerTest(unittest.TestCase):
             enabled=lambda: enabled,
             session_ids=lambda limit: ["s1"],
             run_context=lambda session_id, now: RunContext(
-                session_id=session_id, text="hello", at=now
+                session_id=session_id, text="hello", event_time=now
             ),
             interval_seconds=lambda: 1,
             max_attempts=lambda: 3,
@@ -135,7 +135,7 @@ class RuntimeWorkerTest(unittest.TestCase):
                 enabled=lambda: True,
                 session_ids=lambda limit: [],
                 run_context=lambda session_id, now: RunContext(
-                    session_id=session_id, text="hello", at=now
+                    session_id=session_id, text="hello", event_time=now
                 ),
                 interval_seconds=lambda: 1,
                 max_attempts=lambda: 3,

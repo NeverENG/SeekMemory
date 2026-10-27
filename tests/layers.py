@@ -64,6 +64,7 @@ LAYERS: dict[str, tuple[str, ...]] = {
         "test_runtime_scheduler.py",
         "test_runtime_tool_guard.py",
         "test_runtime_adapter.py",
+        "test_runtime_contracts.py",
         "test_temporal.py",
         "test_webui.py",
     ),

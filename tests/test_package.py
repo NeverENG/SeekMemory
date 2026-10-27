@@ -225,10 +225,10 @@ class PackageTests(unittest.TestCase):
             "from pathlib import Path\n"
             "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))\n"
             "from adapters.seekmemory_context import SeekMemoryContextAdapter\n"
-            "from app.runtime import MemoryContext, RuntimeInput\n"
+            "from app.runtime import MemoryContext, MemoryContextRequest\n"
             "context = SeekMemoryContextAdapter(lambda event: MemoryContext(\n"
             "    text='block', info={'final_ids': ('a1',)}\n"
-            ")).build_context(RuntimeInput('s1', 'hello'))\n"
+            ")).build_context(MemoryContextRequest('s1', 'hello'))\n"
             "assert context.text == 'block'\n"
             "assert context.info['final_ids'] == ('a1',)\n",
             encoding="utf-8",

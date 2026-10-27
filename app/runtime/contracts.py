@@ -7,6 +7,12 @@ from enum import Enum
 from typing import Any, Protocol
 
 
+class Clock(Protocol):
+    """Wall-clock source used by the runtime; returns UTC epoch seconds."""
+
+    def __call__(self) -> float: ...
+
+
 class AttentionLevel(str, Enum):
     AMBIENT = "ambient"
     ADDRESSED = "addressed"
@@ -21,30 +27,50 @@ class WakeAction(str, Enum):
     REPLY = "reply"
 
 
+class ActionKind(str, Enum):
+    SEND_TEXT = "send_text"
+    TOOL_CALL = "tool_call"
+    HOST_ACTION = "host_action"
+
+
+class ActionStatus(str, Enum):
+    ATTEMPTED = "attempted"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 @dataclass(frozen=True)
 class RuntimeInput:
-    """One inbound event reduced to fields the runtime can reason about."""
+    """One inbound event reduced to host-neutral fields.
+
+    ``event_time`` is when the platform says the event happened. ``received_at``
+    is when this process observed it. Decision time is passed explicitly to the
+    runtime methods and is never inferred from either field.
+    """
 
     session_id: str
     text: str
+    event_time: float = 0.0
+    received_at: float = 0.0
     speaker_id: str = ""
     private: bool = False
     mentioned: bool = False
     question: bool = False
     unread_count: int = 0
     unread_seq: int = 0
-    at: float = 0.0
 
 
 @dataclass(frozen=True)
 class RunContext:
-    """One inbound runtime unit before it becomes a durable result."""
+    """One runtime unit before it becomes a durable result."""
 
     session_id: str
     text: str
     source_id: str = ""
     bot_id: str = ""
-    at: float = 0.0
+    event_time: float = 0.0
+    received_at: float = 0.0
     run_id: str = ""
 
 
@@ -59,7 +85,7 @@ class UserRunReceipt:
 
 @dataclass(frozen=True)
 class RunResult:
-    """Observed outcome of one deferred runtime run."""
+    """Observed outcome of one runtime run."""
 
     run_id: str
     session_id: str
@@ -69,11 +95,47 @@ class RunResult:
     error: str = ""
 
 
+@dataclass(frozen=True)
+class ActionRecord:
+    """Content-free action/handoff audit metadata.
+
+    Message bodies, prompts, tool arguments and tool results must never be
+    added here. ``action_id`` is the stable idempotency key for one action.
+    """
+
+    action_id: str
+    session_id: str
+    run_id: str = ""
+    kind: ActionKind = ActionKind.HOST_ACTION
+    status: ActionStatus = ActionStatus.ATTEMPTED
+    reason: str = ""
+    attempt: int = 1
+    at: float = 0.0
+
+    @property
+    def terminal(self) -> bool:
+        return self.status in (
+            ActionStatus.SUCCEEDED,
+            ActionStatus.FAILED,
+            ActionStatus.CANCELLED,
+        )
+
+
+@dataclass(frozen=True)
+class ProactiveDecision:
+    """Pure policy result: whether this session should be considered due."""
+
+    should_speak: bool
+    reason: str
+    due_at: float = 0.0
+
+
 @dataclass
 class SessionState:
     """Per-session timing and attention state. This is not memory."""
 
     session_id: str
+    last_event_at: float = 0.0
     last_seen_at: float = 0.0
     last_spoke_at: float = 0.0
     quiet_until: float = 0.0
@@ -89,6 +151,12 @@ class SessionState:
     last_action: str = ""
     last_reason: str = ""
     reply_cooldown_seconds: float = 30.0
+    last_proactive_at: float = 0.0
+    proactive_due_at: float = 0.0
+    proactive_attempts: int = 0
+    last_action_at: float = 0.0
+    last_action_kind: str = ""
+    last_action_status: str = ""
 
 
 @dataclass(frozen=True)
@@ -109,13 +177,28 @@ class TraceSink(Protocol):
 
 
 @dataclass(frozen=True)
+class MemoryContextRequest:
+    """Host-neutral request for read-only memory context."""
+
+    session_id: str
+    query: str = ""
+    source_id: str = ""
+    speaker_id: str = ""
+    private: bool = False
+    event_time: float = 0.0
+    received_at: float = 0.0
+    now: float = 0.0
+    reason: str = ""
+
+
+@dataclass(frozen=True)
 class MemoryContext:
     text: str = ""
     info: dict[str, Any] = field(default_factory=dict)
 
 
 class MemoryContextPort(Protocol):
-    def build_context(self, event: RuntimeInput) -> MemoryContext: ...
+    def build_context(self, request: MemoryContextRequest) -> MemoryContext: ...
 
 
 class ModelGateway(Protocol):
@@ -126,3 +209,11 @@ class ModelGateway(Protocol):
 
 class MessageSender(Protocol):
     async def send(self, session_id: str, text: str) -> bool: ...
+
+
+class ActionSink(Protocol):
+    def append(self, record: ActionRecord) -> None: ...
+
+
+class ProactivePolicy(Protocol):
+    def evaluate(self, state: SessionState, *, now: float) -> ProactiveDecision: ...

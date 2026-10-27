@@ -15,13 +15,16 @@ from app.runtime import (  # noqa: E402
     AgentRuntime,
     InMemoryStateStore,
     MemoryContext,
+    MemoryContextRequest,
     RuntimeInput,
 )
 
 
 class SeekMemoryContextAdapterTest(unittest.TestCase):
     def test_delegates_event_and_preserves_context_and_final_ids(self) -> None:
-        event = RuntimeInput("s1", "hello", speaker_id="u1", private=True)
+        event = MemoryContextRequest(
+            session_id="s1", query="hello", speaker_id="u1", private=True
+        )
         expected = MemoryContext(
             text="recall block",
             info={
@@ -33,8 +36,8 @@ class SeekMemoryContextAdapterTest(unittest.TestCase):
         )
         seen = []
 
-        def build(runtime_input):
-            seen.append(runtime_input)
+        def build(request):
+            seen.append(request)
             return expected
 
         adapter = SeekMemoryContextAdapter(build)
@@ -46,8 +49,8 @@ class SeekMemoryContextAdapterTest(unittest.TestCase):
     def test_adapter_composes_with_agent_runtime(self) -> None:
         calls = []
 
-        def build(runtime_input):
-            calls.append((runtime_input.text, runtime_input.session_id))
+        def build(request):
+            calls.append((request.query, request.session_id))
             return MemoryContext(text="block", info={"final_ids": ("a1",)})
 
         runtime = AgentRuntime(
@@ -63,7 +66,7 @@ class SeekMemoryContextAdapterTest(unittest.TestCase):
         top_level = (
             "from adapters.seekmemory_context import SeekMemoryContextAdapter; "
             "from app.runtime import MemoryContext; "
-            "assert SeekMemoryContextAdapter(lambda event: MemoryContext("
+            "assert SeekMemoryContextAdapter(lambda request: MemoryContext("
             "text='x', info={'final_ids': ('1',)})).build_context(None).info"
             "['final_ids'] == ('1',)"
         )
@@ -71,7 +74,7 @@ class SeekMemoryContextAdapterTest(unittest.TestCase):
             f"from {ROOT.name}.adapters.seekmemory_context import "
             "SeekMemoryContextAdapter; "
             f"from {ROOT.name}.app.runtime import MemoryContext; "
-            "assert SeekMemoryContextAdapter(lambda event: MemoryContext("
+            "assert SeekMemoryContextAdapter(lambda request: MemoryContext("
             "text='x', info={'final_ids': ('1',)})).build_context(None).info"
             "['final_ids'] == ('1',)"
         )

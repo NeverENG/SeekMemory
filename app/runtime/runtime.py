@@ -8,6 +8,7 @@ from typing import Callable
 from .contracts import (
     MemoryContext,
     MemoryContextPort,
+    MemoryContextRequest,
     MessageSender,
     ModelGateway,
     RunContext,
@@ -52,11 +53,23 @@ class AgentRuntime:
     def build_context(self, event: RuntimeInput) -> MemoryContext:
         if self.memory_context is None:
             return MemoryContext()
-        return self.memory_context.build_context(event)
+        now = event.event_time if event.event_time else self.clock()
+        request = MemoryContextRequest(
+            session_id=event.session_id,
+            query=event.text,
+            speaker_id=event.speaker_id,
+            private=event.private,
+            event_time=event.event_time,
+            received_at=event.received_at,
+            now=now,
+            reason="inbound",
+        )
+        return self.memory_context.build_context(request)
 
     def observe(self, event: RuntimeInput) -> RunDecision:
-        now = event.at if event.at else self.clock()
+        now = event.event_time if event.event_time else self.clock()
         state = self.store.get(event.session_id)
+        state.last_event_at = event.event_time
         state.last_seen_at = now
         observed_seq = max(0, int(event.unread_seq))
         if observed_seq <= int(state.last_unread_seq):
@@ -214,7 +227,7 @@ class AgentRuntime:
         session_id = str(context.session_id or "")
         source_id = str(context.source_id or "")
         text = str(context.text or "").strip()
-        now = float(context.at or self.clock())
+        now = float(context.event_time or self.clock())
         run_id = str(context.run_id or "")
         state = self.store.get(session_id)
         wait_due = state.wait_until > 0 and state.wait_until <= now
@@ -240,7 +253,8 @@ class AgentRuntime:
             session_id=session_id,
             text=text,
             private=False,
-            at=now,
+            event_time=now,
+            received_at=now,
         )
         try:
             memory = self.build_context(runtime_input)

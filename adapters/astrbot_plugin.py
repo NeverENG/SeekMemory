@@ -20,9 +20,9 @@ from ..app.runtime import (
     JsonStateStore,
     JsonlEpisodeStore,
     MemoryContext,
+    MemoryContextRequest,
     RunContext,
     RunRecorder,
-    RuntimeInput,
     RuntimeWorker,
     Scheduler,
     ToolPolicy,
@@ -358,9 +358,9 @@ class AstrBotPlugin(AstrBotHooks):
             self.journal.record("plugin", "failed", "记忆引擎初始化失败", error=e)
             logger.error(f"[seekmemory] 初始化失败，记忆功能降级：{e}")
 
-    def _runtime_memory_context(self, event: RuntimeInput) -> MemoryContext:
+    def _runtime_memory_context(self, request: MemoryContextRequest) -> MemoryContext:
         block, info = self._recall_block(
-            event.text, event.session_id, event.private, event.speaker_id
+            request.query, request.session_id, request.private, request.speaker_id
         )
         return MemoryContext(text=block, info=info)
 

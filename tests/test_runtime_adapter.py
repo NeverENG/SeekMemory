@@ -52,7 +52,7 @@ class AdapterTest(unittest.TestCase):
         result = AstrBotRuntimeAdapter.from_event(
             event, "ambient", "g1", "u1", unread_count=4, unread_seq=9
         )
-        self.assertEqual(result.at, 123.5)
+        self.assertEqual(result.event_time, 123.5)
         self.assertEqual(result.unread_count, 4)
         self.assertEqual(result.unread_seq, 9)
 
@@ -62,7 +62,7 @@ class AdapterTest(unittest.TestCase):
         result = AstrBotRuntimeAdapter.from_event(
             event, "ambient", "g1", "u1", unread_count=-3, unread_seq=-2
         )
-        self.assertEqual(result.at, 0.0)
+        self.assertEqual(result.event_time, 0.0)
         self.assertEqual(result.unread_count, 0)
         self.assertEqual(result.unread_seq, 0)
 
