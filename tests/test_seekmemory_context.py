@@ -71,9 +71,10 @@ class SeekMemoryContextAdapterTest(unittest.TestCase):
             "['final_ids'] == ('1',)"
         )
         package = (
-            f"from {ROOT.name}.adapters.seekmemory_context import "
-            "SeekMemoryContextAdapter; "
-            f"from {ROOT.name}.app.runtime import MemoryContext; "
+            "from importlib import import_module; "
+            "SeekMemoryContextAdapter = "
+            f"import_module({ROOT.name!r} + '.adapters.seekmemory_context').SeekMemoryContextAdapter; "
+            f"MemoryContext = import_module({ROOT.name!r} + '.app.runtime').MemoryContext; "
             "assert SeekMemoryContextAdapter(lambda request: MemoryContext("
             "text='x', info={'final_ids': ('1',)})).build_context(None).info"
             "['final_ids'] == ('1',)"
