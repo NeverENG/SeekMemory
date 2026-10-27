@@ -77,7 +77,10 @@ export function deriveSubjectKey(payload, config, logger, state) {
 export function registerHostHooks({ ctx, config, kernel, logger }) {
   const disposers = [];
   const state = { subjectWarned: false };
-  const persona = { text: '', revision: 0, fetchedAt: 0 };
+  // persona **按主体分槽**：单槽缓存会把 A 的画像注入到 B 的上下文里
+  // （只查 TTL 不查 subject = 身份/隐私 bug，review #110 第 1 条）。
+  /** @type {Map<string, {text:string, revision:number, fetchedAt:number}>} */
+  const personas = new Map();
 
   // 捕获失败必须有声音，但不能刷屏：每种原因记前 3 次，之后每 50 次记一次。
   // 以前这里是完全静默的，用户侧表现是"聊了半天，一条都没记住"。
@@ -91,12 +94,22 @@ export function registerHostHooks({ ctx, config, kernel, logger }) {
 
   const refreshPersona = async (subjectKey) => {
     if (!config.injectPersona) return;
-    if (Date.now() - persona.fetchedAt < PERSONA_TTL_MS) return;
-    const r = await kernel.persona(subjectKey);
+    const key = subjectKey || '';
+    const cached = personas.get(key);
+    if (cached && Date.now() - cached.fetchedAt < PERSONA_TTL_MS) return;
+    const r = await kernel.persona(key);
     if (!r.ok) return;
-    persona.text = String(r.data?.text ?? '');
-    persona.revision = Number(r.data?.revision ?? 0);
-    persona.fetchedAt = Date.now();
+    personas.set(key, {
+      text: String(r.data?.text ?? ''),
+      revision: Number(r.data?.revision ?? 0),
+      fetchedAt: Date.now(),
+    });
+  };
+
+  /** 读某主体的画像文本；没有就是空串（物理离场，不注入别人的）。 */
+  const personaTextFor = (subjectKey) => {
+    if (!config.injectPersona) return '';
+    return personas.get(subjectKey || '')?.text ?? '';
   };
 
   // ── 1. 捕获 ──────────────────────────────────────────────
@@ -181,12 +194,15 @@ export function registerHostHooks({ ctx, config, kernel, logger }) {
     const registerFor = (agent) => {
       if (!agent || registered.has(agent)) return;
       registered.add(agent);
+      // 把上下文**绑定到该 agent 自己的主体键**：读的是 personas.get(自己的 key)，
+      // 别的 agent 的画像不可能被读到（review #110 第 1 条）。
+      const boundKey = deriveSubjectKey({ agent }, config, logger, state);
       try {
         const d = agent.ctx.systemPrompt.context({
           name: 'seekmemory:persona',
           order: 520,
           // text 必须是同步函数：返回缓存值，异步刷新在别处做
-          text: () => (config.injectPersona ? persona.text : ''),
+          text: () => personaTextFor(boundKey),
         });
         if (typeof d === 'function') disposers.push(d);
       } catch (err) {
