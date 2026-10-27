@@ -135,6 +135,7 @@ class SessionState:
     """Per-session timing and attention state. This is not memory."""
 
     session_id: str
+    revision: int = 0
     last_event_at: float = 0.0
     last_seen_at: float = 0.0
     last_spoke_at: float = 0.0

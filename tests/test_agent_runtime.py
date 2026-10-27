@@ -449,6 +449,57 @@ class WakePolicyTest(unittest.TestCase):
         self.assertEqual(recorder.replies[0]["run_id"], "run-1")
         self.assertEqual(store.get("s1").wait_until, 0.0)
 
+    def test_deferred_delivery_does_not_clear_newer_unread_state(self) -> None:
+        class Model:
+            runtime = None
+
+            async def complete(self, session_id, prompt, system_prompt=None):
+                self.runtime.observe(
+                    RuntimeInput(
+                        "s1", "newer", mentioned=True, unread_count=1, event_time=101
+                    ),
+                    now=101,
+                )
+                return "reply"
+
+        class Sender:
+            async def send(self, session_id, text):
+                return True
+
+        class Recorder:
+            def new_run_id(self):
+                return "run-interleave"
+
+            def record_deferred_reply(self, **kwargs):
+                return SimpleNamespace(response_chars=5, assistant_source_id="a1")
+
+            def record_deferred_error(self, **kwargs):
+                raise AssertionError("must not fail")
+
+        store = InMemoryStateStore()
+        state = store.get("s1")
+        state.wait_until = 100
+        store.put(state)
+        model = Model()
+        runtime = AgentRuntime(
+            store,
+            clock=lambda: 100,
+            model_gateway=model,
+            message_sender=Sender(),
+            recorder=Recorder(),
+        )
+        model.runtime = runtime
+
+        result = asyncio.run(
+            runtime.dispatch_deferred(
+                RunContext(session_id="s1", text="old", event_time=100), now=100
+            )
+        )
+        self.assertTrue(result.delivered)
+        state = store.get("s1")
+        self.assertEqual(state.unread_count, 1)
+        self.assertEqual(state.last_spoke_at, 100)
+
     def test_deferred_dispatch_rejects_not_due_state(self) -> None:
         class Model:
             def __init__(self):

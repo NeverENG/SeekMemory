@@ -68,6 +68,10 @@ class AgentRuntime:
         )
         return self.memory_context.build_context(request)
 
+    def _save(self, state: SessionState) -> None:
+        state.revision = max(0, int(state.revision or 0)) + 1
+        self.store.put(state)
+
     def observe(
         self, event: RuntimeInput, *, now: float | None = None
     ) -> RunDecision:
@@ -109,7 +113,7 @@ class AgentRuntime:
             # Debounce new ambient traffic: every ambient event extends the
             # pending wait instead of letting an earlier deadline fire.
             state.wait_until = max(state.wait_until, moment + self.wait_seconds)
-        self.store.put(state)
+        self._save(state)
         if self.trace is not None:
             self.trace.record(
                 "runtime",
@@ -268,6 +272,7 @@ class AgentRuntime:
             run_id = self.recorder.new_run_id()
 
         attempts = self.claim_dispatch(session_id, source_id, moment)
+        claimed_revision = self.store.get(session_id).revision
         runtime_input = RuntimeInput(
             session_id=session_id,
             text=text,
@@ -292,6 +297,7 @@ class AgentRuntime:
                 attempts,
                 max_attempts=max_attempts,
                 base_seconds=base_seconds,
+                expected_revision=claimed_revision,
             )
             self.recorder.record_deferred_error(
                 run_id=run_id,
@@ -326,7 +332,7 @@ class AgentRuntime:
             user_source_id=source_id,
             at=at,
         )
-        self.mark_delivered(session_id, moment)
+        self.mark_delivered(session_id, moment, expected_revision=claimed_revision)
         if self.trace is not None:
             self.trace.record(
                 "runtime",
@@ -346,7 +352,7 @@ class AgentRuntime:
         state.wait_until = 0.0
         state.next_retry_at = 0.0
         state.last_seen_at = self.clock() if now is None else now
-        self.store.put(state)
+        self._save(state)
         return state
 
     def claim_dispatch(self, session_id: str, source_id: str,
@@ -362,14 +368,17 @@ class AgentRuntime:
         state.wait_until = 0.0
         state.next_retry_at = 0.0
         state.last_seen_at = moment
-        self.store.put(state)
+        self._save(state)
         return state.dispatch_attempts
 
     def schedule_retry(self, session_id: str, now: float, attempts: int,
                        max_attempts: int = 3, base_seconds: float = 2.0,
-                       cap_seconds: float = 60.0) -> SessionState:
+                       cap_seconds: float = 60.0,
+                       expected_revision: int | None = None) -> SessionState:
         """Schedule bounded retry for a failed deferred dispatch."""
         state = self.store.get(session_id)
+        if expected_revision is not None and state.revision != expected_revision:
+            return state
         tries = max(1, int(attempts))
         if tries >= max(1, int(max_attempts)):
             state.wait_until = 0.0
@@ -382,18 +391,25 @@ class AgentRuntime:
             state.next_retry_at = state.wait_until
             state.last_reason = "dispatch_retry"
         state.last_action = "wait"
-        self.store.put(state)
+        self._save(state)
         return state
 
-    def mark_delivered(self, session_id: str, now: float | None = None) -> SessionState:
+    def mark_delivered(
+        self,
+        session_id: str,
+        now: float | None = None,
+        *,
+        expected_revision: int | None = None,
+    ) -> SessionState:
         moment = self.clock() if now is None else now
         state = self.store.get(session_id)
         state.last_spoke_at = moment
         state.cooldown_until = moment + max(0.0, state.reply_cooldown_seconds)
-        state.unread_count = 0
-        state.read_through_seq = max(state.read_through_seq, state.last_unread_seq)
-        state.wait_until = 0.0
-        state.next_retry_at = 0.0
-        state.dispatch_attempts = 0
-        self.store.put(state)
+        if expected_revision is None or state.revision == expected_revision:
+            state.unread_count = 0
+            state.read_through_seq = max(state.read_through_seq, state.last_unread_seq)
+            state.wait_until = 0.0
+            state.next_retry_at = 0.0
+            state.dispatch_attempts = 0
+        self._save(state)
         return state
