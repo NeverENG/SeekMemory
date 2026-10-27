@@ -1,0 +1,6 @@
+# 把本插件挂进 profile 的 bundle 层。
+# 没有这个文件，profile 会在组装阶段**静默跳过**这个包
+# （报 "profile bundle ... declares no ..."，但不会让宿主失败）。
+- insert:
+    - id: dsh-seekmemory
+      name: dsh-seekmemory

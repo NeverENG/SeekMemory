@@ -1,0 +1,17 @@
+{
+  "id": "dsh-seekmemory",
+  "name": "dsh-seekmemory",
+  "version": "0.0.1",
+  "description": {
+    "zh": "把 SeekMemory 记忆内核接到 DSH：捕获 → 召回 → 人格，走本机 loopback 契约，内核不可达时整体 fail-open。",
+    "en": "Wire the SeekMemory kernel into DSH: capture → recall → persona over a loopback contract, fully fail-open when the kernel is unreachable."
+  },
+  "homepage": "",
+  "license": "MIT",
+  "engines": {
+    "dsh": ">=0.2.0-rc.1"
+  },
+  "components": {
+    "host": "src/index.js"
+  }
+}
