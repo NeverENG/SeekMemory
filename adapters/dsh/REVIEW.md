@@ -31,14 +31,15 @@ DSH 插件                              内核（Python）
 ## 怎么跑（不需要内核）
 
 ```powershell
-cd dsh-seekmemory
+cd adapters/dsh
 node scripts/check-manifest.mjs      # 静态 7 项（engines/peer/import/nullable/bundle patch…）
 node test/client-failopen.mjs        # 11 项：8 种降级原因可区分
 node test/hooks-fake-host.mjs        # 19 项：apply 不抛、注入、fail-open、卸载回收
 node test/persona-isolation.mjs      # 6 项：多主体画像隔离
 node test/safe-mode.mjs              # 42 项：跳闸/强杀/自愈/FORCE/日志隐私
 node test/extract-bridge.mjs         # 18 项：抽取桥，block-end 权威/中止/抛错
-node test/postinstall-check.mjs      # 7 项：跨平台安装自检
+node test/postinstall-check.mjs      # 7 项：跨平台安装自检（沙箱内 3 项 SKIP）
+node test/install-profile.mjs        # 11 项：junction 全新/重复/换目录/实体目录
 node scripts/build-check.mjs         # files/入口/bundle patch
 ```
 
@@ -57,7 +58,7 @@ scripts\postinstall-check.cmd web <一个隔离 DSH_HOME>
 
 ## 已验证 / 未验证
 
-**已验证**：103 项单元 + 11 项冒烟 + manifest/build/package 检查；真机四场景（正常失败 / 运行期崩溃 / 强杀 / 安全模式自愈）在隔离 `DSH_HOME` 下跑通；钩子真实触发（pre-step 召回、session 事件捕获）且卸载后全部回收。
+**已验证**：114 项单元（11 + 19 + 6 + 42 + 18 + 7 + 11）+ 11 项冒烟 + manifest/build/package 检查；真机四场景（正常失败 / 运行期崩溃 / 强杀 / 安全模式自愈）在隔离 `DSH_HOME` 下跑通；钩子真实触发（pre-step 召回、session 事件捕获）且卸载后全部回收。
 
 **未验证**：真实消息平台下的召回质量；真实模型下的抽取成功率（缺凭据，只验证了 `not_configured` 降级路径）。
 

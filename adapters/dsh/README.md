@@ -51,6 +51,7 @@ test/persona-isolation.mjs   双主体画像隔离：A 的画像不得出现在 
 test/safe-mode.mjs           跳闸/强杀豁免/自愈/开关键（42 项）
 test/extract-bridge.mjs      抽取桥（18 项：block-end 权威 / 中止 / 抛错 / 无 llm 服务）
 test/postinstall-check.mjs   自检脚本用例（dump 判定 + 子进程路径）
+test/install-profile.mjs     安装器 junction 四场景（全新 / 重复 / 换目录 / 实体目录）
 ```
 
 ## 怎么跑
@@ -66,6 +67,7 @@ node test/persona-isolation.mjs
 node test/safe-mode.mjs
 node test/extract-bridge.mjs
 node test/postinstall-check.mjs
+node test/install-profile.mjs
 
 # 3. 打包白名单自检
 node scripts/build-check.mjs
@@ -76,7 +78,7 @@ node scripts/smoke-contract.mjs --runtime .tmp/mock/runtime.json
 ```
 
 `npm run lint` = 第 1 步；`npm run test` = 第 2 步；`npm run build` = 第 3 步；`npm run verify` = 三步全跑。
-CI（`.github/workflows/adapter-dsh.yml`）把 lint / test / build 拆成三个 job，另外加一次 `npm pack --dry-run`。
+CI 由仓库的 `.github/workflows/node-adapter.yml` 承担：单个 `node-adapter` job，按顺序跑语法与 manifest 检查、全部测试套件、`npm pack --dry-run` 与 mock 内核冒烟。
 
 mock 的故障注入开关（验 fail-open 用）：
 
@@ -171,7 +173,7 @@ $env:SEEKMEMORY_DISABLE = '1'
    ```
 
    再加一次 `--dump-config` 确认 bundle 真被纳入。
-7. **CI 覆盖 Node 侧，不含内核联调。** `.github/workflows/adapter-dsh.yml` 在 `adapters/dsh/**` 有改动时跑 lint / test / build 三个 job；Python 侧 CI 不受影响。真实内核联调（`serve.py`）仍属 issue #107 的 P3，CI 里只有 mock 内核。
+7. **CI 覆盖 Node 侧，不含内核联调。** 仓库的 `.github/workflows/node-adapter.yml` 在检测到 `adapters/dsh/` 时跑完整检查（语法与 manifest、全部测试套件、打包白名单与 mock 冒烟）；Python 侧 CI 不受影响。真实内核联调（`serve.py`）仍属 issue #107 的 P3，CI 里只有 mock 内核。
 
 ## 许可
 
