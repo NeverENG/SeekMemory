@@ -172,6 +172,7 @@ class WakePolicyTest(unittest.TestCase):
         self.assertIsInstance(seen[0], MemoryContextRequest)
         self.assertEqual(seen[0].session_id, "s1")
         self.assertEqual(seen[0].query, "hello")
+        self.assertEqual(seen[0].reason, "inbound")
         self.assertEqual(context.text, "block")
         self.assertEqual(context.info["final_ids"], ("a1",))
 

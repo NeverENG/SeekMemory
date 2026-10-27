@@ -51,7 +51,11 @@ class AgentRuntime:
         self.recorder = recorder
 
     def build_context(
-        self, event: RuntimeInput, *, now: float | None = None
+        self,
+        event: RuntimeInput,
+        *,
+        now: float | None = None,
+        reason: str = "inbound",
     ) -> MemoryContext:
         if self.memory_context is None:
             return MemoryContext()
@@ -64,7 +68,7 @@ class AgentRuntime:
             event_time=event.event_time,
             received_at=event.received_at,
             now=moment,
-            reason="inbound",
+            reason=reason,
         )
         return self.memory_context.build_context(request)
 
@@ -281,7 +285,9 @@ class AgentRuntime:
             received_at=context.received_at,
         )
         try:
-            memory = self.build_context(runtime_input, now=moment)
+            memory = self.build_context(
+                runtime_input, now=moment, reason="deferred"
+            )
             reply = await self.model_gateway.complete(
                 session_id, text, memory.text or None
             )
