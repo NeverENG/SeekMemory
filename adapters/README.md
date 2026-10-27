@@ -13,11 +13,13 @@ AstrBot 是默认宿主与参考实现；`dsh/` 是第二个宿主，存在的�
 
 ## 共同契约
 
-两个适配器都只依赖 `app/ports.py` 的八个协议：
+两个适配器共享同一套语义，但接入机制不同：
 
-`ChatModel`、`Retriever`、`SourceStore`、`ArtifactStore`、`ArtifactCache`、`MetricsStore`、`LedgerStore`、`ExtractionStore`
+- AstrBot：同进程，经 `app/ports.py` 的端口协议接入内核服务；
+- DSH：跨进程，经本机 loopback HTTP 契约接入内核服务。
 
-它们都不 import 内核内部实现，也都不修改内核代码。宿主提供端口，内核提供语义。
+DSH 不 import Python 模块，也不直接访问 store；它在线协议层对应同样的
+`ChatModel` / `Source` / `Artifact` / `Recall` / `Extraction` 语义。两者都不修改内核代码。
 
 ## 新增一个宿主
 
