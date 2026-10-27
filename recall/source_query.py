@@ -111,7 +111,8 @@ def query_recent(
     rows = [source for source in rows if _normalise(source.text) != query_norm]
     lexical = _lexical_scores(text, rows)
     explicit = mode == "loose"
-    moment = now or datetime.datetime.now()
+    moment = (now or datetime.datetime.now()).astimezone()
+    local_moment = moment.replace(tzinfo=None)
     ranked: list[SourceHit] = []
     for source in rows:
         value = float(lexical.get(source.id, 0.0))
@@ -125,7 +126,8 @@ def query_recent(
         age_hours = 10_000.0
         if stamp is not None:
             try:
-                age_hours = max(0.0, (moment - stamp).total_seconds() / 3600.0)
+                reference = local_moment if stamp.tzinfo is None else moment
+                age_hours = max(0.0, (reference - stamp).total_seconds() / 3600.0)
             except (TypeError, ValueError, OverflowError):
                 pass
         recency = 1.0 / (1.0 + age_hours / 12.0)

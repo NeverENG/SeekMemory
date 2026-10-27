@@ -15,6 +15,8 @@ recall selects active Artifacts relevant to the current input, decides what can 
 7. If ordinary selection returns fewer than min(2, recall_k) items and the query has memory intent, a bounded recent Source fallback may run. It uses Source IDs to query Artifacts with evidence on their current revision, then repeats visibility, validity, and disclosure checks. Source text is never assembled.
 8. After disclosure, assemble orders persona, impression, scene, detail, fact, and example content, applies the budget, and returns final_ids / dropped_ids.
 
+Source fallback recency compares absolute instants for offset-aware timestamps; naive timestamps retain local wall-time comparison in the runtime's timezone. Original Sources are not rewritten.
+
 ## Disclosure and delivery
 
 core.disclosure combines context affinity, subject fit, scope prior, sensitivity, and relevance into full, paraphrase, hint, or silence. Lower than full uses fixed generic sentences, not the original text or tags. Being selected does not mean an item made the final block; injection does not prove that the model used it.

@@ -15,6 +15,8 @@ recall 负责从 active Artifact 候选中取出与当前输入相关、可以�
 7. 当普通选中不足 min(2, recall_k)，且查询有记忆意图时，Source fallback 查询时间/数量受限的近期 Source。它只用 Source IDs 经 artifact_evidence 找 active Artifact，并再次执行可见性、有效期与披露；Source 正文不会被组装。
 8. 统一披露后由 assemble 按 persona、impression、scene、detail、fact 和 example 等顺序组织文本，在预算内裁剪并返回 final_ids / dropped_ids。
 
+Source 回查的新鲜度对带时区的值按绝对时刻计算；无时区的值沿用运行环境本地时间比较，不改写原始 Source。
+
 ## 披露与交付
 
 core.disclosure 将上下文亲和、subject fit、scope prior、敏感度和相关度组合为 full、paraphrase、hint 或 silence。低于 full 的记忆用固定通用句，不暴露原始文本或 tags。被选中不等于最终注入；被注入也不代表模型实际引用。

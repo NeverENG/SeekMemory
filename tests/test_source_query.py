@@ -35,14 +35,33 @@ class SourceQueryTest(unittest.TestCase):
         self.assertTrue(hits[0].same_session)
 
     def test_recency_breaks_equal_lexical_ties(self):
-        rows = [
-            source("old", "quantum trading notes", at="2026-10-25T01:00:00"),
-            source("new", "quantum trading notes", at="2026-10-25T11:00:00"),
-        ]
-        hits = query_recent(
-            "quantum trading", rows, session_id="s1", speaker="u1", now=NOW
-        )
-        self.assertEqual(hits[0].source_id, "new")
+        for zone in (None, datetime.timezone.utc,
+                     datetime.timezone(datetime.timedelta(hours=8))):
+            with self.subTest(zone=zone):
+                rows = []
+                for source_id, hours in (("a-old", 11), ("z-new", 1)):
+                    stamp = NOW - datetime.timedelta(hours=hours)
+                    if zone is not None:
+                        stamp = stamp.astimezone(zone)
+                    rows.append(source(source_id, "quantum trading notes",
+                                       at=stamp.isoformat()))
+                hits = query_recent(
+                    "quantum trading", rows, session_id="s1", speaker="u1", now=NOW
+                )
+                self.assertEqual(hits[0].source_id, "z-new")
+
+    def test_equivalent_instants_have_equal_recency(self):
+        stamp = NOW - datetime.timedelta(hours=1)
+        rows = [source("local", "quantum trading notes", at=stamp.isoformat())]
+        for hours in (0, 8):
+            zone = datetime.timezone(datetime.timedelta(hours=hours))
+            rows.append(source(str(hours), "quantum trading notes",
+                               at=stamp.astimezone(zone).isoformat()))
+        for now in (NOW, NOW.astimezone(datetime.timezone.utc)):
+            with self.subTest(now=now):
+                hits = query_recent("quantum trading", rows, now=now)
+                for hit in hits[1:]:
+                    self.assertAlmostEqual(hit.score, hits[0].score)
 
     def test_clock_and_empty_queries_do_not_match_source(self):
         rows = [source("s1", "quantum trading")]
