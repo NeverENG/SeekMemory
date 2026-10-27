@@ -9,7 +9,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import unittest
 
-from app.runtime.attention import AttentionPolicy, AttentionThresholds, preset, thresholds_from_config
+from app.runtime.attention import (
+    AttentionPolicy,
+    AttentionThresholds,
+    preset,
+    quota_gate,
+    thresholds_from_config,
+)
 from app.runtime.contracts import RuntimeInput, SessionState, WakeAction
 from app.runtime.scene_hints import compose, time_window
 from app.runtime.signals import Signals
@@ -96,6 +102,46 @@ class AttentionPolicyTest(unittest.TestCase):
         )
         self.assertIs(decision.action, WakeAction.WAIT)
         self.assertEqual(decision.reason, "hot_room")
+
+
+class QuotaGateTest(unittest.TestCase):
+    def test_stranger_gets_three_follow_up_rounds(self) -> None:
+        decision = quota_gate(
+            action=WakeAction.REPLY, private=False, owner=False,
+            mentioned=True, addressed=False, remaining=0, quota=3,
+        )
+        self.assertTrue(decision.allow)
+        remaining = decision.remaining
+        for expected in (2, 1, 0):
+            follow = quota_gate(
+                action=WakeAction.WAIT, private=False, owner=False,
+                mentioned=False, addressed=False, remaining=remaining, quota=3,
+            )
+            self.assertTrue(follow.allow)
+            self.assertEqual(follow.remaining, expected)
+            remaining = follow.remaining
+        blocked = quota_gate(
+            action=WakeAction.WAIT, private=False, owner=False,
+            mentioned=False, addressed=False, remaining=remaining, quota=3,
+        )
+        self.assertFalse(blocked.allow)
+
+    def test_ambient_stranger_without_quota_is_blocked(self) -> None:
+        decision = quota_gate(
+            action=WakeAction.OBSERVE, private=False, owner=False,
+            mentioned=False, addressed=False, remaining=0, quota=3,
+        )
+        self.assertFalse(decision.allow)
+
+    def test_owner_and_private_always_allowed(self) -> None:
+        self.assertTrue(quota_gate(
+            action=WakeAction.REPLY, private=False, owner=True,
+            mentioned=False, addressed=False, remaining=0, quota=0,
+        ).allow)
+        self.assertTrue(quota_gate(
+            action=WakeAction.REPLY, private=True, owner=False,
+            mentioned=False, addressed=False, remaining=0, quota=0,
+        ).allow)
 
 
 class PresetTest(unittest.TestCase):

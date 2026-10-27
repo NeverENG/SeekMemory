@@ -84,6 +84,39 @@ def thresholds_from_config(conf) -> AttentionThresholds:
         return base
 
 
+@dataclass(frozen=True)
+class QuotaDecision:
+    """点名后的陪聊额度结果：是否放行 + 剩余续聊轮数。"""
+
+    allow: bool
+    remaining: int
+
+
+def quota_gate(
+    *,
+    action: WakeAction,
+    private: bool,
+    owner: bool,
+    mentioned: bool,
+    addressed: bool,
+    remaining: int,
+    quota: int,
+) -> QuotaDecision:
+    """把"点名 / 主人 / 普通闲聊"映射成放行与额度更新。
+
+    - 私聊、主人：永远放行，不动额度；
+    - 陌生人被 @ / 叫名字：放行并刷新额度（quota 为触发后还能续聊几轮）；
+    - 陌生人普通消息：额度 > 0 才放行并消耗一轮，否则闭嘴。
+    """
+    if private or owner:
+        return QuotaDecision(True, remaining)
+    if mentioned or addressed:
+        return QuotaDecision(True, max(0, int(quota)))
+    if int(remaining) > 0 and action in (WakeAction.REPLY, WakeAction.WAIT):
+        return QuotaDecision(True, int(remaining) - 1)
+    return QuotaDecision(False, int(remaining))
+
+
 class AttentionPolicy:
     """确定性策略：同样的输入永远得到同样的 RunDecision。"""
 

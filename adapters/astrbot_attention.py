@@ -15,7 +15,11 @@ import time
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 
-from ..app.runtime.attention import AttentionPolicy, thresholds_from_config
+from ..app.runtime.attention import (
+    AttentionPolicy,
+    quota_gate,
+    thresholds_from_config,
+)
 from ..app.runtime.contracts import SessionState, WakeAction
 from ..app.runtime.scene_hints import compose, time_window
 from ..app.runtime.signals import Signals
@@ -141,22 +145,20 @@ class AttentionHooks:
         self, mapped, event: AstrMessageEvent, decision, signals, policy
     ) -> bool:
         """返回是否放行；额度按 (会话, 说话人) 复用 SessionState。"""
-        if decision.action is WakeAction.REPLY and (
-            mapped.private or mapped.is_owner
-        ):
-            return True
-        if decision.action is WakeAction.REPLY and (mapped.mentioned or mapped.addressed):
-            # 被点名（@ 或叫名字）一律放行；额度只影响之后不点名的续聊
-            self._save_quota(mapped, max(0, self._quota_for(signals, policy)))
-            return True
-        if decision.action is WakeAction.REPLY:
-            state = self.services.runtime.store.get(self._quota_key(mapped))
-            remaining = int(state.unread_count or 0)
-            if remaining <= 0:
-                return False
-            self._save_quota(mapped, remaining - 1)
-            return True
-        return False
+        state = self.services.runtime.store.get(self._quota_key(mapped))
+        remaining = int(state.unread_count or 0)
+        result = quota_gate(
+            action=decision.action,
+            private=mapped.private,
+            owner=mapped.is_owner,
+            mentioned=mapped.mentioned,
+            addressed=mapped.addressed,
+            remaining=remaining,
+            quota=self._quota_for(signals, policy),
+        )
+        if result.remaining != remaining or mapped.mentioned or mapped.addressed:
+            self._save_quota(mapped, result.remaining)
+        return result.allow
 
     def _quota_key(self, mapped) -> str:
         return f"{mapped.session_id}#{mapped.speaker_id}"
