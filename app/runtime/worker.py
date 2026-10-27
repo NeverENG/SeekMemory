@@ -6,7 +6,7 @@ import asyncio
 import time
 from typing import Callable
 
-from .contracts import RunContext, RunResult
+from .contracts import RunContext, RunResult, TraceSink
 from .runtime import AgentRuntime
 from .scheduler import Scheduler
 
@@ -29,6 +29,8 @@ class RuntimeWorker:
         interval_seconds: Callable[[], float],
         max_attempts: Callable[[], int],
         base_seconds: Callable[[], float],
+        trace: TraceSink | None = None,
+        max_concurrency: int = 4,
     ) -> None:
         self.runtime = runtime
         self.scheduler = scheduler
@@ -38,7 +40,8 @@ class RuntimeWorker:
         self.interval_seconds = interval_seconds
         self.max_attempts = max_attempts
         self.base_seconds = base_seconds
-        self._lock = asyncio.Lock()
+        self.trace = trace
+        self.max_concurrency = max(1, int(max_concurrency))
         self._dispatching: set[str] = set()
 
     async def dispatch(self, session_id: str, now: float | None = None) -> RunResult | None:
@@ -59,17 +62,32 @@ class RuntimeWorker:
     async def tick(self, now: float | None = None) -> int:
         if not self.enabled():
             return 0
-        dispatched = 0
-        async with self._lock:
-            moment = time.time() if now is None else float(now)
-            due = self.scheduler.due(self.session_ids(100), moment)
-            for item in due:
+        moment = time.time() if now is None else float(now)
+        due = self.scheduler.due(self.session_ids(100), moment)
+        if not due:
+            return 0
+        semaphore = asyncio.Semaphore(self.max_concurrency)
+
+        async def run_one(item) -> bool:
+            async with semaphore:
                 try:
-                    if await self.dispatch(item.session_id, moment) is not None:
-                        dispatched += 1
-                except Exception:
-                    continue
-        return dispatched
+                    result = await self.dispatch(item.session_id, moment)
+                except Exception as exc:  # noqa: BLE001 - one run must not stop the tick
+                    if self.trace is not None:
+                        self.trace.record(
+                            "runtime",
+                            "dispatch_failed",
+                            {
+                                "session_id": item.session_id,
+                                "kind": item.reason,
+                                "error": type(exc).__name__,
+                            },
+                        )
+                    return False
+                return result is not None
+
+        results = await asyncio.gather(*(run_one(item) for item in due))
+        return sum(1 for result in results if result)
 
     async def run_forever(self) -> None:
         while True:

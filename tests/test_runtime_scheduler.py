@@ -112,6 +112,87 @@ class RuntimeWorkerTest(unittest.TestCase):
         self.assertIsNone(asyncio.run(worker.dispatch("s1", 100)))
         self.assertEqual(runtime.contexts, [])
 
+    def test_tick_dispatches_different_sessions_concurrently(self) -> None:
+        class Runtime:
+            def __init__(self):
+                self.started = []
+                self.both_started = None
+                self.release = None
+
+            async def dispatch_deferred(self, context, **kwargs):
+                self.started.append(context.session_id)
+                if len(self.started) == 2:
+                    self.both_started.set()
+                await self.release.wait()
+                return object()
+
+        async def run():
+            store = InMemoryStateStore()
+            for session_id in ("s1", "s2"):
+                state = store.get(session_id)
+                state.wait_until = 100
+                store.put(state)
+            runtime = Runtime()
+            runtime.both_started = asyncio.Event()
+            runtime.release = asyncio.Event()
+            worker = RuntimeWorker(
+                runtime=runtime,
+                scheduler=Scheduler(store),
+                enabled=lambda: True,
+                session_ids=lambda limit: ["s1", "s2"],
+                run_context=lambda session_id, now: RunContext(
+                    session_id=session_id, text="hello", event_time=now
+                ),
+                interval_seconds=lambda: 1,
+                max_attempts=lambda: 3,
+                base_seconds=lambda: 2,
+            )
+            task = asyncio.create_task(worker.tick(now=100))
+            await asyncio.wait_for(runtime.both_started.wait(), timeout=1)
+            self.assertEqual(sorted(runtime.started), ["s1", "s2"])
+            runtime.release.set()
+            self.assertEqual(await task, 2)
+
+        asyncio.run(run())
+
+    def test_tick_records_dispatch_failure_and_continues(self) -> None:
+        class Trace:
+            def __init__(self):
+                self.rows = []
+
+            def record(self, kind, status, context=None):
+                self.rows.append((kind, status, context or {}))
+
+        class Runtime:
+            async def dispatch_deferred(self, context, **kwargs):
+                if context.session_id == "s1":
+                    raise RuntimeError("boom")
+                return object()
+
+        store = InMemoryStateStore()
+        for session_id in ("s1", "s2"):
+            state = store.get(session_id)
+            state.wait_until = 100
+            store.put(state)
+        trace = Trace()
+        worker = RuntimeWorker(
+            runtime=Runtime(),
+            scheduler=Scheduler(store),
+            enabled=lambda: True,
+            session_ids=lambda limit: ["s1", "s2"],
+            run_context=lambda session_id, now: RunContext(
+                session_id=session_id, text="hello", event_time=now
+            ),
+            interval_seconds=lambda: 1,
+            max_attempts=lambda: 3,
+            base_seconds=lambda: 2,
+            trace=trace,
+        )
+        self.assertEqual(asyncio.run(worker.tick(now=100)), 1)
+        self.assertEqual(trace.rows[0][:2], ("runtime", "dispatch_failed"))
+        self.assertEqual(trace.rows[0][2]["session_id"], "s1")
+        self.assertEqual(trace.rows[0][2]["error"], "RuntimeError")
+
     def test_direct_dispatch_dedupes_one_in_flight_session(self) -> None:
         class Runtime:
             def __init__(self):

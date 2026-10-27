@@ -240,6 +240,7 @@ class AstrBotPlugin(AstrBotHooks):
             interval_seconds=lambda: float(self._c("runtime_tick_seconds", 5)),
             max_attempts=lambda: int(self._c("runtime_dispatch_max_attempts", 3)),
             base_seconds=lambda: float(self._c("runtime_dispatch_backoff_seconds", 2)),
+            trace=self.trace,
         )
         background = BackgroundService(
             jobs=self.jobs,
