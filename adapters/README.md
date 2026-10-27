@@ -23,7 +23,7 @@ DSH 不 import Python 模块，也不直接访问 store；它在线协议层对�
 
 ## 新增一个宿主
 
-1. 先读 `docs/INTERFACES.md` 与 `app/ports.py`；
+1. 先读 [`docs/HOST-PORTS.md`](../docs/HOST-PORTS.md)（端口契约）与 [`docs/zh/architecture/modules/app.md`](../docs/zh/architecture/modules/app.md)（app 层边界），再看 `app/ports.py` 的权威定义；
 2. 跨进程的场景按 issue [#107](https://github.com/NeverENG/SeekMemory/issues/107) 的方向：`ChatRequest` / `ChatResponse` 就是线格式，并由宿主拉活，内核不回调宿主；
 3. 在 `adapters/<host>/` 下实现，不要改 `core/`、`recall/`、`store/`；
 4. 用黑盒用例验收：所有适配器必须能过同一套用例，而不改动用例本身。
