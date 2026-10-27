@@ -54,6 +54,9 @@ jobs:
           if [ -f test/postinstall-check.mjs ]; then
             node test/postinstall-check.mjs
           fi
+          if [ -f test/install-profile.mjs ]; then
+            node test/install-profile.mjs
+          fi
 
       - name: Build and package checks
         if: steps.detect.outputs.present == 'true'

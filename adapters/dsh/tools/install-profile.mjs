@@ -18,7 +18,7 @@
  * 退出码：0 成功；1 失败（失败时不会留下半截状态：package.json 原子写）
  */
 
-import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync, symlinkSync, lstatSync, copyFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync, symlinkSync, lstatSync, statSync, copyFileSync, rmdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
@@ -124,12 +124,31 @@ if (uninstall) {
 
   // junction（不复制文件，源码改了立刻生效）
   mkdirSync(nmDir, { recursive: true });
-  const exists = lstatSymbolic(linkPath);
-  if (!exists) {
+  const state = linkState(linkPath, pluginDir);
+  if (state === 'same') {
+    console.log(`junction 已指向目标（跳过）: ${linkPath} -> ${pluginDir}`);
+  } else {
+    if (state === 'different') {
+      // 已存在别的东西：只删链接本身；实体非空目录删不掉就停下来让人处理
+      try {
+        unlinkDir(linkPath);
+        console.log('junction 原指向不同，已移除旧链接');
+      } catch {
+        fail(
+          `已存在无法自动替换的同名条目: ${linkPath}\n` +
+            '      它可能是实体目录（手工复制安装的产物）；请先自行移走再重装，本工具不会删除它。',
+        );
+      }
+    } else {
+      // 'missing'：可能是断链残留，清掉再建
+      try {
+        unlinkDir(linkPath);
+      } catch {
+        /* 本来就没有 */
+      }
+    }
     symlinkSync(pluginDir, linkPath, 'junction');
     console.log(`junction: ${linkPath} -> ${pluginDir}`);
-  } else {
-    console.log(`junction 已存在（跳过）: ${linkPath}`);
   }
 }
 
@@ -156,8 +175,31 @@ function lstatSymbolic(p) {
     return false;
   }
 }
+
+/**
+ * 判断 node_modules 下这个位置是否已指向 target。
+ * 不用 readlink 的原因：本环境下 Node 把 junction 当成普通目录
+ * （isSymbolicLink=false、readlink 抛 EINVAL、realpath 不解析），
+ * 只能比较 stat 跟随解析后的 (dev, ino)。
+ * @returns {'missing'|'same'|'different'}
+ */
+function linkState(p, target) {
+  let st;
+  try {
+    st = statSync(p);
+  } catch {
+    return 'missing';
+  }
+  try {
+    const tst = statSync(target);
+    return st.dev === tst.dev && st.ino === tst.ino ? 'same' : 'different';
+  } catch {
+    return 'different';
+  }
+}
+
 function unlinkDir(p) {
-  // junction 用 rmdir 更稳：Node 的 rmSync 在 Windows 上会跟随 junction 删目标内容，
-  // 绝不能误删插件源码目录。
-  execFileSync('cmd', ['/c', 'rmdir', p]);
+  // 只删链接本身，绝不跟随目标：fs.rmSync 在 Windows 上会递归进入 junction 的目标，
+  // 那会把插件源码目录一起删掉。rmdirSync 走的是 RemoveDirectoryW，删的是重解析点。
+  rmdirSync(p);
 }
