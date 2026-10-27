@@ -13,6 +13,7 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 
 from ..perceive.calls import log_call
+from .astrbot_attention import AttentionHooks
 from .astrbot_runtime import AstrBotRuntimeAdapter
 
 
@@ -281,8 +282,8 @@ class AstrBotHooks:
         self.services.background_service.start()
 
 
-def _register(main_module: str, name: str, decorator):
-    function = getattr(AstrBotHooks, name)
+def _register(main_module: str, name: str, decorator, owner=AstrBotHooks):
+    function = getattr(owner, name)
     function.__module__ = main_module
     function.__qualname__ = f"Main.{name}"
     return decorator(function)
@@ -319,5 +320,15 @@ def build_astrbot_hooks(main_module: str) -> dict:
         ),
         "start_jobs": _register(
             main_module, "start_jobs", filter.on_astrbot_loaded()
+        ),
+        "attention_gate": _register(
+            main_module,
+            "attention_gate",
+            filter.event_message_type(filter.EventMessageType.ALL, priority=9999),
+            owner=AttentionHooks,
+        ),
+        "inject_scene_hints": _register(
+            main_module, "inject_scene_hints", filter.on_llm_request(),
+            owner=AttentionHooks,
         ),
     }

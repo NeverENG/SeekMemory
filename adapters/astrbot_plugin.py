@@ -54,11 +54,12 @@ from ..webui.jobs import Jobs
 from ..webui.journal import Journal
 from ..webui.routes import WebRoutes
 from ..webui.trace import Trace
+from .astrbot_attention import AttentionHooks
 from .astrbot_hooks import AstrBotHooks
 from .astrbot_runtime import AstrBotRuntimeAdapter
 from .astrbot_time import AstrBotBuffer, AstrBotRunRecorder, AstrBotSourceView
 
-class AstrBotPlugin(AstrBotHooks):
+class AstrBotPlugin(AttentionHooks, AstrBotHooks):
     """Composition root and lifecycle owner for the AstrBot host.
 
     Event handlers live in ``adapters.astrbot_hooks``. This class only builds

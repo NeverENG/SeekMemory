@@ -26,25 +26,62 @@ class AttentionThresholds:
     stranger_quota_close: int = 4
 
 
+PRESETS: dict[str, AttentionThresholds] = {
+    # 话少：只回硬条件，闲聊一律观察；陌生人没有额度
+    "quiet": AttentionThresholds(
+        owner_cooldown_seconds=60.0, ambient_cooldown_seconds=180.0,
+        relevance_reply=0.55, heat_wait=0.9,
+        stranger_quota_base=0, stranger_quota_familiar=0, stranger_quota_close=0,
+    ),
+    # 默认：硬条件 + 相关话题可接，陌生人按印象给额度
+    "balanced": AttentionThresholds(
+        stranger_quota_base=2, stranger_quota_familiar=3, stranger_quota_close=4,
+    ),
+    # 话多：更容易接话，群热度也会等
+    "chatty": AttentionThresholds(
+        owner_cooldown_seconds=10.0, ambient_cooldown_seconds=45.0,
+        relevance_reply=0.22, heat_wait=0.35,
+        stranger_quota_base=2, stranger_quota_familiar=3, stranger_quota_close=4,
+    ),
+    # 亲密：主人优先，主动次数更多由 ProactivePolicy 控制，这里只放松接话
+    "intimate": AttentionThresholds(
+        owner_cooldown_seconds=5.0, ambient_cooldown_seconds=40.0,
+        relevance_reply=0.2, heat_wait=0.3,
+        stranger_quota_base=1, stranger_quota_familiar=3, stranger_quota_close=4,
+    ),
+}
+
+
+def preset(name: str) -> AttentionThresholds:
+    """按名字取预设；未知名字退回 balanced。"""
+    return PRESETS.get(str(name or "").strip(), PRESETS["balanced"])
+
+
 def thresholds_from_config(conf) -> AttentionThresholds:
     """从插件配置读取阈值；坏配置退回默认值，不影响聊天。"""
     import json
 
     try:
+        name = conf("attention_preset", "balanced")
+    except Exception:  # noqa: BLE001
+        name = "balanced"
+    base = preset(str(name) if name else "balanced")
+    dataclass = type(base)
+    try:
         raw = conf("attention_thresholds", "")
     except Exception:  # noqa: BLE001
         raw = ""
     if not raw:
-        return AttentionThresholds()
+        return base
     try:
         data = json.loads(raw) if isinstance(raw, str) else dict(raw)
     except (TypeError, ValueError):
-        return AttentionThresholds()
-    allowed = {field: data[field] for field in AttentionThresholds.__dataclass_fields__ if field in data}
+        return base
+    allowed = {field: data[field] for field in dataclass.__dataclass_fields__ if field in data}
     try:
-        return AttentionThresholds(**allowed)
+        return dataclass(**{**base.__dict__, **allowed})
     except (TypeError, ValueError):
-        return AttentionThresholds()
+        return base
 
 
 class AttentionPolicy:

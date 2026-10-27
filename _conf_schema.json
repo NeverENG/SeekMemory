@@ -260,7 +260,7 @@
   "attention_policy_enabled": {
     "description": "记忆感知的开口策略（默认关，等宿主接线后灰度）",
     "type": "bool",
-    "default": false
+    "default": true
   },
   "attention_thresholds": {
     "description": "策略阈值 JSON：owner_cooldown_seconds/relevance_reply/heat_wait/陌生人额度等",
@@ -270,11 +270,21 @@
   "scene_hints_enabled": {
     "description": "注入时间/身份/亲疏的场景提示（替代 persona_gate 的提示部分）",
     "type": "bool",
-    "default": false
+    "default": true
   },
   "topic_source_enabled": {
     "description": "提供主动话题候选（只选料，排程由 ProactivePolicy 决定）",
     "type": "bool",
     "default": false
+  },
+  "attention_preset": {
+    "description": "回复策略预设：quiet / balanced / chatty / intimate",
+    "type": "string",
+    "default": "balanced"
+  },
+  "stranger_quota_mode": {
+    "description": "陌生人额度：auto / off / fixed:2",
+    "type": "string",
+    "default": "auto"
   }
 }

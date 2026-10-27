@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.runtime.attention import AttentionPolicy, AttentionThresholds
+from app.runtime.attention import AttentionPolicy, AttentionThresholds, preset, thresholds_from_config
 from app.runtime.contracts import RuntimeInput, SessionState, WakeAction
 from app.runtime.scene_hints import compose, time_window
 from app.runtime.signals import Signals
@@ -91,6 +91,31 @@ class AttentionPolicyTest(unittest.TestCase):
         )
         self.assertIs(decision.action, WakeAction.WAIT)
         self.assertEqual(decision.reason, "hot_room")
+
+
+class PresetTest(unittest.TestCase):
+    def test_presets_scale_friendliness(self) -> None:
+        self.assertEqual(preset("quiet").stranger_quota_base, 0)
+        self.assertEqual(preset("balanced").stranger_quota_base, 2)
+        self.assertEqual(preset("chatty").stranger_quota_base, 2)
+        self.assertGreater(preset("chatty").relevance_reply, 0)
+        self.assertLess(preset("chatty").relevance_reply, preset("balanced").relevance_reply)
+
+    def test_unknown_preset_falls_back_to_balanced(self) -> None:
+        self.assertEqual(preset("nope").relevance_reply, preset("balanced").relevance_reply)
+
+    def test_config_overrides_preset_fields(self) -> None:
+        conf = lambda key, default: (
+            "chatty" if key == "attention_preset"
+            else ('{"heat_wait": 0.95}' if key == "attention_thresholds" else default)
+        )
+        thresholds = thresholds_from_config(conf)
+        self.assertAlmostEqual(thresholds.heat_wait, 0.95)
+        self.assertAlmostEqual(thresholds.relevance_reply, preset("chatty").relevance_reply)
+
+    def test_bad_threshold_json_falls_back(self) -> None:
+        conf = lambda key, default: "not-json" if key == "attention_thresholds" else default
+        self.assertEqual(thresholds_from_config(conf).relevance_reply, preset("balanced").relevance_reply)
 
 
 class SceneHintsTest(unittest.TestCase):
