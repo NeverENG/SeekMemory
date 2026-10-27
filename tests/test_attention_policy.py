@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import unittest
 
 from app.runtime.attention import AttentionPolicy, AttentionThresholds, preset, thresholds_from_config
