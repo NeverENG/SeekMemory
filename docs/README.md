@@ -1,64 +1,6 @@
-# SeekMemory Documentation Map
+# SeekMemory Docs
 
-This directory is the source of truth for design, contracts, invariants and test expectations.
-The root README is the product entry point; this page is the contributor entry point.
+- [简体中文](zh/index.md)
+- [English](en/index.md)
 
-## Status legend
-
-| Status | Meaning |
-|---|---|
-| current | Matches the current `main` behavior and should be maintained |
-| proposal | Not implemented yet; discussion or scope only |
-| historical | Kept for audit and context; do not use as current contract |
-| archive | Old baseline or investigation output; not a contract |
-
-## Reading paths
-
-### New contributor
-
-1. [Repository development skill](../skills/seekmemory-dev/SKILL.md) for collaboration and implementation conventions
-2. [ARCHITECTURE.md](ARCHITECTURE.md)
-3. [INTERFACES.md](INTERFACES.md)
-4. [INVARIANTS.md](INVARIANTS.md)
-5. [TESTING.md](TESTING.md)
-6. [DEV-SETUP.md](DEV-SETUP.md)
-7. [CONTRACT.md](CONTRACT.md)
-
-### Operator
-
-1. [ARCHITECTURE.md](ARCHITECTURE.md)
-2. [webui/README.md](webui/README.md)
-3. [CONTRACT.md](CONTRACT.md)
-4. [issues/INDEX.md](issues/INDEX.md)
-
-### Reviewer
-
-1. [INVARIANTS.md](INVARIANTS.md)
-2. [TESTING.md](TESTING.md)
-3. [CONTRACT.md](CONTRACT.md)
-4. [issues/INDEX.md](issues/INDEX.md)
-
-## Document index
-
-| Document | Status | Purpose |
-|---|---|---|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | current | Runtime path, layers and write/read boundaries |
-| [CONTRACT.md](CONTRACT.md) | current | Public contracts and implementation notes |
-| [INTERFACES.md](INTERFACES.md) | current | Protocols and DTOs for contributors |
-| [INVARIANTS.md](INVARIANTS.md) | current | Non-negotiable identity, privacy, recovery and reinforcement rules |
-| [TESTING.md](TESTING.md) | current | Test layers, commands and known coverage gaps |
-| [DEV-SETUP.md](DEV-SETUP.md) | current | Local backend and dashboard setup |
-| [DESIGN.md](DESIGN.md) | historical | Original design intent; implementation may differ |
-| [INDEX.md](INDEX.md) | current | Code map and dependency direction |
-| [BASELINES.md](BASELINES.md) | historical | Benchmark baseline notes |
-| [BUGS.md](BUGS.md) | archive | Historical audit notes |
-| [issues/INDEX.md](issues/INDEX.md) | current | Issue and PR history |
-| [webui/README.md](webui/README.md) | current | WebUI operator guide |
-
-## Documentation rules
-
-- Current behavior belongs in ARCHITECTURE, CONTRACT, INTERFACES, INVARIANTS or TESTING.
-- Proposed work belongs in an issue or proposal, not in a current-contract document.
-- Historical documents keep their original context and must say they are historical.
-- Any data-structure change needs an entry in INVARIANTS and a contract test.
-- Any public interface change needs an entry in INTERFACES and a contract test.
+文档按 docs/zh 与 docs/en 镜像组织，当前内容限于模块架构和可执行的 how-to。仓库不使用 MkDocs；Issue、PR、RFC 和历史评测快照不在这里复制。

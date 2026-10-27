@@ -1,0 +1,74 @@
+name: Node host adapter
+on:
+  push:
+  pull_request:
+
+jobs:
+  node-adapter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect DSH adapter
+        id: detect
+        shell: bash
+        run: |
+          if [ -f adapters/dsh/package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "adapters/dsh is not present on this ref; skipping."
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.detect.outputs.present == 'true'
+        with:
+          node-version: "22.16.0"
+
+      - name: Verify Node version
+        if: steps.detect.outputs.present == 'true'
+        run: node --version
+
+      - name: Syntax and manifest checks
+        if: steps.detect.outputs.present == 'true'
+        working-directory: adapters/dsh
+        shell: bash
+        run: |
+          for f in src/*.js tools/*.mjs scripts/*.mjs test/*.mjs mock/*.mjs; do
+            node --check "$f"
+          done
+          node scripts/check-manifest.mjs
+
+      - name: Unit suites
+        if: steps.detect.outputs.present == 'true'
+        working-directory: adapters/dsh
+        shell: bash
+        run: |
+          node test/client-failopen.mjs
+          node test/hooks-fake-host.mjs
+          node test/safe-mode.mjs
+          node test/extract-bridge.mjs
+          if [ -f test/persona-isolation.mjs ]; then
+            node test/persona-isolation.mjs
+          fi
+          if [ -f test/postinstall-check.mjs ]; then
+            node test/postinstall-check.mjs
+          fi
+
+      - name: Build and package checks
+        if: steps.detect.outputs.present == 'true'
+        working-directory: adapters/dsh
+        run: |
+          node scripts/build-check.mjs
+          npm pack --dry-run
+
+      - name: Contract smoke against mock kernel
+        if: steps.detect.outputs.present == 'true'
+        working-directory: adapters/dsh
+        shell: bash
+        run: |
+          rm -rf .tmp/mock
+          mkdir -p .tmp
+          node mock/kernel.mjs --data-dir .tmp/mock > .tmp/mock.log 2>&1 &
+          sleep 2
+          node scripts/smoke-contract.mjs --runtime .tmp/mock/runtime.json

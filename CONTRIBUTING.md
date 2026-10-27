@@ -1,8 +1,8 @@
 # 贡献指南
 
-仓库级开发约定统一维护在 [SeekMemory development skill](skills/seekmemory-dev/SKILL.md) 及其 reference，适用于代码、测试、文档、配置、UI、分支和 worktree。技术事实以对应的 `docs/` 契约为准；目录入口见 [docs/INDEX.md](docs/INDEX.md)，测试层级见 [docs/TESTING.md](docs/TESTING.md)。
+仓库级开发约定统一维护在 [SeekMemory development skill](.agents/skills/seekmemory-dev/SKILL.md) 及其 reference，适用于代码、测试、文档、配置、UI、分支和 worktree。技术事实以对应的 `docs/` 契约为准；目录入口见 [docs/zh/index.md](docs/zh/index.md)，测试层级见 [docs/zh/guides/development.md](docs/zh/guides/development.md)。
 
-所有改动都在非 `main` 分支完成。CI 对每个 PR 执行完整必需检查；开发者本地按改动风险选择足够的验证，并记录命令和结果。P0/P1 工作需要 issue 与 `docs/issues/PR-XXXX.md` 记录。生产改动和发布由 Lead 负责。
+所有改动都在非 `main` 分支完成。CI 对每个 PR 执行完整必需检查；开发者本地按改动风险选择足够的验证，并记录命令和结果。P0/P1 工作通过 GitHub Issue 和 PR 跟踪；长期有效的技术事实和决策写入对应的 `docs/` 文档，不复制 issue/PR 工作记录。生产改动和发布由 Lead 负责。
 
 <a id="release-packaging"></a>
 
@@ -34,4 +34,4 @@ pnpm --dir dashboard test:contract
 
 安装使用 Release 附件。若希望通过自定义插件源自动安装或更新，应将该源的 `download_url` 指向 Release 附件地址；仅填写仓库地址不会自动选择发布附件。
 
-本节锚点由 `docs/CONTRACT.md` 和 `dashboard/README.md` 引用。协作、验证和编码约定见 [development skill](skills/seekmemory-dev/SKILL.md)。
+本节锚点由 `docs/zh/architecture/modules/webui.md` 和 `dashboard/README.md` 引用。协作、验证和编码约定见 [development skill](.agents/skills/seekmemory-dev/SKILL.md)。

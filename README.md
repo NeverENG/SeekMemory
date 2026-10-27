@@ -2,21 +2,20 @@
 
 **让 AI 在不同入口、不同模型、不同时间里，仍然是同一个她。**
 
-不是把聊天记录重新塞回上下文。
-而是让 Agent 拥有统一的运行方式、可追溯的记忆内核，以及一条会持续生长的人格链。
+> 不是把聊天记录重新塞回上下文。
+  而是让 Agent 拥有统一的运行方式、可追溯的记忆内核，以及一条会持续生长的人格链。
 
 <div align="center">
   <img src="https://img.shields.io/badge/version-0.4.1-blue">
   <img src="https://img.shields.io/badge/Python-3.10%2B-blue">
-  <img src="https://img.shields.io/badge/AstrBot-4.x-green">
   <img src="https://img.shields.io/badge/license-MIT%20or%20Apache--2.0-lightgrey">
 </div>
 
 <p align="center">
-  <a href="docs/ARCHITECTURE.md">架构</a> /
-  <a href="docs/CONTRACT.md">契约</a> /
-  <a href="docs/INVARIANTS.md">不变量</a> /
-  <a href="docs/TESTING.md">测试</a> /
+  <a href="docs/zh/architecture/overview.md">SeekMemory 设计架构</a> /
+  <a href="docs/zh/index.md">模块设计文档</a> /
+  <a href="docs/en/index.md">English</a> /
+
   <a href="#quick-start">快速开始</a> /
   <a href="https://github.com/NeverENG/SeekMemory">GitHub</a>
 </p>
@@ -26,7 +25,7 @@
 </p>
 
 <p align="center">
-  <sub>多平台入口，不是八个 AI，而是同一颗记忆大脑的不同入口。</sub>
+  <sub>多平台入口，不是八个窗口的不同上下文，而是同一颗记忆大脑的不同入口。</sub>
 </p>
 
 ---
@@ -335,15 +334,12 @@ version: 0.4.1
 
 ## 文档
 
-- [架构](docs/ARCHITECTURE.md)
-- [契约](docs/CONTRACT.md)
-- [不变量](docs/INVARIANTS.md)
-- [测试](docs/TESTING.md)
-- [WebUI](docs/webui/README.md)
-- [贡献](CONTRIBUTING.md)
-- [Issue 历史](docs/issues)
-
----
+- [中文文档](docs/zh/index.md) / [English documentation](docs/en/index.md)
+- [架构总览](docs/zh/architecture/overview.md)
+- [开发环境与验证](docs/zh/guides/development.md)
+- [管理界面操作](docs/zh/guides/webui.md)
+- [贡献指南](CONTRIBUTING.md)
+- [Issues](https://github.com/NeverENG/SeekMemory/issues) / [Pull Requests](https://github.com/NeverENG/SeekMemory/pulls)
 
 ## 许可证
 

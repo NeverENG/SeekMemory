@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Contributing rules
-    url: https://github.com/NeverENG/SeekMemory/blob/main/skills/seekmemory-dev/SKILL.md
+    url: https://github.com/NeverENG/SeekMemory/blob/main/.agents/skills/seekmemory-dev/SKILL.md
     about: Read the repository development skill before opening a P0/P1 issue or PR.

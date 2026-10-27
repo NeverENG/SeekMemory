@@ -13,7 +13,7 @@ pnpm dev
 数据仅保存在内存，刷新后重置；不会修改真实记忆，模拟诊断也不代表真实召回效果。
 
 `pnpm dev:host` 需要 AstrBot 注入宿主桥接器，直接打开会显示连接错误。
-正式使用从 AstrBot 插件卡片打开视图，见[使用说明](../docs/webui/README.md)。
+正式使用从 AstrBot 插件卡片打开视图，见[使用说明](../docs/zh/guides/webui.md)。
 
 ## 检查与构建
 
