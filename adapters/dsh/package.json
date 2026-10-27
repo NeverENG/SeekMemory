@@ -34,10 +34,13 @@
   "scripts": {
     "check": "node scripts/check-manifest.mjs",
     "check:installed": "scripts/postinstall-check.cmd",
-    "test": "node test/client-failopen.mjs && node test/hooks-fake-host.mjs && node test/safe-mode.mjs && node test/extract-bridge.mjs",
+    "lint": "node scripts/check-manifest.mjs",
+    "build": "node scripts/build-check.mjs",
+    "postinstall:check": "node scripts/postinstall-check.mjs",
+    "test": "node test/client-failopen.mjs && node test/hooks-fake-host.mjs && node test/safe-mode.mjs && node test/extract-bridge.mjs && node test/postinstall-check.mjs",
     "mock": "node mock/kernel.mjs --data-dir .tmp/mock",
     "smoke": "node scripts/smoke-contract.mjs --runtime .tmp/mock/runtime.json",
-    "verify": "npm run check && npm run test"
+    "verify": "npm run lint && npm run test && npm run build"
   },
   "keywords": [
     "dsh",

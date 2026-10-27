@@ -1,0 +1,79 @@
+name: adapter-dsh
+
+on:
+  push:
+    paths:
+      - 'adapters/dsh/**'
+      - '.github/workflows/adapter-dsh.yml'
+  pull_request:
+    paths:
+      - 'adapters/dsh/**'
+      - '.github/workflows/adapter-dsh.yml'
+
+concurrency:
+  group: adapter-dsh-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: adapters/dsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: 语法检查（全部模块）
+        run: |
+          set -e
+          for f in src/*.js tools/*.mjs test/*.mjs scripts/*.mjs mock/*.mjs; do
+            echo "check $f"
+            node --check "$f"
+          done
+      - name: 清单检查（G13 无值导入 / G4 闸门）
+        run: node scripts/check-manifest.mjs
+
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: adapters/dsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: 单元测试
+        run: |
+          node test/client-failopen.mjs
+          node test/hooks-fake-host.mjs
+          node test/safe-mode.mjs
+          node test/extract-bridge.mjs
+          node test/postinstall-check.mjs
+      - name: 契约冒烟（mock 内核）
+        run: |
+          node mock/kernel.mjs --data-dir .tmp/mock &
+          MOCK_PID=$!
+          for i in $(seq 1 30); do
+            [ -f .tmp/mock/runtime.json ] && break
+            sleep 1
+          done
+          node scripts/smoke-contract.mjs --runtime .tmp/mock/runtime.json
+          kill "$MOCK_PID" || true
+
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: adapters/dsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: 打包白名单自检（files / 入口 / dsh.bundle.patch）
+        run: node scripts/build-check.mjs
+      - name: npm pack（dry run）
+        run: npm pack --dry-run

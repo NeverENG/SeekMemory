@@ -42,11 +42,14 @@ src/message.js        createUserMessage 动态导入 + 手工兜底
 
 mock/kernel.mjs       M0 mock 内核：契约的可执行样例，含故障注入开关
 scripts/check-manifest.mjs   G13/G4 静态检查（无值导入、无 nullable、闸门写法）
+scripts/build-check.mjs      打包白名单自检（files / 入口 / dsh.bundle.patch）
+scripts/postinstall-check.mjs 跨平台安装后自检（node 版；.cmd 是 Windows 包装）
 scripts/smoke-contract.mjs   契约冒烟（11 项）
 test/client-failopen.mjs     fail-open 八种降级（11 项）
 test/hooks-fake-host.mjs     假宿主验 apply/注入/卸载/多主体隔离（19 项）
 test/safe-mode.mjs           跳闸/强杀豁免/自愈/开关键（42 项）
 test/extract-bridge.mjs      抽取桥（18 项：block-end 权威 / 中止 / 抛错 / 无 llm 服务）
+test/postinstall-check.mjs   自检脚本用例（dump 判定 + 子进程路径）
 ```
 
 ## 怎么跑
@@ -60,13 +63,18 @@ node test/client-failopen.mjs
 node test/hooks-fake-host.mjs
 node test/safe-mode.mjs
 node test/extract-bridge.mjs
+node test/postinstall-check.mjs
 
-# 3. 契约冒烟：先起 mock，再打
+# 3. 打包白名单自检
+node scripts/build-check.mjs
+
+# 4. 契约冒烟：先起 mock，再打
 node mock/kernel.mjs --data-dir .tmp/mock          # 另开一个终端
 node scripts/smoke-contract.mjs --runtime .tmp/mock/runtime.json
 ```
 
-`npm run verify` = 上面第 1、2 步。
+`npm run lint` = 第 1 步；`npm run test` = 第 2 步；`npm run build` = 第 3 步；`npm run verify` = 三步全跑。
+CI（`.github/workflows/adapter-dsh.yml`）把 lint / test / build 拆成三个 job，另外加一次 `npm pack --dry-run`。
 
 mock 的故障注入开关（验 fail-open 用）：
 
@@ -90,7 +98,15 @@ node tools/install-profile.mjs --profile <profile> --plugin <path-to-this-packag
 
 - 备份与回滚脚本默认落在系统临时目录，可用 `--backup-dir` / `--rollback-dir` 指定；
 - ⚠️ 不要对目标 profile 跑 `pnpm install`——会把 junction 冲掉，重跑本工具即可；
-- 装完自检（Windows）：先 `set DSH_EXE_OVERRIDE=<DSH 安装目录>\DeepSeek Harness.exe`，再跑 `scripts\postinstall-check.cmd <profile> <isolated-dsh-home>`。其它平台按脚本头部注释手动跑那两步。
+- 装完自检（跨平台，推荐）：
+
+  ```bash
+  node scripts/postinstall-check.mjs --dsh-exe "/path/to/DeepSeek Harness" --profile <profile> --home <isolated-dsh-home>
+  # 只校验已有的 dump（不需要 DSH 安装）：
+  node scripts/postinstall-check.mjs --dump <dump.yml>
+  ```
+
+  Windows 上也可以用包装脚本：先 `set DSH_EXE_OVERRIDE=C:\path\to\DeepSeek Harness.exe`，再跑 `scripts\postinstall-check.cmd <profile> <home>`（两者行为一致，`--dump` 分支已由 `test/postinstall-check.mjs` 覆盖）。
 
 ## 启动跳闸与恢复（崩了也能起来）
 
@@ -153,7 +169,7 @@ $env:SEEKMEMORY_DISABLE = '1'
    ```
 
    再加一次 `--dump-config` 确认 bundle 真被纳入。
-7. **CI 还没接入 Node 套件。** 上面的测试目前靠本地 `npm run verify`；仓库现有 CI 只跑 Python。加一个 Node job 需要维护者确认改动 `.github/workflows/`。
+7. **CI 覆盖 Node 侧，不含内核联调。** `.github/workflows/adapter-dsh.yml` 在 `adapters/dsh/**` 有改动时跑 lint / test / build 三个 job；Python 侧 CI 不受影响。真实内核联调（`serve.py`）仍属 issue #107 的 P3，CI 里只有 mock 内核。
 
 ## 许可
 
