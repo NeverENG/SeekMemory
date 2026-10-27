@@ -2,7 +2,39 @@ site_name: SeekMemory
 docs_dir: docs
 site_dir: site
 theme:
-  name: mkdocs
+  name: material
+  language: zh
+  font: false
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/weather-sunny
+        name: 切换到深色模式
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/weather-night
+        name: 切换到浅色模式
+    - media: "(prefers-color-scheme: no-preference)"
+      scheme: default
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/brightness-auto
+        name: 使用系统色彩模式
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
 nav:
   - Home: index.md
   - 简体中文:

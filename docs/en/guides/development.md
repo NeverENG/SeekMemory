@@ -12,6 +12,22 @@ Install backend contract-test dependencies from the repository root:
 
     python3 -m pip install -r requirements-dev.txt
 
+## Documentation site
+
+The documentation site uses Material for MkDocs with dependencies managed separately in requirements-docs.txt. Use Python 3.10 or newer locally; CI builds with Python 3.12.
+
+Install the docs dependencies from the repository root:
+
+    python3 -m pip install -r requirements-docs.txt
+
+Start the local preview (default address: http://127.0.0.1:8000):
+
+    mkdocs serve
+
+Run a strict build:
+
+    mkdocs build --strict
+
 ## Backend test layers
 
 The runner uses tests/layers.py to group flat unittest files by responsibility. Choose the needed scope for a change:
@@ -54,4 +70,4 @@ check includes generated-type freshness, TypeScript, lint, frontend tests, and f
 - When data semantics change, update the relevant core, store, perceive, recall, or maintain module page.
 - When event flow, service composition, or a host boundary changes, update the overview and related module page.
 - Documentation should describe behavior confirmed by current code. Work plans and review history belong in GitHub Issues/PRs, not local RFC or per-work records in docs.
-- This repository does not use MkDocs. Chinese and English pages are mirrored under docs/zh and docs/en.
+- Chinese and English pages are mirrored under docs/zh and docs/en; site navigation lives in mkdocs.yml, and scripts/check_docs_structure.py validates the page structure.
