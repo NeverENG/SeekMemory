@@ -6,7 +6,9 @@
   而是让 Agent 拥有统一的运行方式、可追溯的记忆内核，以及一条会持续生长的人格链。
 
 <div align="center">
-  <img src="https://img.shields.io/badge/version-0.4.1-blue">
+  <a href="https://github.com/NeverENG/SeekMemory/releases/latest">
+    <img src="https://img.shields.io/github/v/release/NeverENG/SeekMemory?label=version" alt="Latest release">
+  </a>
   <img src="https://img.shields.io/badge/Python-3.10%2B-blue">
   <img src="https://img.shields.io/badge/license-MIT%20or%20Apache--2.0-lightgrey">
 </div>
@@ -14,8 +16,8 @@
 <p align="center">
   <a href="docs/zh/architecture/overview.md">SeekMemory 设计架构</a> /
   <a href="docs/zh/index.md">模块设计文档</a> /
-  <a href="docs/en/index.md">English</a> /
-
+  <a href="docs/en/index.md">English</a>
+  <br>
   <a href="#quick-start">快速开始</a> /
   <a href="https://github.com/NeverENG/SeekMemory">GitHub</a>
 </p>
@@ -257,12 +259,14 @@ SeekMemory 在实现上坚持几条边界：
 
 ## 快速开始
 
-从 Release 安装，或把仓库放入 AstrBot 插件目录：
+从 [最新 Release](https://github.com/NeverENG/SeekMemory/releases/latest) 下载 `astrbot_plugin_seekmemory.zip`，在 AstrBot 中通过 ZIP 安装；也可以直接克隆源码到插件目录：
 
 ```bash
 git clone https://github.com/NeverENG/SeekMemory.git \
   AstrBot/data/plugins/astrbot_plugin_seekmemory
 ```
+
+GitHub 自动生成的 Source code ZIP 是开发源码包，不是可安装的插件包。
 
 重启 AstrBot，并至少配置：
 
@@ -304,16 +308,13 @@ SeekMemory 的评估分成两类：
 详细数据、生成方式和限制说明见：
 
 - [benchmarks/results](benchmarks/results)
-- [docs/TESTING.md](docs/TESTING.md)
-- [docs/INVARIANTS.md](docs/INVARIANTS.md)
+- [开发环境与验证](docs/zh/guides/development.md)
+- [架构总览](docs/zh/architecture/overview.md)
+- [核心不变量](docs/zh/architecture/modules/core.md#关键不变量)
 
 ---
 
-## 当前版本
-
-```text
-version: 0.4.1
-```
+## 当前状态
 
 当前主线的重点：
 
