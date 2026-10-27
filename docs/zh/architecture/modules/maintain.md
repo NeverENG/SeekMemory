@@ -9,7 +9,7 @@ maintain 对已提交 Artifact 做生命周期转变、相似合并、印象修�
 - decay.py 只处理 active memory，跳过 fact；其余记忆按 strength、shape、时间计算留存率，低于阈值后写入 forgotten 修订。Persona 等其他 family 不参与这条衰减规则。
 - lifecycle.py 按 expires / valid_to 把已到期 active Artifact 改为 forgotten；Source 与版本历史都保留。
 - merge.py 仅当 active scene/detail 数量超过 500 时检查最早的一批候选。候选先按 subject_id 和 scope 隔离，再按字符二元组相似度聚类；至少三条才形成 impression。新节点的 derived_from 指向成员，成员进入 merged。整组通过 commit_many 原子提交。
-- impression.py 在抽取新印象时只与同 subject、同 scope 的 active impression 比较：近乎同文时合并 evidence 并强化原节点；更完整的新说法则在原 ID 上追加 revision，退休重复候选。
+- impression.py 在抽取新印象时只与同 subject、同 scope 的 active impression 比较：近乎同文时合并 evidence 并强化原节点；更完整的新说法则在原 ID 上追加 revision，退休重复候选。两条变更通过 commit_many 原子提交，统一记录为 merge，reason 区分强化或改写；提交成功后才更新缓存。写入失败或版本冲突向服务层传播，保留合并前的两条记录及缓存。
 - link.py 在同 scope active memory 间建立受数量限制的 similar / temporal 边。因果边没有自动推断。
 
 ## 机器人自我印象与 Persona

@@ -4,12 +4,14 @@
 
 ### 中文
 
+- 修复印象合并的部分提交和成功误报：强化或改写旧印象与退役新印象通过同一事务提交，成功后再更新缓存；写入失败和版本冲突由服务层记录。两条变更统一按 merge 审计，沿用现有数据库格式（#138）。
 - 新增默认关闭的主动决策纯策略，显式处理到期时间、安静窗口、冷却、重试、忽略连击退避和最大尝试次数；有界选择器优先派发最早到期会话，其余保持待处理。
 - 扩展 `runtime_episodes` 保存无正文的动作尝试与终态；重复回调幂等，每个 action 最多保留一个终态，并沿用现有保留清理。
 - `SessionState` 增加独立的注意力额度和重置时间字段；为调用方明确识别的旧 `session#speaker` 额度行提供迁移，保留旧额度且不重解释普通未读数。
 
 ### English
 
+- Fix partial commits and false success in impression consolidation: updating the existing impression and retiring the incoming one share a transaction, with cache updates after commit. Write failures and revision conflicts reach service-layer error handling. Both changes are audited as merge operations using the existing database format (#138).
 - Add a default-closed pure proactive policy for due times, quiet windows, cooldown, retry, ignored-streak backoff and maximum attempts. Its bounded selector dispatches the oldest eligible sessions first and leaves the rest pending.
 - Extend `runtime_episodes` with content-free action attempts and terminal outcomes. Duplicate callbacks are idempotent, each action keeps at most one terminal outcome, and existing retention cleanup applies.
 - Add separate attention quota and reset-time fields to `SessionState`. Provide migration for legacy `session#speaker` quota rows when identified by the caller, preserving saved quota values without reinterpreting normal unread counts.

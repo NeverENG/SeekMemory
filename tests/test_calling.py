@@ -89,6 +89,8 @@ class ImpressionTest(unittest.TestCase):
         db.artifacts.upsert(old)
         cache.put(old)
         new = mem("他有点倔，嘴上不饶人", level="impression", weight=1.6)
+        db.artifacts.commit(new, expected_revision=0, op="create")
+        cache.put(new)
         got = revise_impression(db.artifacts, cache, new)
         self.assertIsNotNone(got)
         self.assertEqual(got.header.id, old.header.id)
@@ -102,6 +104,8 @@ class ImpressionTest(unittest.TestCase):
         db.artifacts.upsert(old)
         cache.put(old)
         new = mem("他有点倔，嘴上不饶人，但真有事会帮", level="impression", weight=1.6)
+        db.artifacts.commit(new, expected_revision=0, op="create")
+        cache.put(new)
         got = revise_impression(db.artifacts, cache, new)
         self.assertIsNotNone(got)
         self.assertEqual(got.header.revision, old.header.revision + 1)
@@ -186,6 +190,8 @@ class TrajectoryTest(unittest.TestCase):
         cache.put(old)
         self.assertEqual(trajectory(cache, old), "")  # 只有一版没有轨迹
         new = mem("他有点倔，但真有事会帮", level="impression", weight=1.8)
+        db.artifacts.commit(new, expected_revision=0, op="create")
+        cache.put(new)
         got = revise_impression(db.artifacts, cache, new)
         self.assertIsNotNone(got)
         return cache, got

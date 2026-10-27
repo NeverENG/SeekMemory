@@ -12,7 +12,9 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.contracts import DialogueTurn  # noqa: E402
+from core.artifact import make  # noqa: E402
 from core.graph import Graph  # noqa: E402
+from core.source import Source  # noqa: E402
 from tests.absorb_support import absorb  # noqa: E402
 from app.flush_policy import chunk_turns  # noqa: E402
 from perceive.buffer import Buffer  # noqa: E402
@@ -94,6 +96,37 @@ class AbsorbRecoveryTest(unittest.TestCase):
         self.assertEqual(outcome.written, 1)
         self.assertTrue(outcome.retryable)
         self.assertTrue(outcome.errors)
+
+    def test_impression_failure_is_reported_without_losing_incoming_memory(self) -> None:
+        db, cache, graph = _db()
+        self.addCleanup(db.close)
+        old = make(
+            "memory", {"text": "he is stubborn and helpful", "level": "impression"},
+            scope="private", subject_id="10001",
+        )
+        db.artifacts.commit(old, expected_revision=0, op="create")
+        cache.put(old)
+        text = "he is stubborn but helps when it really matters"
+        source = Source("s1", "t1", "umo:a", "10001", "user", text, "2026-10-22")
+        db.sources.append_sources([source])
+        db.conn.execute("""
+            CREATE TEMP TRIGGER fail_retirement BEFORE INSERT ON artifact_versions
+            WHEN NEW.revision = 2 AND
+                 (SELECT state FROM nodes WHERE id = NEW.entity) = 'merged'
+            BEGIN SELECT RAISE(ABORT, 'retirement failed'); END
+        """)
+        outcome = asyncio.run(absorb(
+            [_turn(text)], db.artifacts, db.sources, cache, graph,
+            FakeProvider(json.dumps([{"level": "impression", "text": text}])),
+        ))
+        self.assertEqual(outcome.written, 1)
+        self.assertTrue(any(error.startswith("impression:") for error in outcome.errors))
+        self.assertEqual(db.artifacts.get(old.header.id), old)
+        incoming = db.artifacts.get(outcome.ids[0])
+        self.assertEqual((incoming.header.revision, incoming.header.state), (1, "active"))
+        self.assertEqual(cache.size(), 2)
+        self.assertEqual(db.sources.sources_by_ids(["s1"]), {"s1": source})
+        self.assertEqual(len(db.ledger.entries()), 2)
 
 
 class BufferRecoveryTest(unittest.TestCase):

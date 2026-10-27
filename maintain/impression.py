@@ -4,11 +4,11 @@
 但真有事会帮"。机制上就是同一条印象出新 revision，旧 revision 留在账本里。
 
 两类处理：
-- 新证据和旧印象几乎同一句话（重合度 ≥ 0.85）：只加一次证据（权重、hits），不造新版本；
+- 新证据和旧印象几乎同一句话（重合度 ≥ 0.85）：正文不变，追加版本合并证据并强化；
 - 新证据把旧印象说得更准（重合度 ≥ 0.45）：出 revision +1，正文换成新的，
   权重取两者较高再加一点，旧版本的 id 不变、历史进 blob 与账本。
 
-任何异常都返回 None，不影响已经完成的写入。
+旧印象更新与新印象退役在同一事务提交，成功后才同步缓存；写入失败向上抛出。
 """
 
 from __future__ import annotations
@@ -90,30 +90,27 @@ def _best_match(cache: ArtifactCache, art: Artifact) -> tuple[Artifact | None, f
 
 
 def revise_impression(artifacts: ArtifactStore, cache: ArtifactCache, art: Artifact) -> Artifact | None:
-    """把新印象并入旧印象，返回改写后的版本；不需要修订时返回 None。"""
-    try:
-        if art.header.family != FAMILY:
-            return None
-        if str(art.payload.get("level") or "") != LEVEL:
-            return None
-        old, dice, contain = _best_match(cache, art)
-        if old is None:
-            return None
-        weight = min(WEIGHT_CAP, max(float(old.header.strength.weight),
-                                     float(art.header.strength.weight)) + WEIGHT_STEP)
-        hits = int(old.header.strength.hits or 0) + 1
-        if dice >= REINFORCE_OVERLAP:
-            return _reinforce(artifacts, cache, art, old, weight, hits)
-        if contain >= REVISE_CONTAIN and dice >= REVISE_DICE:
-            # 旧说法被完整包含（新说法只是说得更细）时不必看长度；
-            # 否则要求两边都够长，避免只共用一个词就合并。
-            short = min(len(bigrams(_text(art))), len(bigrams(_text(old)))) < MIN_GRAMS
-            if contain < 0.9 and short:
-                return None
-            return _reword(artifacts, cache, art, old, weight, hits, dice)
+    """合并已入库的新印象；无匹配时返回 None，写入失败向上抛出。"""
+    if art.header.family != FAMILY:
         return None
-    except Exception:  # noqa: BLE001 - 修订失败不能影响写入
+    if str(art.payload.get("level") or "") != LEVEL:
         return None
+    old, dice, contain = _best_match(cache, art)
+    if old is None:
+        return None
+    weight = min(WEIGHT_CAP, max(float(old.header.strength.weight),
+                                 float(art.header.strength.weight)) + WEIGHT_STEP)
+    hits = int(old.header.strength.hits or 0) + 1
+    if dice >= REINFORCE_OVERLAP:
+        return _reinforce(artifacts, cache, art, old, weight, hits)
+    if contain >= REVISE_CONTAIN and dice >= REVISE_DICE:
+        # 旧说法被完整包含（新说法只是说得更细）时不必看长度；
+        # 否则要求两边都够长，避免只共用一个词就合并。
+        short = min(len(bigrams(_text(art))), len(bigrams(_text(old)))) < MIN_GRAMS
+        if contain < 0.9 and short:
+            return None
+        return _reword(artifacts, cache, art, old, weight, hits, dice)
+    return None
 
 
 def _merged_sources(old: Artifact, art: Artifact) -> tuple[str, ...]:
@@ -128,11 +125,7 @@ def _reinforce(artifacts: ArtifactStore, cache: ArtifactCache, art: Artifact, ol
     lineage = replace(old.header.lineage, sources=sources)
     new = revise(old, strength=replace(old.header.strength, weight=weight, hits=hits),
                  lineage=lineage)
-    artifacts.commit(new, expected_revision=old.header.revision, op="reinforce",
-              reason="impression reinforced", source_ids=sources)
-    cache.put(new)
-    _retire(artifacts, cache, art)
-    return new
+    return _commit_merge(artifacts, cache, art, new, reason="impression reinforced")
 
 
 def _reword(artifacts: ArtifactStore, cache: ArtifactCache, art: Artifact, old: Artifact,
@@ -153,25 +146,22 @@ def _reword(artifacts: ArtifactStore, cache: ArtifactCache, art: Artifact, old: 
         lineage=lineage,
         scope=art.header.scope,
     )
-    artifacts.commit(new, expected_revision=old.header.revision, op="merge",
-              reason=f"impression revised: {score:.2f}",
-              source_ids=sources)
+    return _commit_merge(
+        artifacts, cache, art, new, reason=f"impression revised: {score:.2f}"
+    )
+
+
+def _commit_merge(artifacts: ArtifactStore, cache: ArtifactCache, art: Artifact,
+                  new: Artifact, *, reason: str) -> Artifact:
+    retired = revise(art, state="merged")
+    artifacts.commit_many(
+        [
+            (new, new.header.revision - 1, tuple(new.header.lineage.sources)),
+            (retired, art.header.revision, tuple(art.header.lineage.sources)),
+        ],
+        op="merge",
+        reason=reason,
+    )
     cache.put(new)
-    _retire(artifacts, cache, art)
+    cache.remove(art.header.id)
     return new
-
-
-def _retire(artifacts: ArtifactStore, cache: ArtifactCache, art: Artifact) -> None:
-    if art.header.id == "":
-        return
-    try:
-        updated = revise(art, state="merged")
-        artifacts.commit(updated, expected_revision=art.header.revision, op="merge",
-                  reason="impression merged",
-                  source_ids=tuple(art.header.lineage.sources))
-    except Exception:
-        return
-    try:
-        cache.remove(art.header.id)
-    except Exception:
-        pass
