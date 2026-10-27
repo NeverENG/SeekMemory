@@ -1,5 +1,15 @@
 # 变更记录
 
+## 0.4.3 — 2026-10-27
+
+### 中文
+
+- 开口策略改为「主人必回、陌生人只在被 @ 或叫名字时回，且点名后陪聊 3 轮」：新增 `quota_gate` 纯函数（私聊/主人恒放行、点名刷新额度、普通消息消耗额度），修复 `stranger_quota_mode=off` 时连 @ 也被拦、以及 WAIT 决策不消耗额度的问题；新增 `attention_address_names`（默认「大肥鱼,肥鱼」），叫名字等同被点名。配置：`stranger_quota_mode=fixed:3`、`attention_thresholds={"owner_cooldown_seconds": 0}`。
+
+### English
+
+- Attention now means: the owner always gets a reply; strangers only when @-mentioned or called by name, then three follow-up rounds. Add the pure `quota_gate` (private/owner always allowed, mention refreshes quota, ambient messages consume it) and fix two bugs: `stranger_quota_mode=off` blocked even @-mentions, and WAIT decisions never consumed quota. Add `attention_address_names` (default `大肥鱼,肥鱼`). Deployed config: `stranger_quota_mode=fixed:3`, `attention_thresholds={"owner_cooldown_seconds": 0}`.
+
 ## 0.4.2 — 2026-10-27
 
 ### 中文
