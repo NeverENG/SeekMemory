@@ -80,6 +80,13 @@ class SqliteDatabase:
         episode_cols = {
             row[1] for row in self.conn.execute("PRAGMA table_info(runtime_episodes)")
         }
+        import_cols = {
+            row[1] for row in self.conn.execute("PRAGMA table_info(history_import_tasks)")
+        }
+        preflight_cols = {
+            row[1]
+            for row in self.conn.execute("PRAGMA table_info(history_import_preflight)")
+        }
         with self.conn:
             for name, definition in (
                 ("subject_id", "TEXT NOT NULL DEFAULT ''"),
@@ -108,12 +115,30 @@ class SqliteDatabase:
                     "ALTER TABLE runtime_episodes "
                     "ADD COLUMN run_id TEXT NOT NULL DEFAULT ''"
                 )
+            if import_cols and "selection_json" not in import_cols:
+                self.conn.execute(
+                    "ALTER TABLE history_import_tasks "
+                    "ADD COLUMN selection_json TEXT NOT NULL DEFAULT '{}'"
+                )
+            for name, definition in (
+                ("role", "TEXT NOT NULL DEFAULT ''"),
+                ("reply_to", "TEXT NOT NULL DEFAULT ''"),
+            ):
+                if name not in preflight_cols:
+                    self.conn.execute(
+                        f"ALTER TABLE history_import_preflight ADD COLUMN {name} {definition}"
+                    )
             self.conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_nodes_subject ON nodes(subject_id)"
             )
             self.conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_runtime_episodes_run "
                 "ON runtime_episodes(run_id) WHERE run_id <> ''"
+            )
+            self.conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_history_import_preflight_reply "
+                "ON history_import_preflight(stage_key, reply_to) "
+                "WHERE reply_to <> ''"
             )
 
     def close(self) -> None:

@@ -70,6 +70,11 @@ LAYERS: dict[str, tuple[str, ...]] = {
     "host": (
         "test_webui_host.py",
     ),
+    "import": (
+        "test_chatlab.py",
+        "test_history_import_service.py",
+        "test_history_import_store.py",
+    ),
     "smoke": (
         "test_package.py",
         "test_eval_harness.py",
@@ -77,7 +82,7 @@ LAYERS: dict[str, tuple[str, ...]] = {
     ),
 }
 
-ALL_LAYERS = ("unit", "contract", "integration", "host", "smoke")
+ALL_LAYERS = ("unit", "contract", "integration", "host", "import", "smoke")
 
 
 def files_for(layer: str) -> tuple[str, ...]:

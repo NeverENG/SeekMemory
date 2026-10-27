@@ -157,6 +157,142 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/astrbot_plugin_seekmemory/manage/importUpload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 上传一个 ChatLab JSON 或 JSONL 文件并生成安全预览 */
+        post: operations["importUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/astrbot_plugin_seekmemory/manage/importValidate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 预检角色映射与全文件稳定消息 ID */
+        post: operations["importValidate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/astrbot_plugin_seekmemory/manage/importConfirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 确认预检结果并提交历史初始化任务 */
+        post: operations["importConfirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/astrbot_plugin_seekmemory/manage/importTasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 列出最近的导入任务摘要 */
+        get: operations["importTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/astrbot_plugin_seekmemory/manage/importTask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询一个导入任务的当前计数 */
+        get: operations["importTask"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/astrbot_plugin_seekmemory/manage/importCancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 取消当前导入任务 */
+        post: operations["importCancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/astrbot_plugin_seekmemory/manage/importRetry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 使用保留文件重新预检并重试导入 */
+        post: operations["importRetry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/astrbot_plugin_seekmemory/manage/importAbandon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 放弃可重试任务并删除保留文件 */
+        post: operations["importAbandon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -412,6 +548,100 @@ export interface components {
             confirmed: true;
         } & {
             [key: string]: unknown;
+        };
+        ChatLabMember: {
+            platformId: string;
+            accountName: string;
+        };
+        ChatLabWarning: {
+            row: number;
+            reason: string;
+        };
+        ChatLabPreview: {
+            /** @enum {string} */
+            format: "json" | "jsonl";
+            /** @constant */
+            version: "0.0.2";
+            platform: string;
+            /** @constant */
+            conversationType: "private";
+            name: string;
+            members: components["schemas"]["ChatLabMember"][];
+            senderCounts: {
+                [key: string]: number;
+            };
+            messageCount: number;
+            messageRows: number;
+            skippedCount: number;
+            /** @constant */
+            missingIdCount: 0;
+            firstAt: string;
+            lastAt: string;
+            warnings: components["schemas"]["ChatLabWarning"][];
+            uniqueSourceCount?: number;
+            duplicateCount?: number;
+            targetUmo?: string;
+            roleMapping?: {
+                assistantMemberId: string;
+                userMemberId: string;
+            };
+        };
+        ChatLabUploadResponse: {
+            stageKey: string;
+            filename: string;
+            size: number;
+            preview: components["schemas"]["ChatLabPreview"];
+        };
+        ImportRoleCommand: {
+            stageKey: string;
+            botPlatformId: string;
+            targetPlatformId: string;
+            targetUmo: string;
+            botMemberId: string;
+            targetMemberId: string;
+        };
+        ImportPreviewResponse: {
+            preview: components["schemas"]["ChatLabPreview"];
+        };
+        ImportConfirmCommand: {
+            stageKey: string;
+            botPlatformId: string;
+            targetPlatformId: string;
+            targetUmo: string;
+            botMemberId: string;
+            targetMemberId: string;
+            /** @constant */
+            confirmed: true;
+        };
+        ImportRetryCommand: {
+            id: string;
+            /** @constant */
+            confirmed: true;
+        };
+        ImportTaskSummary: {
+            id: string;
+            /** @enum {string} */
+            status: "queued" | "running" | "interrupted" | "completed" | "partial" | "failed" | "cancelled" | "abandoned";
+            /** @constant */
+            formatId: "chatlab";
+            sourceCount: number;
+            duplicateCount: number;
+            skippedCount: number;
+            pendingCount: number;
+            extractedCount: number;
+            failedCount: number;
+            errorTypes: string[];
+            personaStatus: string;
+            canRetry: boolean;
+            createdAt: string;
+            updatedAt: string;
+            terminalAt: string;
+        };
+        ImportTaskListResponse: {
+            tasks: components["schemas"]["ImportTaskSummary"][];
+        };
+        ImportTaskResponse: {
+            task: components["schemas"]["ImportTaskSummary"];
         };
         IdResponse: {
             id: string;
@@ -1201,6 +1431,267 @@ export interface operations {
             };
             /** @description 请求失败 */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    importUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 上传和文件结构检查成功。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatLabUploadResponse"];
+                };
+            };
+            /** @description 文件或权限错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    importValidate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportRoleCommand"];
+            };
+        };
+        responses: {
+            /** @description 完成预检；尚未写入正式 Source。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportPreviewResponse"];
+                };
+            };
+            /** @description 预检或权限错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    importConfirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportConfirmCommand"];
+            };
+        };
+        responses: {
+            /** @description 任务已提交。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+            /** @description 确认或权限错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    importTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 返回不含正文或原始用户标识的任务摘要。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportTaskListResponse"];
+                };
+            };
+            /** @description 查询或权限错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    importTask: {
+        parameters: {
+            query: {
+                id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 返回当前任务计数。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportTaskResponse"];
+                };
+            };
+            /** @description 查询或权限错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    importCancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelCommand"];
+            };
+        };
+        responses: {
+            /** @description 取消请求已提交。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+            /** @description 任务或权限错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    importRetry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportRetryCommand"];
+            };
+        };
+        responses: {
+            /** @description 新的重试任务已提交。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+            /** @description 重试或权限错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    importAbandon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelCommand"];
+            };
+        };
+        responses: {
+            /** @description 任务已放弃。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+            /** @description 任务或权限错误 */
+            default: {
                 headers: {
                     [name: string]: unknown;
                 };

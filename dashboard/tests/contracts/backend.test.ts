@@ -10,6 +10,12 @@ import {
   statusSchema,
 } from "../../src/features/control/model.ts"
 import { tracesSchema } from "../../src/features/control/trace-model.ts"
+import {
+  chatLabPreviewSchema,
+  chatLabUploadSchema,
+  importTaskResponseSchema,
+  importTasksResponseSchema,
+} from "../../src/features/control/history-import-model.ts"
 import { apiOperations, validateApi } from "../contract-schema.ts"
 import { astrbotClient } from "../../src/infrastructure/astrbot-client.ts"
 
@@ -45,6 +51,14 @@ void test("真实后端响应同时满足 OpenAPI 与前端 Zod，覆盖全部�
     status: statusSchema,
     events: eventsSchema,
     traces: tracesSchema,
+    importUpload: chatLabUploadSchema,
+    importValidate: z.object({ preview: chatLabPreviewSchema }),
+    importConfirm: z.object({ id: z.string() }),
+    importTasks: importTasksResponseSchema,
+    importTask: importTaskResponseSchema,
+    importCancel: z.object({ id: z.string() }),
+    importRetry: z.object({ id: z.string() }),
+    importAbandon: z.object({ id: z.string() }),
     diagnose: diagnosticSchema,
     update: z.object({ id: z.string() }),
     task: z.object({ id: z.string() }),
@@ -99,6 +113,8 @@ void test("真实状态响应保留原文辅助检索预算，两端拒绝错误
 })
 
 void test("生产桥接适配器消费全部成功响应，路径与请求体符合契约", async () => {
+  const historyImport = astrbotClient.historyImport
+  assert.ok(historyImport)
   const calls: Record<string, () => Promise<unknown>> = {
     records: () => astrbotClient.records(),
     status: () => astrbotClient.status(),
@@ -123,6 +139,34 @@ void test("生产桥接适配器消费全部成功响应，路径与请求体符
       }),
     task: () => astrbotClient.task("weekly"),
     cancel: () => astrbotClient.cancel("fixture"),
+    importUpload: () =>
+      historyImport.uploadImport(
+        new File(["{}"], "sample.json", { type: "application/json" })
+      ),
+    importValidate: () =>
+      historyImport.validateImport({
+        stageKey: "0123456789abcdef0123456789abcdef",
+        botPlatformId: "bot-1",
+        targetPlatformId: "user-1",
+        targetUmo: "qq:FriendMessage:user-1",
+        botMemberId: "bot-1",
+        targetMemberId: "user-1",
+      }),
+    importConfirm: () =>
+      historyImport.confirmImport({
+        stageKey: "0123456789abcdef0123456789abcdef",
+        botPlatformId: "bot-1",
+        targetPlatformId: "user-1",
+        targetUmo: "qq:FriendMessage:user-1",
+        botMemberId: "bot-1",
+        targetMemberId: "user-1",
+        confirmed: true,
+      }),
+    importTasks: () => historyImport.importTasks(),
+    importTask: () => historyImport.importTask("fixture"),
+    importCancel: () => historyImport.cancelImport("fixture"),
+    importRetry: () => historyImport.retryImport("fixture"),
+    importAbandon: () => historyImport.abandonImport("fixture"),
   }
   for (const sample of samples.filter((item) => item.status === 200)) {
     Object.defineProperty(globalThis, "window", {
@@ -137,6 +181,10 @@ void test("生产桥接适配器消费全部成功响应，路径与请求体符
           async apiPost(endpoint: string, body: unknown) {
             assert.equal(endpoint, `manage/${sample.action}`)
             validateApi(sample.action, 0, body)
+            return sample.body
+          },
+          async upload(endpoint: string) {
+            assert.equal(endpoint, "manage/importUpload")
             return sample.body
           },
         },

@@ -18,7 +18,7 @@ adapters/astrbot_hooks.py:  event mapping and handler registration
         |
         v
 services/: application services (access, recall, ingest, capacity,
-            maintenance, background scheduling)
+            maintenance, background scheduling, history import)
         |
         v
 app/: host-agnostic DTOs, contracts, runtime and pure policy
@@ -38,11 +38,23 @@ thin composition root with no SQL. Domain repositories own their tables:
 - `artifacts`: nodes, versions, evidence, edges, state events, ledger commit.
 - `sources`: immutable Source append/read.
 - `extraction`: extraction queue admission and retry state.
+- `imports`: private ChatLab initialization task summaries, retry selection metadata,
+  task–Source progress and bounded atomic Source/queue admission.
 - `runtime_state` / `runtime_episodes`: mutable scheduler state and append-only audit.
 - `dreams`: daily dream ledger.
 - `metrics`: read-only capacity counters.
 
 Repository modules share the `SqliteDatabase` connection; they never open independent files.
+
+The administrator history-import boundary lives in `adapters/chatlab.py`,
+`webui/import_files.py` and `services/import_service.py`. The AstrBot composition layer injects
+`ChatLabReader` through the application `HistoryReader` port. It validates ChatLab v0.0.2
+before admission, derives stable Source IDs from the confirmed target UMO and external
+message ID, then uses `HistoryImportStore` to isolate and track the extraction queue.
+Historical extraction calls the existing `IngestService` in strict non-triage mode;
+the import-specific maintenance operation updates only evidence-qualified shared
+`bot:self` persona data. Raw files and private retry mappings are retained only for the
+documented retry window and never appear in task summaries.
 
 ## Persistent model
 

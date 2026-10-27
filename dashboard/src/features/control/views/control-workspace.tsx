@@ -5,6 +5,7 @@ import {
   FlaskConical,
   RefreshCw,
   ScrollText,
+  Upload,
 } from "lucide-react"
 import { Badge, Button, DetailDrawer, Select } from "@/ui"
 import { MemoryWorkspace } from "@/features/memory/views/memory-workspace"
@@ -15,6 +16,7 @@ import { Diagnostics } from "./diagnostics"
 import { LogView } from "./log-view"
 import { RuntimePanel } from "./runtime-panel"
 import { RunTraces } from "./run-traces"
+import { HistoryImport } from "./history-import"
 
 const sections = [
   { id: "memory", label: "记忆库", icon: BookOpen },
@@ -22,6 +24,7 @@ const sections = [
   { id: "diagnose", label: "召回诊断", icon: FlaskConical },
   { id: "logs", label: "生命周期日志", icon: ScrollText },
   { id: "traces", label: "运行轨迹", icon: Activity },
+  { id: "history-import", label: "历史初始化", icon: Upload },
 ] as const
 
 const actionLabels = {
@@ -126,6 +129,17 @@ export function ControlWorkspace({ client }: { client: ManagementClient }) {
       {section === "traces" && (
         <RunTraces client={client} onInspect={setEditorId} />
       )}
+      {section === "history-import" &&
+        (client.historyImport ? (
+          <HistoryImport
+            client={client.historyImport}
+            busy={Boolean(vm.status?.activeTask)}
+          />
+        ) : (
+          <p className="p-8 text-center text-sm text-muted-foreground">
+            当前预览客户端未启用历史导入操作。
+          </p>
+        ))}
       <ArtifactEditor
         key={editorId}
         client={client}

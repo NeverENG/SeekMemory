@@ -132,6 +132,52 @@ CREATE TABLE IF NOT EXISTS extraction_state (
 CREATE INDEX IF NOT EXISTS idx_extraction_state_queue
 ON extraction_state(state, next_attempt_at, created_at, source_id);
 
+-- Initialization imports keep task summaries after their Source links expire.
+-- The source association is removed when a task reaches a terminal state.
+CREATE TABLE IF NOT EXISTS history_import_tasks (
+    id               TEXT PRIMARY KEY,
+    status           TEXT NOT NULL DEFAULT 'queued',
+    stage_key        TEXT NOT NULL DEFAULT '',
+    selection_json   TEXT NOT NULL DEFAULT '{}',
+    format_id        TEXT NOT NULL DEFAULT 'chatlab',
+    source_count     INTEGER NOT NULL DEFAULT 0,
+    duplicate_count  INTEGER NOT NULL DEFAULT 0,
+    skipped_count    INTEGER NOT NULL DEFAULT 0,
+    pending_count    INTEGER NOT NULL DEFAULT 0,
+    extracted_count  INTEGER NOT NULL DEFAULT 0,
+    failed_count     INTEGER NOT NULL DEFAULT 0,
+    error_types      TEXT NOT NULL DEFAULT '[]',
+    persona_status   TEXT NOT NULL DEFAULT 'pending',
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT NOT NULL,
+    terminal_at      TEXT NOT NULL DEFAULT '',
+    stage_expires_at TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS history_import_sources (
+    task_id   TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    topic_id  TEXT NOT NULL,
+    linked_at TEXT NOT NULL,
+    PRIMARY KEY (task_id, source_id)
+);
+
+CREATE TABLE IF NOT EXISTS history_import_preflight (
+    stage_key  TEXT NOT NULL,
+    source_id  TEXT NOT NULL,
+    fingerprint TEXT NOT NULL,
+    topic_id   TEXT NOT NULL,
+    role       TEXT NOT NULL DEFAULT '',
+    reply_to   TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (stage_key, source_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_history_import_sources_topic
+ON history_import_sources(task_id, topic_id, source_id);
+CREATE INDEX IF NOT EXISTS idx_history_import_tasks_retention
+ON history_import_tasks(status, terminal_at);
+
 -- 梦境周期台账：每天一次，记录这次"睡觉"抽了什么、改了什么。
 -- 主键是日期，天然幂等：同一天重复触发只会被这个表挡住。
 CREATE TABLE IF NOT EXISTS dream_runs (

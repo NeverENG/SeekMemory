@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import time
@@ -12,13 +11,23 @@ from pathlib import Path
 
 try:
     from ..app.contracts import DialogueTurn, ExtractionState
+    from ..app.topic_policy import (
+        TOPIC_GAP_SECONDS,
+        TOPIC_SIMILARITY,
+        assign_topic,
+        new_topic_id as _new_topic_id,
+    )
     from ..core.source import Source, make_source_id
 except ImportError:
     from app.contracts import DialogueTurn, ExtractionState
+    from app.topic_policy import (
+        TOPIC_GAP_SECONDS,
+        TOPIC_SIMILARITY,
+        assign_topic,
+        new_topic_id as _new_topic_id,
+    )
     from core.source import Source, make_source_id
 
-TOPIC_GAP_SECONDS = 5400
-TOPIC_SIMILARITY = 0.12
 TOPIC_TTL_SECONDS = 86400
 
 
@@ -27,22 +36,6 @@ def _parse_at(value: str) -> datetime | None:
         return datetime.fromisoformat(str(value or ""))
     except (TypeError, ValueError):
         return None
-
-
-def _bigrams(text: str) -> set[str]:
-    clean = "".join(ch.lower() for ch in str(text or "") if ch.isalnum())
-    return {clean[i:i + 2] for i in range(max(0, len(clean) - 1))}
-
-
-def _dice(a: set[str], b: set[str]) -> float:
-    if not a or not b:
-        return 0.0
-    return 2.0 * len(a & b) / (len(a) + len(b))
-
-
-def _new_topic_id(turn: DialogueTurn) -> str:
-    raw = f"{turn.session_id}|{turn.at}|{turn.text}"
-    return "tp_" + hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
 
 
 class Buffer:
@@ -182,18 +175,7 @@ class Buffer:
 
     def _topic_for(self, turn: DialogueTurn, previous: DialogueTurn | None,
                    parent: DialogueTurn | None = None) -> str:
-        if (parent is not None and parent.session_id == turn.session_id
-                and parent.topic_id):
-            return parent.topic_id
-        if previous is None or not previous.topic_id:
-            return _new_topic_id(turn)
-        current_at, previous_at = _parse_at(turn.at), _parse_at(previous.at)
-        if current_at is not None and previous_at is not None:
-            if (current_at - previous_at).total_seconds() > TOPIC_GAP_SECONDS:
-                return _new_topic_id(turn)
-        if _dice(_bigrams(turn.text), _bigrams(previous.text)) < TOPIC_SIMILARITY:
-            return _new_topic_id(turn)
-        return previous.topic_id
+        return assign_topic(turn, previous, parent).topic_id
 
     def topics(self) -> list[tuple[str, str, list[DialogueTurn]]]:
         groups: dict[tuple[str, str], list[DialogueTurn]] = {}

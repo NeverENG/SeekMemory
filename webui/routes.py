@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections import Counter
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -15,6 +16,7 @@ class WebRoutes:
 
     def __init__(self, plugin: Main) -> None:
         self.plugin = plugin
+        self._import_start_lock = asyncio.Lock()
 
     def register(self) -> None:
         """宿主支持插件 Web API 时，注册原生接口处理器。"""
@@ -34,6 +36,79 @@ class WebRoutes:
         """仅移除仍由当前实例持有的路由，保留后续实例的替代路由。"""
         routes = self.plugin.context.registered_web_apis
         routes[:] = [route for route in routes if route[1] != self.handle]
+
+    @staticmethod
+    def _role_selection(body: dict):
+        from ..services.import_policy import RoleSelection
+
+        values = {}
+        for key in (
+            "botPlatformId",
+            "targetPlatformId",
+            "targetUmo",
+            "botMemberId",
+            "targetMemberId",
+        ):
+            value = body.get(key, "")
+            if not isinstance(value, str):
+                raise ValueError(f"{key} 必须是字符串")
+            values[key] = value.strip()
+        if len(values["botPlatformId"]) > 256 or len(values["targetPlatformId"]) > 256:
+            raise ValueError("平台账号 ID 过长")
+        return RoleSelection(
+            bot_platform_id=values["botPlatformId"],
+            target_platform_id=values["targetPlatformId"],
+            target_umo=values["targetUmo"],
+            bot_member_id=values["botMemberId"],
+            target_member_id=values["targetMemberId"],
+        )
+
+    def _jobs_busy(self) -> bool:
+        jobs = self.plugin.jobs
+        return bool(jobs is not None and jobs.task is not None and not jobs.task.done())
+
+    @staticmethod
+    def _import_task_payload(task: dict) -> dict:
+        return {
+            "id": task["id"],
+            "status": task["status"],
+            "formatId": task["format_id"],
+            "sourceCount": task["source_count"],
+            "duplicateCount": task["duplicate_count"],
+            "skippedCount": task["skipped_count"],
+            "pendingCount": task["pending_count"],
+            "extractedCount": task["extracted_count"],
+            "failedCount": task["failed_count"],
+            "errorTypes": task["error_types"],
+            "personaStatus": task["persona_status"],
+            "canRetry": bool(task.get("can_retry", False)),
+            "createdAt": task["created_at"],
+            "updatedAt": task["updated_at"],
+            "terminalAt": task["terminal_at"],
+        }
+
+    def _submit_import(self, task_id: str, selection) -> None:
+        plugin = self.plugin
+        if plugin.jobs is None or plugin.services is None:
+            raise RuntimeError("任务执行器不可用")
+
+        async def operation() -> None:
+            plugin.active_import_started_task_id = task_id
+            await plugin.services.import_service.run(task_id, selection)
+
+        plugin.jobs.submit(
+            "history_import",
+            operation,
+        )
+        plugin.active_import_task_id = task_id
+
+        def clear_active(_task) -> None:
+            if getattr(plugin, "active_import_task_id", "") == task_id:
+                plugin.active_import_task_id = ""
+                plugin.active_import_started_task_id = ""
+
+        if plugin.jobs.task is not None:
+            plugin.jobs.task.add_done_callback(clear_active)
 
     async def _status(self) -> dict:
         """汇总引擎、模型、任务与配置状态，不发送模型请求。
@@ -162,8 +237,15 @@ class WebRoutes:
         plugin = self.plugin
         if not request.username:
             return error_response("需要管理员登录", status_code=401)
-        read_actions = {"status", "records", "detail", "events", "traces"}
-        write_actions = {"update", "rollbackPersona", "diagnose", "task", "cancel"}
+        read_actions = {
+            "status", "records", "detail", "events", "traces",
+            "importTasks", "importTask",
+        }
+        write_actions = {
+            "update", "rollbackPersona", "diagnose", "task", "cancel",
+            "importUpload", "importValidate", "importConfirm", "importCancel",
+            "importRetry", "importAbandon",
+        }
         if action not in read_actions | write_actions:
             return error_response("未知操作", status_code=404)
         if request.method != ("GET" if action in read_actions else "POST"):
@@ -198,15 +280,120 @@ class WebRoutes:
                     "记忆引擎不可用，请检查运行检测与日志", status_code=503
                 )
             service = plugin.services.management_service
+            import_service = getattr(plugin.services, "import_service", None)
+            if action.startswith("import") and import_service is None:
+                return error_response("历史导入暂不可用", status_code=503)
+            if action == "importUpload":
+                file_store = getattr(plugin, "import_files", None)
+                if file_store is None:
+                    return error_response("历史导入暂不可用", status_code=503)
+                files = await request.files()
+                upload = files.get("file") if hasattr(files, "get") else None
+                if upload is None:
+                    return error_response("请选择 ChatLab JSON 或 JSONL 文件", status_code=400)
+                import_service.cleanup()
+                staged = await file_store.save_upload(upload)
+                preview = await import_service.inspect_upload(staged.key)
+                return json_response(
+                    {
+                        "stageKey": staged.key,
+                        "filename": staged.filename,
+                        "size": staged.size,
+                        "preview": preview,
+                    }
+                )
+            if action == "importTasks":
+                return json_response(
+                    {"tasks": [self._import_task_payload(task) for task in import_service.tasks()]}
+                )
+            if action == "importTask":
+                task = import_service.task(request.query.get("id", ""))
+                if task is None:
+                    return error_response("导入任务不存在", status_code=404)
+                return json_response({"task": self._import_task_payload(task)})
             if action == "records":
                 return json_response({"records": service.catalog()})
             if action == "detail":
                 return json_response(service.detail(request.query.get("id", "")))
-            if len(await request.body()) > 65536:
+            if action != "importUpload" and len(await request.body()) > 65536:
                 return error_response("请求内容过大", status_code=413)
             body = await request.json()
             if not isinstance(body, dict):
                 raise ValueError("请求体必须为 JSON 对象")
+            if action == "importValidate":
+                selection = self._role_selection(body)
+                result = await import_service.validate_stage(
+                    str(body.get("stageKey") or ""), selection
+                )
+                return json_response({"preview": result})
+            if action == "importConfirm":
+                if body.get("confirmed") is not True:
+                    raise ValueError("请先确认导入结果")
+                selection = self._role_selection(body)
+                async with self._import_start_lock:
+                    if self._jobs_busy():
+                        return error_response("另一个维护任务正在运行，请稍后导入", status_code=409)
+                    task_id = import_service.create_task(
+                        str(body.get("stageKey") or ""), selection
+                    )
+                    try:
+                        self._submit_import(task_id, selection)
+                    except RuntimeError:
+                        import_service.imports.finish_task(
+                            task_id, "failed", persona_status="not_run", retain_stage=True
+                        )
+                        raise
+                    return json_response({"id": task_id})
+            if action == "importCancel":
+                task_id = str(body.get("id") or "")
+                if (
+                    body.get("confirmed") is not True
+                    or plugin.jobs is None
+                    or getattr(plugin, "active_import_task_id", "") != task_id
+                    or plugin.jobs.kind != "history_import"
+                    or plugin.jobs.task is None
+                    or plugin.jobs.task.done()
+                ):
+                    return error_response("导入任务已结束或不存在", status_code=409)
+                task_started = (
+                    getattr(plugin, "active_import_started_task_id", "") == task_id
+                )
+                task_stage = import_service.imports.task_stage(task_id)
+                plugin.jobs.task.cancel()
+                if not task_started:
+                    stage_key = str((task_stage or {}).get("stage_key") or "")
+                    import_service.imports.finish_task(
+                        task_id, "cancelled", persona_status="not_run"
+                    )
+                    if stage_key:
+                        import_service.files.delete(stage_key)
+                return json_response({"id": task_id})
+            if action == "importRetry":
+                if body.get("confirmed") is not True:
+                    raise ValueError("请先确认重新导入")
+                async with self._import_start_lock:
+                    if self._jobs_busy():
+                        return error_response("另一个维护任务正在运行，请稍后重试", status_code=409)
+                    task_id, selection = await import_service.retry_task(
+                        str(body.get("id") or "")
+                    )
+                    try:
+                        self._submit_import(task_id, selection)
+                    except RuntimeError:
+                        import_service.imports.finish_task(
+                            task_id, "failed", persona_status="not_run", retain_stage=True
+                        )
+                        raise
+                    return json_response({"id": task_id})
+            if action == "importAbandon":
+                if body.get("confirmed") is not True:
+                    raise ValueError("请先确认放弃任务")
+                task_id = str(body.get("id") or "")
+                if getattr(plugin, "active_import_task_id", "") == task_id:
+                    return error_response("任务运行中，请先取消", status_code=409)
+                if not import_service.abandon(task_id):
+                    return error_response("该任务当前不能放弃", status_code=409)
+                return json_response({"id": task_id})
             if action == "diagnose":
                 with plugin.journal.span("diagnose", "recall.preview") as metrics:
                     result = service.diagnose(body)

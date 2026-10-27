@@ -6,6 +6,7 @@ import type {
 } from "../../contracts/api.ts"
 import type { MemoryRecord } from "../memory/model.ts"
 import type { TraceSnapshot } from "./trace-model.ts"
+import type { HistoryImportClient } from "./history-import-model.ts"
 
 export const detailSchema = z.object({
   artifact: z.object({
@@ -174,6 +175,7 @@ export interface ManagementClient {
   diagnose(query: DiagnosticQuery): Promise<Diagnostic>
   task(kind: "extract" | "weekly"): Promise<string>
   cancel(id: string): Promise<void>
+  historyImport?: HistoryImportClient
 }
 
 /** 仅展示已记录的归属和时间，不从说话人或更新日期推断缺失信息。 */

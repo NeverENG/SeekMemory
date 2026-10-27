@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+import datetime
 from pathlib import Path
 
 from astrbot.api import logger, star
@@ -37,6 +38,7 @@ from ..services import (
     BackgroundService,
     CapacityService,
     IngestService,
+    ImportService,
     MaintenanceService,
     ManagementService,
     RecallService,
@@ -48,12 +50,14 @@ from ..perceive.model import ProviderChatModel
 from ..recall.retriever import HybridRetriever
 from ..adapters.astrbot_actions import AstrBotActionPort
 from ..adapters.astrbot_model import AstrBotModelGateway
+from ..adapters.chatlab import ChatLabReader
 from ..adapters.seekmemory_context import SeekMemoryContextAdapter
 from ..store.cache import Cache
 from ..store import Store, open_store
 from ..store.run_trace import TraceStore
 from ..webui.jobs import Jobs
 from ..webui.journal import Journal
+from ..webui.import_files import ImportFileStore
 from ..webui.routes import WebRoutes
 from ..webui.trace import Trace
 from .astrbot_hooks import AstrBotHooks
@@ -86,6 +90,9 @@ class AstrBotPlugin(AstrBotHooks):
         self.run_tracer: RunTracer | None = None
         self.tool_policy: ToolPolicy | None = None
         self.jobs: Jobs | None = None
+        self.active_import_task_id = ""
+        self.active_import_started_task_id = ""
+        self.import_files: ImportFileStore | None = None
         self.capacity: CapacityGovernor | None = None
         self._last_runtime_prune_at = 0.0
         self._started = False
@@ -109,6 +116,15 @@ class AstrBotPlugin(AstrBotHooks):
             if self._c("db_path", "")
             else Path(get_astrbot_plugin_data_path()) / "seekmemory" / "memory.db"
         )
+        try:
+            self.import_files = ImportFileStore(
+                self.data_path.parent / "history_import_staging"
+            )
+        except OSError as exc:
+            self.import_files = None
+            logger.warning(
+                f"[seekmemory] 历史导入暂存不可用：{type(exc).__name__}"
+            )
         self.journal = Journal(self.data_path.parent / "lifecycle.jsonl")
         self.trace = Trace()
         self.run_traces = TraceStore(
@@ -145,6 +161,13 @@ class AstrBotPlugin(AstrBotHooks):
             recall_service=recall,
         )
         if self.store is not None:
+            now = datetime.datetime.now().isoformat(timespec="seconds")
+            self.store.imports.recover_interrupted(now)
+            self.store.imports.prune(now=now, retention_days=30)
+            if self.import_files is not None:
+                self.import_files.cleanup(
+                    retained_keys=self.store.imports.retained_stage_keys(now=now)
+                )
             state_store = RepoStateStore(self.store.runtime_state)
             self.episode_recorder = EpisodeRecorder(RepoEpisodeStore(self.store.runtime_episodes))
         else:
@@ -228,6 +251,22 @@ class AstrBotPlugin(AstrBotHooks):
             artifacts=self.store.artifacts if self.store is not None else None,
             ledger=self.store.ledger if self.store is not None else None,
         )
+        import_service = (
+            ImportService(
+                imports=self.store.imports,
+                extraction=self.store.extraction,
+                ingest=ingest,
+                maintenance=maintenance,
+                files=self.import_files,
+                reader=ChatLabReader(),
+                provider_for=self.context.get_using_provider_async,
+                journal=self.journal,
+                logger=logger,
+                is_closing=lambda: bool(self.jobs is not None and self.jobs.closed),
+            )
+            if self.store is not None and self.import_files is not None
+            else None
+        )
         runtime_worker = RuntimeWorker(
             runtime=runtime,
             scheduler=scheduler,
@@ -248,6 +287,7 @@ class AstrBotPlugin(AstrBotHooks):
             capacity=capacity,
             ingest=ingest,
             maintenance=maintenance,
+            import_service=import_service,
             dream=self.dream,
             runtime_worker=runtime_worker,
             journal=self.journal,
@@ -265,6 +305,7 @@ class AstrBotPlugin(AstrBotHooks):
             ),
             recall_service=recall,
             ingest_service=ingest,
+            import_service=import_service,
             capacity_service=capacity,
             maintenance_service=maintenance,
             management_service=management,

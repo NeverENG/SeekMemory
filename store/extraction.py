@@ -78,6 +78,10 @@ class ExtractionRepository(SqliteRepository):
             "JOIN sources s ON s.id = e.source_id "
             "JOIN blobs b ON b.hash = s.blob "
             "WHERE e.state IN ('pending', 'retrying') "
+            "AND NOT EXISTS (SELECT 1 FROM history_import_sources hs "
+            "JOIN history_import_tasks ht ON ht.id = hs.task_id "
+            "WHERE hs.source_id = e.source_id "
+            "AND ht.status IN ('queued','running','interrupted')) "
             "AND (? = '' OR e.next_attempt_at = '' OR e.next_attempt_at <= ?) "
             "ORDER BY e.created_at, e.source_id",
             (str(now or ""), str(now or "")),
@@ -176,6 +180,10 @@ class ExtractionRepository(SqliteRepository):
         rows = self.conn.execute(
             "SELECT source_id FROM extraction_state "
             "WHERE state IN ('pending', 'retrying') "
+            "AND NOT EXISTS (SELECT 1 FROM history_import_sources hs "
+            "JOIN history_import_tasks ht ON ht.id = hs.task_id "
+            "WHERE hs.source_id = extraction_state.source_id "
+            "AND ht.status IN ('queued','running','interrupted')) "
             "AND (next_attempt_at = '' OR next_attempt_at <= ?)",
             (current,),
         ).fetchall()

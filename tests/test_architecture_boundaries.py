@@ -81,7 +81,7 @@ class MainOwnershipTest(unittest.TestCase):
             names,
             {
                 "access_service", "recall_service", "ingest_service",
-                "capacity_service", "maintenance_service", "management_service",
+                "import_service", "capacity_service", "maintenance_service", "management_service",
                 "status_service", "background_service", "runtime",
                 "runtime_worker",
             },
