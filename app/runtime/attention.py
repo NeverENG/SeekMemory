@@ -26,6 +26,27 @@ class AttentionThresholds:
     stranger_quota_close: int = 4
 
 
+def thresholds_from_config(conf) -> AttentionThresholds:
+    """从插件配置读取阈值；坏配置退回默认值，不影响聊天。"""
+    import json
+
+    try:
+        raw = conf("attention_thresholds", "")
+    except Exception:  # noqa: BLE001
+        raw = ""
+    if not raw:
+        return AttentionThresholds()
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else dict(raw)
+    except (TypeError, ValueError):
+        return AttentionThresholds()
+    allowed = {field: data[field] for field in AttentionThresholds.__dataclass_fields__ if field in data}
+    try:
+        return AttentionThresholds(**allowed)
+    except (TypeError, ValueError):
+        return AttentionThresholds()
+
+
 class AttentionPolicy:
     """确定性策略：同样的输入永远得到同样的 RunDecision。"""
 

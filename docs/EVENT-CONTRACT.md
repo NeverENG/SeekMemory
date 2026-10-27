@@ -16,14 +16,22 @@
 
 | 字段 | 用途 |
 |---|---|
-| `scene` | private / group / channel / thread |
+| `scene` | private / group / channel / thread / **comment**（评论区） |
 | `conversation_id` | 群号 / 频道 / 线程标识 |
+| `thread_id` | 评论嵌套 / 楼中楼；不填表示无嵌套 |
 | `self_id` | 机器人自身标识 |
 | `role` | owner / admin / member / bot / system |
 | `addressed` | 是否被叫名字或唤醒前缀命中 |
 | `reply_to_me` | 是否引用/回复了她 |
 | `event_id` | 宿主动作幂等键 |
 | `kind` | message / edit / recall / reaction（预留，当前只处理 message） |
+
+## 发送能力与主动由头
+
+- **不新增 `reply_capable`**：运行时只判断"该不该说"；能不能发（平台限制、频率、评论权限）
+  由发送端口负责，失败返回失败/异常，运行时按 fail-open 记录（#123 决策）。
+- **主动由头只来自记忆 + 定时窗口**：`TopicSource` 只从记忆挑候选（未聊完的 scene、
+  印象变化、关系冷却），是否到点由 `ProactivePolicy`（#117）决定，不做随机触发。
 
 ## 理由
 
