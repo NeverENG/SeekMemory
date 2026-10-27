@@ -49,6 +49,7 @@ class RuntimeWorker:
             moment = time.time() if now is None else float(now)
             return await self.runtime.dispatch_deferred(
                 self.run_context(session_id, moment),
+                now=moment,
                 max_attempts=max(1, int(self.max_attempts())),
                 base_seconds=max(0.1, float(self.base_seconds())),
             )
