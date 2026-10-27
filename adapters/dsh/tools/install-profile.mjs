@@ -9,8 +9,11 @@
  *   - **不碰 pnpm**：只用 link: + junction，避免 lockfile/网络/构建
  *
  * 用法：
- *   node tools/install-profile.mjs --profile web --plugin D:\1gzq\dsh-seekmemory
+ *   node tools/install-profile.mjs --profile web --plugin /path/to/dsh-seekmemory
  *   node tools/install-profile.mjs --profile web --uninstall
+ *
+ * --plugin 必填（安装时）：指向 dsh-seekmemory 包目录，没有内置默认值。
+ * --backup-dir / --rollback-dir 可选：默认都落在系统临时目录，不写死任何本机路径。
  *
  * 退出码：0 成功；1 失败（失败时不会留下半截状态：package.json 原子写）
  */
@@ -28,9 +31,14 @@ function arg(name, fallback = '') {
 const has = (name) => argv.includes(name);
 
 const profileName = arg('--profile', 'web');
-const pluginDir = path.resolve(arg('--plugin', 'D:/1gzq/dsh-seekmemory'));
+const pluginArg = arg('--plugin', '');
 const uninstall = has('--uninstall');
 const PLUGIN = 'dsh-seekmemory';
+
+if (!uninstall && !pluginArg) {
+  fail('缺少 --plugin <plugin-dir>\n      node tools/install-profile.mjs --profile web --plugin /path/to/dsh-seekmemory');
+}
+const pluginDir = pluginArg ? path.resolve(pluginArg) : '';
 
 const DSH_HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
 const profileDir = path.join(DSH_HOME, 'profiles', profileName);
@@ -56,7 +64,8 @@ try {
 
 // ---------- 备份 ----------
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-const backupDir = path.join('D:/1gzq/backup', `profile-${profileName}-${stamp}`);
+const backupRoot = arg('--backup-dir', path.join(os.tmpdir(), 'dsh-seekmemory-backup'));
+const backupDir = path.join(backupRoot, `profile-${profileName}-${stamp}`);
 if (!uninstall) {
   mkdirSync(backupDir, { recursive: true });
   copyFileSync(pkgPath, path.join(backupDir, 'package.json'));
@@ -81,7 +90,9 @@ function writeRollback() {
     'echo.',
     'pause',
   ].filter(Boolean);
-  const file = path.join('D:/1gzq', `rollback-${profileName}.cmd`);
+  const rollbackDir = arg('--rollback-dir', os.tmpdir());
+  mkdirSync(rollbackDir, { recursive: true });
+  const file = path.join(rollbackDir, `rollback-${profileName}.cmd`);
   writeFileSync(file, lines.join('\r\n') + '\r\n', 'ascii');
   console.log(`回滚脚本: ${file}`);
 }

@@ -3,6 +3,10 @@
  * 解析 app.asar 头部目录表，找出 dsh CLI 的入口文件。
  * 只读，不写任何东西。
  *
+ * 用法：node tools/list-asar.mjs <path-to-app.asar>
+ *   例：node tools/list-asar.mjs "C:/Users/me/AppData/Local/Programs/DeepSeek Harness/resources/app.asar"
+ *
+ *
  * asar 格式：
  *   0..3   uint32 = 4
  *   4..7   uint32 = pickle 头长度
@@ -13,7 +17,12 @@
 
 import { openSync, readSync, closeSync, fstatSync } from 'node:fs';
 
-const file = process.argv[2] ?? 'F:/1/111/resources/app.asar';
+const file = process.argv[2];
+if (!file) {
+  console.error('usage: node tools/list-asar.mjs <path-to-app.asar>');
+  console.error('hint : <DSH install dir>/resources/app.asar');
+  process.exit(1);
+}
 const fd = openSync(file, 'r');
 const size = fstatSync(fd).size;
 

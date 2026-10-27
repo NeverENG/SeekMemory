@@ -1,0 +1,5 @@
+# Test scratch output (mock runtime files, crash/boot markers, dumps).
+.tmp/
+
+# Node deps, if anyone runs npm install locally.
+node_modules/
