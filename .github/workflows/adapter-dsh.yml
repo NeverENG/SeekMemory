@@ -49,6 +49,7 @@ jobs:
         run: |
           node test/client-failopen.mjs
           node test/hooks-fake-host.mjs
+          node test/persona-isolation.mjs
           node test/safe-mode.mjs
           node test/extract-bridge.mjs
           node test/postinstall-check.mjs

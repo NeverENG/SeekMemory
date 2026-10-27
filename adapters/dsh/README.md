@@ -46,7 +46,8 @@ scripts/build-check.mjs      打包白名单自检（files / 入口 / dsh.bundle
 scripts/postinstall-check.mjs 跨平台安装后自检（node 版；.cmd 是 Windows 包装）
 scripts/smoke-contract.mjs   契约冒烟（11 项）
 test/client-failopen.mjs     fail-open 八种降级（11 项）
-test/hooks-fake-host.mjs     假宿主验 apply/注入/卸载/多主体隔离（19 项）
+test/hooks-fake-host.mjs     假宿主验 apply/注入/卸载（19 项）
+test/persona-isolation.mjs   双主体画像隔离：A 的画像不得出现在 B 的上下文（6 项）
 test/safe-mode.mjs           跳闸/强杀豁免/自愈/开关键（42 项）
 test/extract-bridge.mjs      抽取桥（18 项：block-end 权威 / 中止 / 抛错 / 无 llm 服务）
 test/postinstall-check.mjs   自检脚本用例（dump 判定 + 子进程路径）
@@ -61,6 +62,7 @@ node scripts/check-manifest.mjs
 # 2. 单元测试（不需要内核）
 node test/client-failopen.mjs
 node test/hooks-fake-host.mjs
+node test/persona-isolation.mjs
 node test/safe-mode.mjs
 node test/extract-bridge.mjs
 node test/postinstall-check.mjs
