@@ -259,7 +259,7 @@ SeekMemory 在实现上坚持几条边界：
 
 ## 快速开始
 
-从 [最新 Release](https://github.com/NeverENG/SeekMemory/releases/latest) 下载 `astrbot_plugin_seekmemory.zip`，在 AstrBot 中通过 ZIP 安装；也可以直接克隆源码到插件目录：
+如 [最新 Release](https://github.com/NeverENG/SeekMemory/releases/latest) 页面附有 `astrbot_plugin_seekmemory.zip`，可下载后通过 AstrBot ZIP 安装；如果没有该安装包，请使用下面的源码安装方式：
 
 ```bash
 git clone https://github.com/NeverENG/SeekMemory.git \
