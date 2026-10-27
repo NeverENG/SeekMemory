@@ -20,9 +20,9 @@ class WakePolicy:
     """
 
     def evaluate(
-        self, event: RuntimeInput, state: SessionState, now: float | None = None
+        self, event: RuntimeInput, state: SessionState, now: float
     ) -> RunDecision:
-        moment = 0.0 if now is None else float(now)
+        moment = float(now)
         text = str(event.text or "").strip()
         if not text:
             return RunDecision(WakeAction.IGNORE, "empty_text")

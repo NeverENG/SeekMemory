@@ -44,6 +44,17 @@ class RuntimeWorker:
         self.max_concurrency = max(1, int(max_concurrency))
         self._dispatching: set[str] = set()
 
+    def _record_failure(self, status: str, error: Exception, session_id: str = "") -> None:
+        if self.trace is not None:
+            self.trace.record(
+                "runtime",
+                status,
+                {
+                    "session_id": session_id,
+                    "error": type(error).__name__,
+                },
+            )
+
     async def dispatch(self, session_id: str, now: float | None = None) -> RunResult | None:
         if not self.enabled() or session_id in self._dispatching:
             return None
@@ -63,7 +74,11 @@ class RuntimeWorker:
         if not self.enabled():
             return 0
         moment = time.time() if now is None else float(now)
-        due = self.scheduler.due(self.session_ids(100), moment)
+        try:
+            due = self.scheduler.due(self.session_ids(100), moment)
+        except Exception as exc:  # noqa: BLE001 - scheduler failure is fail-open
+            self._record_failure("scheduler_failed", exc)
+            return 0
         if not due:
             return 0
         semaphore = asyncio.Semaphore(self.max_concurrency)
@@ -73,16 +88,7 @@ class RuntimeWorker:
                 try:
                     result = await self.dispatch(item.session_id, moment)
                 except Exception as exc:  # noqa: BLE001 - one run must not stop the tick
-                    if self.trace is not None:
-                        self.trace.record(
-                            "runtime",
-                            "dispatch_failed",
-                            {
-                                "session_id": item.session_id,
-                                "kind": item.reason,
-                                "error": type(exc).__name__,
-                            },
-                        )
+                    self._record_failure("dispatch_failed", exc, item.session_id)
                     return False
                 return result is not None
 
@@ -94,5 +100,5 @@ class RuntimeWorker:
             await asyncio.sleep(max(1.0, float(self.interval_seconds())))
             try:
                 await self.tick()
-            except Exception:
-                continue
+            except Exception as exc:  # noqa: BLE001 - keep the worker alive
+                self._record_failure("worker_tick_failed", exc)

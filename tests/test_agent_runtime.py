@@ -210,6 +210,16 @@ class WakePolicyTest(unittest.TestCase):
         self.assertEqual(after.last_seen_at, before.last_seen_at)
         self.assertEqual(after.last_event_at, before.last_event_at)
 
+    def test_stale_event_is_traced_without_content(self) -> None:
+        store = InMemoryStateStore()
+        trace = Trace()
+        runtime = AgentRuntime(store, trace=trace, clock=lambda: 100)
+        runtime.observe(RuntimeInput("s1", "new", event_time=200), now=200)
+        runtime.observe(RuntimeInput("s1", "old", event_time=100), now=300)
+        stale = [row for row in trace.rows if row[1] == "stale_event"]
+        self.assertEqual(len(stale), 1)
+        self.assertNotIn("old", str(stale[0]))
+
     def test_runtime_cooldown_uses_real_timestamps(self) -> None:
         store = InMemoryStateStore()
         runtime = AgentRuntime(store, clock=lambda: 100)

@@ -155,6 +155,84 @@ class RuntimeWorkerTest(unittest.TestCase):
 
         asyncio.run(run())
 
+    def test_tick_respects_max_concurrency(self) -> None:
+        class Runtime:
+            def __init__(self):
+                self.active = 0
+                self.max_active = 0
+                self.started = None
+                self.release = None
+
+            async def dispatch_deferred(self, context, **kwargs):
+                self.active += 1
+                self.max_active = max(self.max_active, self.active)
+                self.started.set()
+                await self.release.wait()
+                self.active -= 1
+                return object()
+
+        async def run():
+            store = InMemoryStateStore()
+            for session_id in ("s1", "s2"):
+                state = store.get(session_id)
+                state.wait_until = 100
+                store.put(state)
+            runtime = Runtime()
+            runtime.started = asyncio.Event()
+            runtime.release = asyncio.Event()
+            worker = RuntimeWorker(
+                runtime=runtime,
+                scheduler=Scheduler(store),
+                enabled=lambda: True,
+                session_ids=lambda limit: ["s1", "s2"],
+                run_context=lambda session_id, now: RunContext(
+                    session_id=session_id, text="hello", event_time=now
+                ),
+                interval_seconds=lambda: 1,
+                max_attempts=lambda: 3,
+                base_seconds=lambda: 2,
+                max_concurrency=1,
+            )
+            task = asyncio.create_task(worker.tick(now=100))
+            await asyncio.wait_for(runtime.started.wait(), timeout=1)
+            await asyncio.sleep(0)
+            self.assertEqual(runtime.active, 1)
+            runtime.release.set()
+            self.assertEqual(await task, 2)
+            self.assertEqual(runtime.max_active, 1)
+
+        asyncio.run(run())
+
+    def test_tick_records_scheduler_failure(self) -> None:
+        class Trace:
+            def __init__(self):
+                self.rows = []
+
+            def record(self, kind, status, context=None):
+                self.rows.append((kind, status, context or {}))
+
+        class BrokenScheduler:
+            def due(self, session_ids, now):
+                raise RuntimeError("scheduler boom")
+
+        trace = Trace()
+        worker = RuntimeWorker(
+            runtime=object(),
+            scheduler=BrokenScheduler(),
+            enabled=lambda: True,
+            session_ids=lambda limit: ["s1"],
+            run_context=lambda session_id, now: RunContext(
+                session_id=session_id, text="hello", event_time=now
+            ),
+            interval_seconds=lambda: 1,
+            max_attempts=lambda: 3,
+            base_seconds=lambda: 2,
+            trace=trace,
+        )
+        self.assertEqual(asyncio.run(worker.tick(now=100)), 0)
+        self.assertEqual(trace.rows[0][:2], ("runtime", "scheduler_failed"))
+        self.assertEqual(trace.rows[0][2]["error"], "RuntimeError")
+
     def test_tick_records_dispatch_failure_and_continues(self) -> None:
         class Trace:
             def __init__(self):
