@@ -59,6 +59,22 @@ class RuntimeInput:
     question: bool = False
     unread_count: int = 0
     unread_seq: int = 0
+    # 多平台语境；全部带默认值，旧调用方（#114 冻结契约）不需要改动。
+    # scene 取值 private/group/channel/thread；role 取值 owner/admin/member/bot/system；
+    # kind 预留给编辑、撤回、表情回应等非消息事件，当前只处理 message。
+    scene: str = ""
+    conversation_id: str = ""
+    self_id: str = ""
+    role: str = ""
+    addressed: bool = False
+    reply_to_me: bool = False
+    event_id: str = ""
+    kind: str = "message"
+
+    @property
+    def is_owner(self) -> bool:
+        """说话人是否为主人；只读派生，不参与序列化契约。"""
+        return self.role == "owner"
 
 
 @dataclass(frozen=True)
