@@ -26,6 +26,7 @@ import {
   statSync,
   lstatSync,
   rmdirSync,
+  unlinkSync,
   readFileSync,
   openSync,
   closeSync,
@@ -53,6 +54,19 @@ function sameTarget(link, dir) {
     return a.dev === b.dev && a.ino === b.ino;
   } catch {
     return false;
+  }
+}
+
+/** 删链接本身：POSIX 用 unlink，Windows 的 junction 用 rmdir */
+function removeLink(p) {
+  try {
+    unlinkSync(p);
+  } catch {
+    try {
+      rmdirSync(p);
+    } catch {
+      /* 已不存在 */
+    }
   }
 }
 
@@ -121,7 +135,7 @@ if (probe.error) {
 
   // D. 实体非空目录占位：必须明确失败，且不删除用户内容
   {
-    rmdirSync(env.link);
+    removeLink(env.link);
     mkdirSync(env.link, { recursive: true });
     writeFileSync(path.join(env.link, 'marker.txt'), 'keep me\n', 'utf8');
     const r = run(env, env.a);
@@ -131,10 +145,11 @@ if (probe.error) {
   }
 
   // 清理：只删链接/目录本身，然后删临时根
+  removeLink(env.link);
   try {
-    rmdirSync(env.link);
-  } catch {
     rmSync(env.link, { recursive: true, force: true });
+  } catch {
+    /* 已不存在 */
   }
   rmSync(TMP, { recursive: true, force: true });
 

@@ -18,7 +18,7 @@
  * 退出码：0 成功；1 失败（失败时不会留下半截状态：package.json 原子写）
  */
 
-import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync, symlinkSync, lstatSync, statSync, copyFileSync, rmdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync, symlinkSync, lstatSync, statSync, copyFileSync, rmdirSync, unlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
@@ -200,6 +200,12 @@ function linkState(p, target) {
 
 function unlinkDir(p) {
   // 只删链接本身，绝不跟随目标：fs.rmSync 在 Windows 上会递归进入 junction 的目标，
-  // 那会把插件源码目录一起删掉。rmdirSync 走的是 RemoveDirectoryW，删的是重解析点。
-  rmdirSync(p);
+  // 那会把插件源码目录一起删掉。
+  //   POSIX 的符号链接只能用 unlink（rmdir 会 ENOTDIR）
+  //   Windows 的 junction 只能 rmdir（unlink 会 EPERM），走的是 RemoveDirectoryW，删的是重解析点
+  try {
+    unlinkSync(p);
+  } catch {
+    rmdirSync(p);
+  }
 }
