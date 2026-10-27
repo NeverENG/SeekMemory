@@ -15,7 +15,7 @@ from layers import files_for  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--layer", default="all", choices=("all", "unit", "contract", "integration", "host", "smoke"))
+    parser.add_argument("--layer", default="all", choices=("all", "unit", "contract", "conformance", "integration", "host", "smoke"))
     args = parser.parse_args()
     files = files_for(args.layer)
     if not files:

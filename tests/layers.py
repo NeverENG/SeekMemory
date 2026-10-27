@@ -40,6 +40,10 @@ LAYERS: dict[str, tuple[str, ...]] = {
         "test_api_contract.py",
         "test_public_interfaces.py",
     ),
+    # Host-port conformance: 任何宿主实现都必须通过（见 docs/HOST-PORTS.md）。
+    "conformance": (
+        "test_host_ports_conformance.py",
+    ),
     "integration": (
         "test_absorb.py",
         "test_dream_eval.py",
@@ -77,7 +81,7 @@ LAYERS: dict[str, tuple[str, ...]] = {
     ),
 }
 
-ALL_LAYERS = ("unit", "contract", "integration", "host", "smoke")
+ALL_LAYERS = ("unit", "contract", "conformance", "integration", "host", "smoke")
 
 
 def files_for(layer: str) -> tuple[str, ...]:
