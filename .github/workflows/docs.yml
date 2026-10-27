@@ -25,6 +25,8 @@ jobs:
         run: python scripts/check_docs_structure.py
       - name: Build MkDocs site
         run: mkdocs build --strict
+      - name: Check English page language and controls
+        run: python scripts/check_docs_output.py
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

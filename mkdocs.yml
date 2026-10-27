@@ -3,7 +3,7 @@ docs_dir: docs
 site_dir: site
 theme:
   name: material
-  language: zh
+  language: en
   font: false
   palette:
     - media: "(prefers-color-scheme: light)"
@@ -12,21 +12,21 @@ theme:
       accent: cyan
       toggle:
         icon: material/weather-sunny
-        name: 切换到深色模式
+        name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: indigo
       accent: cyan
       toggle:
         icon: material/weather-night
-        name: 切换到浅色模式
+        name: Switch to light mode
     - media: "(prefers-color-scheme: no-preference)"
       scheme: default
       primary: indigo
       accent: cyan
       toggle:
         icon: material/brightness-auto
-        name: 使用系统色彩模式
+        name: Use system color scheme
   features:
     - navigation.instant
     - navigation.tabs
