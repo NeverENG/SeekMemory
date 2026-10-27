@@ -1,16 +1,16 @@
 # 变更记录
 
-## Unreleased
+## 0.4.2 — 2026-10-27
 
 ### 中文
 
 - 修复运行时交付与恢复：冷却从实际发送完成计时，失败从实际失败时刻退避；普通和延迟回复仅确认本轮覆盖的消息。延迟任务取消或重启后仍可有限重试，轮询与直接调用共用并发上限。复用现有会话状态字段，无数据库迁移或新增配置；宿主不再用待抽取队列长度推算未读数。AstrBot 通过同一适配层时间钩子统一为 UTC+8，新时间带 +08:00 标记，内核读取格式和历史 Source 保持不变；没有时区的旧值保留原样。
-- 新增记忆感知的开口策略基础件（默认关）：`RuntimeInput` 向后兼容扩展多平台字段（scene/conversation_id/thread_id/role/addressed/reply_to_me 等，scene 预留 comment 评论区）；新增 `adapters/astrbot_event.py`（宿主事件→RuntimeInput 纯映射）与端到端策略测试；新增 `app/runtime/signals.py`（关系/相关度/热度/时间窗信号）、`attention.py`（纯函数策略，硬条件优先、主人冷却、陌生人关系额度）、`scene_hints.py`（时间/身份/亲疏提示）、`topics.py`（主动话题候选与冷却过滤）。只新增契约与纯函数，不改变线上行为（#123）。
+- 记忆感知的开口策略默认开启：AstrBot 事件经 `adapters/astrbot_event.py` 映射为 `RuntimeInput`，`adapters/astrbot_attention.py` 调策略后放行/`stop_event`；预设 quiet/balanced/chatty/intimate，陌生人额度按关系与配置，场景提示注入系统提示。group_guard 与 persona_gate 因此停用，由 SeekMemory 接管；连发合并与主动私聊仍由 message_merger / ping 插件负责（等 #116/#117）。基础件：`RuntimeInput` 向后兼容扩展多平台字段（scene/conversation_id/thread_id/role/addressed/reply_to_me 等，scene 预留 comment 评论区）；新增 `adapters/astrbot_event.py`（宿主事件→RuntimeInput 纯映射）与端到端策略测试；新增 `app/runtime/signals.py`（关系/相关度/热度/时间窗信号）、`attention.py`（纯函数策略，硬条件优先、主人冷却、陌生人关系额度）、`scene_hints.py`（时间/身份/亲疏提示）、`topics.py`（主动话题候选与冷却过滤）。只新增契约与纯函数，不改变线上行为（#123）。
 - 事件分层决策：暂不引入 HostEvent/ContentPart/EventCodec，宿主适配层直接产出扩展后的 `RuntimeInput`；演进触发条件见 `docs/EVENT-CONTRACT.md`。
 
 ### English
 
-- Add memory-aware attention groundwork (default off): backward-compatible multi-platform fields on `RuntimeInput` (scene/conversation_id/thread_id/role/addressed/reply_to_me, with `comment` reserved for comment sections); add a pure host-event mapper (`adapters/astrbot_event.py`) and end-to-end policy tests; new pure modules `signals.py` (relationship/relevance/heat/window), `attention.py` (hard conditions first, owner cooldown, stranger quota by relationship), `scene_hints.py` (time/role/closeness hints) and `topics.py` (proactive topic candidates with cooldown filtering). Contracts and pure functions only; no live behavior change (#123).
+- Memory-aware attention is on by default: AstrBot events map to `RuntimeInput` via `adapters/astrbot_event.py`, `adapters/astrbot_attention.py` runs the policy and allows/`stop_event`s; presets quiet/balanced/chatty/intimate, stranger quota by relationship and config, scene hints injected into the system prompt. group_guard and persona_gate are retired in favour of SeekMemory; message merging and proactive DMs stay in the message_merger / ping plugins until #116/#117. Groundwork: backward-compatible multi-platform fields on `RuntimeInput` (scene/conversation_id/thread_id/role/addressed/reply_to_me, with `comment` reserved for comment sections); add a pure host-event mapper (`adapters/astrbot_event.py`) and end-to-end policy tests; new pure modules `signals.py` (relationship/relevance/heat/window), `attention.py` (hard conditions first, owner cooldown, stranger quota by relationship), `scene_hints.py` (time/role/closeness hints) and `topics.py` (proactive topic candidates with cooldown filtering). Contracts and pure functions only; no live behavior change (#123).
 - Event layering decision: no HostEvent/ContentPart/EventCodec yet; host adapters emit the extended `RuntimeInput` directly. Evolution triggers are recorded in `docs/EVENT-CONTRACT.md`.
 
 - 修复 seed 人格注入被 180 字上限截断：`_persona_sentence()` 不再复用单条记忆的清洗函数，人格整段进入常驻层，长度只由注入预算约束；新增 `scripts/bootstrap_persona.py`（含 `--dry-run`）与回归测试 `tests/test_persona_injection.py`（ISSUE-0034 / PR-0034）。
