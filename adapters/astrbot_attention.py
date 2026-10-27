@@ -47,6 +47,14 @@ class AttentionHooks:
         except Exception:  # noqa: BLE001
             return False
 
+    def _address_names(self) -> tuple[str, ...]:
+        """可被叫的名字；配置逗号分隔，默认大肥鱼。"""
+        try:
+            raw = str(self._c("attention_address_names", "大肥鱼,肥鱼") or "")
+        except Exception:  # noqa: BLE001
+            raw = "大肥鱼,肥鱼"
+        return tuple(part.strip() for part in raw.split(",") if part.strip())
+
     def _owner_id(self) -> str:
         try:
             umo = str(getattr(self, "owner_umo", "") or "")
@@ -138,10 +146,9 @@ class AttentionHooks:
         ):
             return True
         if decision.action is WakeAction.REPLY and (mapped.mentioned or mapped.addressed):
-            # 被点名：重新给一次额度
-            quota = self._quota_for(signals, policy)
-            self._save_quota(mapped, max(0, quota - 1))
-            return quota > 0
+            # 被点名（@ 或叫名字）一律放行；额度只影响之后不点名的续聊
+            self._save_quota(mapped, max(0, self._quota_for(signals, policy)))
+            return True
         if decision.action is WakeAction.REPLY:
             state = self.services.runtime.store.get(self._quota_key(mapped))
             remaining = int(state.unread_count or 0)
@@ -177,6 +184,7 @@ class AttentionHooks:
                 event,
                 session_id=str(getattr(event, "unified_msg_origin", "") or ""),
                 owner_id=self._owner_id(),
+                names=self._address_names(),
             )
             if not mapped.text:
                 return
@@ -214,6 +222,7 @@ class AttentionHooks:
                 event,
                 session_id=str(getattr(event, "unified_msg_origin", "") or ""),
                 owner_id=self._owner_id(),
+                names=self._address_names(),
             )
             state = self.services.runtime.store.get(mapped.session_id)
             text = compose(mapped, self._signals(mapped, state), time.localtime().tm_hour)

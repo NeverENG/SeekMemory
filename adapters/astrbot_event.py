@@ -65,11 +65,13 @@ def to_runtime_input(
     *,
     session_id: str = "",
     owner_id: str = "",
+    names: tuple[str, ...] = (),
     unread_count: int = 0,
     unread_seq: int = 0,
 ) -> RuntimeInput:
     """把一个宿主事件映射成运行时输入；字段缺失时按保守默认值处理。"""
     text = _text(event)
+    called = any(name and name in text for name in names)
     return RuntimeInput(
         session_id=str(session_id or getattr(event, "unified_msg_origin", "") or ""),
         text=text,
@@ -90,7 +92,7 @@ def to_runtime_input(
         thread_id=str(getattr(event, "thread_id", "") or ""),
         self_id=str(getattr(event, "self_id", "") or ""),
         role=_role(event, owner_id),
-        addressed=_mentioned(event),
+        addressed=_mentioned(event) or called,
         reply_to_me=bool(getattr(event, "reply_to_self", False)),
         event_id=str(getattr(event, "message_id", "") or ""),
         kind="message",

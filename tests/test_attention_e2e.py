@@ -99,6 +99,31 @@ class EndToEndPolicyTest(unittest.TestCase):
         self.assertEqual(mapped.thread_id, "thread-9")
         self.assertIs(decision.action, WakeAction.OBSERVE)
 
+    def test_name_call_counts_as_addressed(self) -> None:
+        event = FakeAstrBotEvent(text="大肥鱼你在干嘛", sender_id="user-1")
+        mapped = to_runtime_input(
+            event, session_id=event.unified_msg_origin, owner_id=OWNER,
+            names=("大肥鱼",),
+        )
+        self.assertTrue(mapped.addressed)
+        decision = self.policy.decide(mapped, SessionState("s"), Signals(), 1000.0)
+        self.assertIs(decision.action, WakeAction.REPLY)
+        self.assertEqual(decision.reason, "addressed")
+
+    def test_off_quota_still_replies_when_addressed(self) -> None:
+        from app.runtime.attention import AttentionThresholds
+
+        policy = AttentionPolicy(AttentionThresholds(
+            stranger_quota_base=0, stranger_quota_familiar=0, stranger_quota_close=0,
+        ))
+        mapped = to_runtime_input(
+            FakeAstrBotEvent(text="大肥鱼在吗", mentioned=True),
+            session_id="napcat:GroupMessage:7001", owner_id=OWNER,
+        )
+        decision = policy.decide(mapped, SessionState("s"), Signals(), 1000.0)
+        self.assertIs(decision.action, WakeAction.REPLY)
+        self.assertTrue(decision.must_reply)
+
     def test_scene_hint_renders_for_mapped_event(self) -> None:
         event = FakeAstrBotEvent(text="我回来啦", sender_id=OWNER)
         mapped = to_runtime_input(event, session_id=event.unified_msg_origin, owner_id=OWNER)

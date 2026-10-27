@@ -286,5 +286,10 @@
     "description": "陌生人额度：auto / off / fixed:2",
     "type": "string",
     "default": "auto"
+  },
+  "attention_address_names": {
+    "description": "叫这些名字也算叫她（逗号分隔）",
+    "type": "string",
+    "default": "大肥鱼,肥鱼"
   }
 }
