@@ -72,7 +72,7 @@ class TimingPolicyTest(unittest.TestCase):
 
 
 class RuntimeWorkerTest(unittest.TestCase):
-    def _worker(self, enabled=True):
+    def _worker(self, enabled=True, clock=None):
         class Runtime:
             def __init__(self):
                 self.contexts = []
@@ -97,6 +97,7 @@ class RuntimeWorkerTest(unittest.TestCase):
             interval_seconds=lambda: 1,
             max_attempts=lambda: 3,
             base_seconds=lambda: 2,
+            clock=clock,
         )
         return worker, runtime
 
@@ -199,6 +200,61 @@ class RuntimeWorkerTest(unittest.TestCase):
             self.assertEqual(runtime.active, 1)
             runtime.release.set()
             self.assertEqual(await task, 2)
+            self.assertEqual(runtime.max_active, 1)
+
+        asyncio.run(run())
+
+    def test_tick_uses_injected_clock_when_now_is_omitted(self) -> None:
+        worker, runtime = self._worker(clock=lambda: 100)
+        dispatched = asyncio.run(worker.tick())
+        self.assertEqual(dispatched, 1)
+        self.assertEqual(runtime.contexts[0][0].event_time, 100)
+
+    def test_overlapping_ticks_share_max_concurrency(self) -> None:
+        class Runtime:
+            def __init__(self):
+                self.active = 0
+                self.max_active = 0
+                self.started = None
+                self.release = None
+
+            async def dispatch_deferred(self, context, **kwargs):
+                self.active += 1
+                self.max_active = max(self.max_active, self.active)
+                self.started.set()
+                await self.release.wait()
+                self.active -= 1
+                return object()
+
+        async def run():
+            store = InMemoryStateStore()
+            for session_id in ("s1", "s2"):
+                state = store.get(session_id)
+                state.wait_until = 100
+                store.put(state)
+            runtime = Runtime()
+            runtime.started = asyncio.Event()
+            runtime.release = asyncio.Event()
+            worker = RuntimeWorker(
+                runtime=runtime,
+                scheduler=Scheduler(store),
+                enabled=lambda: True,
+                session_ids=lambda limit: ["s1", "s2"],
+                run_context=lambda session_id, now: RunContext(
+                    session_id=session_id, text="hello", event_time=now
+                ),
+                interval_seconds=lambda: 1,
+                max_attempts=lambda: 3,
+                base_seconds=lambda: 2,
+                max_concurrency=1,
+            )
+            first = asyncio.create_task(worker.tick(now=100))
+            second = asyncio.create_task(worker.tick(now=100))
+            await asyncio.wait_for(runtime.started.wait(), timeout=1)
+            await asyncio.sleep(0)
+            self.assertEqual(runtime.active, 1)
+            runtime.release.set()
+            await asyncio.gather(first, second)
             self.assertEqual(runtime.max_active, 1)
 
         asyncio.run(run())

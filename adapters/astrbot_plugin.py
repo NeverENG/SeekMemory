@@ -57,6 +57,7 @@ from ..webui.journal import Journal
 from ..webui.routes import WebRoutes
 from ..webui.trace import Trace
 from .astrbot_hooks import AstrBotHooks
+from .astrbot_runtime import AstrBotRuntimeAdapter
 
 class AstrBotPlugin(AstrBotHooks):
     """Composition root and lifecycle owner for the AstrBot host.
@@ -241,6 +242,7 @@ class AstrBotPlugin(AstrBotHooks):
             max_attempts=lambda: int(self._c("runtime_dispatch_max_attempts", 3)),
             base_seconds=lambda: float(self._c("runtime_dispatch_backoff_seconds", 2)),
             trace=self.trace,
+            clock=time.time,
         )
         background = BackgroundService(
             jobs=self.jobs,

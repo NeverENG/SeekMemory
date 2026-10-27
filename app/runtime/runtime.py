@@ -146,11 +146,20 @@ class AgentRuntime:
         """
         recorded = None
         if self.recorder is not None:
+            seen_at = event.event_time or event.received_at
+            at = (
+                datetime.datetime.fromtimestamp(
+                    float(seen_at), datetime.timezone.utc
+                ).isoformat(timespec="seconds")
+                if float(seen_at or 0.0) > 0
+                else ""
+            )
             recorded = self.recorder.record_user(
                 session_id=event.session_id,
                 text=event.text,
                 speaker_id=event.speaker_id,
                 event_id=event_id,
+                at=at,
                 deferred=deferred,
             )
         decision = self.observe(event, now=now)
@@ -384,7 +393,11 @@ class AgentRuntime:
         """Schedule bounded retry for a failed deferred dispatch."""
         state = self.store.get(session_id)
         if expected_revision is not None and state.revision != expected_revision:
-            return state
+            # A newer accept_user/observe may have installed its own wait or
+            # retry deadline. Preserve that newer timing; otherwise the old
+            # failure still needs a retry even though the revision changed.
+            if state.wait_until > 0 or state.next_retry_at > 0:
+                return state
         tries = max(1, int(attempts))
         if tries >= max(1, int(max_attempts)):
             state.wait_until = 0.0

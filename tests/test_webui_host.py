@@ -417,8 +417,8 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         await self.restart_plugin(open_to="everyone")
 
         class FailedMemoryContext:
-            def build_context(self, event):
-                raise RuntimeError(f"db path /secret: {event.text}")
+            def build_context(self, request):
+                raise RuntimeError(f"db path /secret: {request.query}")
 
         self.plugin.services.runtime.memory_context = FailedMemoryContext()
         event = PrivateEvent("private message body")

@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import time
 from typing import Callable
 
-from .contracts import RunContext, RunResult, TraceSink
+from .contracts import Clock, RunContext, RunResult, TraceSink
 from .runtime import AgentRuntime
 from .scheduler import Scheduler
 
@@ -31,6 +30,7 @@ class RuntimeWorker:
         base_seconds: Callable[[], float],
         trace: TraceSink | None = None,
         max_concurrency: int = 4,
+        clock: Clock | None = None,
     ) -> None:
         self.runtime = runtime
         self.scheduler = scheduler
@@ -42,7 +42,9 @@ class RuntimeWorker:
         self.base_seconds = base_seconds
         self.trace = trace
         self.max_concurrency = max(1, int(max_concurrency))
+        self.clock = clock
         self._dispatching: set[str] = set()
+        self._semaphores: dict[object, asyncio.Semaphore] = {}
 
     def _record_failure(self, status: str, error: Exception, session_id: str = "") -> None:
         if self.trace is not None:
@@ -55,12 +57,27 @@ class RuntimeWorker:
                 },
             )
 
+    def _moment(self, now: float | None) -> float:
+        if now is not None:
+            return float(now)
+        if self.clock is None:
+            raise RuntimeError("runtime worker requires now or an injected clock")
+        return float(self.clock())
+
+    def _semaphore(self) -> asyncio.Semaphore:
+        loop = asyncio.get_running_loop()
+        semaphore = self._semaphores.get(loop)
+        if semaphore is None:
+            semaphore = asyncio.Semaphore(self.max_concurrency)
+            self._semaphores[loop] = semaphore
+        return semaphore
+
     async def dispatch(self, session_id: str, now: float | None = None) -> RunResult | None:
         if not self.enabled() or session_id in self._dispatching:
             return None
         self._dispatching.add(session_id)
         try:
-            moment = time.time() if now is None else float(now)
+            moment = self._moment(now)
             return await self.runtime.dispatch_deferred(
                 self.run_context(session_id, moment),
                 now=moment,
@@ -73,7 +90,7 @@ class RuntimeWorker:
     async def tick(self, now: float | None = None) -> int:
         if not self.enabled():
             return 0
-        moment = time.time() if now is None else float(now)
+        moment = self._moment(now)
         try:
             due = self.scheduler.due(self.session_ids(100), moment)
         except Exception as exc:  # noqa: BLE001 - scheduler failure is fail-open
@@ -81,7 +98,7 @@ class RuntimeWorker:
             return 0
         if not due:
             return 0
-        semaphore = asyncio.Semaphore(self.max_concurrency)
+        semaphore = self._semaphore()
 
         async def run_one(item) -> bool:
             async with semaphore:

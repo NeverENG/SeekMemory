@@ -501,6 +501,61 @@ class WakePolicyTest(unittest.TestCase):
         self.assertEqual(state.unread_count, 1)
         self.assertEqual(state.last_spoke_at, 100)
 
+    def test_deferred_failure_keeps_retry_after_concurrent_newer_event(self) -> None:
+        class Model:
+            runtime = None
+
+            async def complete(self, session_id, prompt, system_prompt=None):
+                self.runtime.accept_user(
+                    RuntimeInput(
+                        "s1", "newer", mentioned=True, unread_count=1, event_time=101
+                    ),
+                    now=101,
+                )
+                raise RuntimeError("provider failed")
+
+        class Sender:
+            async def send(self, session_id, text):
+                return True
+
+        class Recorder:
+            def new_run_id(self):
+                return "run-concurrent-failure"
+
+            def record_user(self, **kwargs):
+                return SimpleNamespace(source_id="u2", turn_id="t2")
+
+            def record_deferred_reply(self, **kwargs):
+                raise AssertionError("must not record a reply")
+
+            def record_deferred_error(self, **kwargs):
+                pass
+
+        store = InMemoryStateStore()
+        state = store.get("s1")
+        state.wait_until = 100
+        store.put(state)
+        model = Model()
+        runtime = AgentRuntime(
+            store,
+            clock=lambda: 100,
+            model_gateway=model,
+            message_sender=Sender(),
+            recorder=Recorder(),
+        )
+        model.runtime = runtime
+
+        result = asyncio.run(
+            runtime.dispatch_deferred(
+                RunContext(session_id="s1", text="old", event_time=100), now=100
+            )
+        )
+        self.assertFalse(result.delivered)
+        state = store.get("s1")
+        self.assertEqual(state.unread_count, 1)
+        self.assertGreater(state.wait_until, 100)
+        self.assertEqual(state.next_retry_at, state.wait_until)
+
     def test_deferred_dispatch_rejects_not_due_state(self) -> None:
         class Model:
             def __init__(self):
@@ -685,6 +740,9 @@ class AgentRuntimeNormalPathTest(unittest.TestCase):
         self.assertEqual((receipt.source_id, receipt.turn_id), ("u1", "t1"))
         self.assertEqual(receipt.decision.action, WakeAction.REPLY)
         self.assertEqual(self.recorder.users[0]["event_id"], "e1")
+        self.assertEqual(
+            self.recorder.users[0]["at"], "1970-01-01T00:01:40+00:00"
+        )
         self.assertTrue(self.recorder.users[0]["deferred"])
         self.assertEqual(self.store.get("s1").last_action, "reply")
 
