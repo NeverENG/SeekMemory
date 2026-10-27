@@ -249,9 +249,11 @@ def mark_extraction_failed(self, source_ids: list[str], error_type: str, *,
 
 ---
 
-## 8. 验收：conformance 层（待落地）
+## 8. 验收：conformance 层
 
-本文每条可观察的行为都应当有对应黑盒用例，且**现有 AstrBot 适配器不改用例就能通过**。计划覆盖：
+实现位置 `tests/test_host_ports_conformance.py`，入口 `python scripts/run_tests.py --layer conformance`。
+
+下表的 8 条契约由 **9 个用例**覆盖（第 2 条拆成 secret 与跨主体两个用例），且**现有 AstrBot 适配器不改用例就能通过**——这才是这一层可信的原因：
 
 1. 捕获 → 召回往返，经正常披露路径取回刚写入的事实；
 2. 召回不返回 `secret`，也不返回其他主体的私有记录；
@@ -261,6 +263,8 @@ def mark_extraction_failed(self, source_ids: list[str], error_type: str, *,
 6. 上下文亲和度低时披露降级为 paraphrase/hint；
 7. 模型调用失败后待抽取输入仍可恢复，缓存与账本均未改动；
 8. 注入块不超过配置字符上限。
+
+这 9 个用例中的关键断言都做过反向验证：人为把「secret 换成普通记忆」「受话人换成本人」「幂等期望值改错」之后，对应用例必须失败，避免空载荷跑绿。
 
 ---
 
