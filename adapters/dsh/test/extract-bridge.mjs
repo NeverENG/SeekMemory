@@ -5,6 +5,11 @@
  * 最关键的一条断言是 **block-end 权威**：宿主流同时给 text-delta 和 block-end 时，
  * 只取后者，否则正文会翻倍（上游踩过，见 llm.d.ts:146-148）。
  *
+ * 另外覆盖三种"模型侧不可用"的真实路径，它们都必须 skip 而不是崩、也不能提交：
+ *   - 未配 provider/model（不猜宿主默认模型）
+ *   - 宿主流被中止（finish.reason.kind === 'aborted'）
+ *   - 宿主流抛错（provider 侧异常）
+ *
  * 用进程内 HTTP 服务当内核，假 llm 服务当宿主，不 spawn、不联网。
  */
 
@@ -28,8 +33,10 @@ function expect(name, actual, wanted) {
 }
 
 // ---------- 假内核 ----------
+// planDecider 由每个用例设置：返回 task 对象，或 null 表示 204。
 const commits = [];
-let planCount = 0;
+let planDecider = () => null;
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://127.0.0.1');
   if (url.pathname === '/healthz') {
@@ -37,18 +44,13 @@ const server = createServer(async (req, res) => {
     return res.end(JSON.stringify({ ok: true, version: 't', host_contract: 1 }));
   }
   if (url.pathname === '/extract/plan') {
-    planCount += 1;
-    if (planCount <= 2) {
-      res.writeHead(200, { 'content-type': 'application/json' });
-      return res.end(
-        JSON.stringify({
-          task_id: `t${planCount}`,
-          chat_request: { system_prompt: 'sys', prompt: '请输出 JSON', max_tokens: 100, temperature: 0 },
-        }),
-      );
+    const task = planDecider();
+    if (!task) {
+      res.writeHead(204);
+      return res.end();
     }
-    res.writeHead(204);
-    return res.end();
+    res.writeHead(200, { 'content-type': 'application/json' });
+    return res.end(JSON.stringify(task));
   }
   if (url.pathname === '/extract/commit') {
     const chunks = [];
@@ -66,6 +68,11 @@ const port = server.address().port;
 const runtimePath = path.join(TMP, 'runtime.json');
 writeFileSync(runtimePath, JSON.stringify({ port, token: 't', pid: 1, version: 't', host_contract: 1 }), 'utf8');
 
+const task = (id) => ({
+  task_id: id,
+  chat_request: { system_prompt: 'sys', prompt: '请输出 JSON', max_tokens: 100, temperature: 0 },
+});
+
 // ---------- 假宿主 ----------
 const log = { info() {}, warn() {}, error() {}, debug() {} };
 function fakeCtx(streamFactory) {
@@ -77,15 +84,6 @@ function fakeCtx(streamFactory) {
     },
   };
 }
-// 同时给 delta 和 block-end：正文只能是 block-end 那份
-const streamFactory = () => {
-  return (async function* () {
-    yield { type: 'text-delta', text: '[' };
-    yield { type: 'block-end', block: { type: 'text', text: '[]' } };
-    yield { type: 'usage', usage: { inputTokens: 10, outputTokens: 2 } };
-    yield { type: 'finish', reason: { kind: 'stop' } };
-  })();
-};
 
 const baseCfg = {
   runtimePath,
@@ -98,12 +96,19 @@ const baseCfg = {
   subjectKey: 's',
 };
 const kernel = new KernelClient({ config: baseCfg, logger: log });
+const llmCfg = { ...baseCfg, llmProvider: 'p', llmModel: 'm', subjectKey: 's' };
 
 // 1. 正常路径：取活 → 宿主 LLM → 交回
-const ctx = fakeCtx(streamFactory);
 {
-  const cfg = { ...baseCfg, llmProvider: 'p', llmModel: 'm', subjectKey: 's' };
-  const r = await runOnce({ ctx, config: cfg, kernel, logger: log });
+  planDecider = () => task('t1');
+  const streamFactory = () =>
+    (async function* () {
+      yield { type: 'text-delta', text: '[' };
+      yield { type: 'block-end', block: { type: 'text', text: '[]' } };
+      yield { type: 'usage', usage: { inputTokens: 10, outputTokens: 2 } };
+      yield { type: 'finish', reason: { kind: 'stop' } };
+    })();
+  const r = await runOnce({ ctx: fakeCtx(streamFactory), config: llmCfg, kernel, logger: log });
   expect('第一次 runOnce → done', r.outcome, 'done');
   expect('commit 被调用一次', commits.length, 1);
   expect('task_id 正确', commits[0]?.task_id, 't1');
@@ -113,33 +118,56 @@ const ctx = fakeCtx(streamFactory);
 
 // 2. 没配 provider/model → 跳过，不提交、不丢任务
 {
-  const cfg = { ...baseCfg, llmProvider: '', llmModel: '', subjectKey: 's' };
-  const r = await runOnce({ ctx, config: cfg, kernel, logger: log });
+  planDecider = () => task('t2');
+  const r = await runOnce({ ctx: fakeCtx(() => (async function* () {})()), config: { ...baseCfg, llmProvider: '', llmModel: '', subjectKey: 's' }, kernel, logger: log });
   expect('未配模型 → skipped', r.outcome, 'skipped');
   expect('未配模型 → 不提交', commits.length, 1);
   expect('跳过原因可读', String(r.detail).includes('llmProvider'), true);
 }
 
-// 3. 内核 204 → idle
+// 3. 宿主流被中止（finish.reason.kind = 'aborted'）→ 跳过，不提交
 {
-  const cfg = { ...baseCfg, llmProvider: 'p', llmModel: 'm', subjectKey: 's' };
-  const r = await runOnce({ ctx, config: cfg, kernel, logger: log });
-  expect('无任务 → idle', r.outcome, 'idle');
+  planDecider = () => task('t3');
+  const abortedStream = () =>
+    (async function* () {
+      yield { type: 'text-delta', text: '半截输出' };
+      yield { type: 'finish', reason: { kind: 'aborted' } };
+    })();
+  const r = await runOnce({ ctx: fakeCtx(abortedStream), config: llmCfg, kernel, logger: log });
+  expect('流被中止 → skipped', r.outcome, 'skipped');
+  expect('中止原因可见', String(r.detail).includes('llm_finish_aborted'), true);
+  expect('中止 → 不提交', commits.length, 1);
 }
 
-// 4. 宿主没有 llm 服务 → skipped（不是崩）
+// 4. 宿主流抛错（provider 侧异常）→ 跳过，不提交
 {
+  planDecider = () => task('t4');
+  const throwingStream = () =>
+    (async function* () {
+      yield { type: 'text-delta', text: '前缀' };
+      throw new Error('provider exploded');
+    })();
+  const r = await runOnce({ ctx: fakeCtx(throwingStream), config: llmCfg, kernel, logger: log });
+  expect('流抛错 → skipped', r.outcome, 'skipped');
+  expect('抛错原因可见', String(r.detail).includes('llm_throw'), true);
+  expect('抛错 → 不提交', commits.length, 1);
+}
+
+// 5. 宿主没有 llm 服务 → 跳过（不是崩）
+{
+  planDecider = () => task('t5');
   const noLlm = { logger: log, get: () => undefined };
-  const cfg = { ...baseCfg, llmProvider: 'p', llmModel: 'm', subjectKey: 's' };
-  // 先把 plan 计数拉回可返回任务的状态不方便，这里直接构造：改用新 kernel 指向同一服务不行。
-  // 简化：验证 chatViaHost 的兜底不抛——用 runOnce 对 204 会先返回 idle，故单独断言 get 缺失不抛。
-  let threw = null;
-  try {
-    await runOnce({ ctx: noLlm, config: cfg, kernel, logger: log });
-  } catch (err) {
-    threw = err?.message ?? String(err);
-  }
-  expect('宿主无 llm 服务 → 不抛', threw, null);
+  const r = await runOnce({ ctx: noLlm, config: llmCfg, kernel, logger: log });
+  expect('宿主无 llm 服务 → skipped', r.outcome, 'skipped');
+  expect('无 llm 服务原因可见', String(r.detail).includes('no_llm_service'), true);
+  expect('无 llm 服务 → 不提交', commits.length, 1);
+}
+
+// 6. 内核 204 → idle
+{
+  planDecider = () => null;
+  const r = await runOnce({ ctx: fakeCtx(() => (async function* () {})()), config: llmCfg, kernel, logger: log });
+  expect('无任务 → idle', r.outcome, 'idle');
 }
 
 await new Promise((r) => server.close(r));
