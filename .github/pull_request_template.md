@@ -21,4 +21,4 @@ Fixes # (issue)
 - [ ] I confirm the target branch is `main`
 - [ ] Code has passed local testing
 - [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] For feature changes, I checked whether docs need updating; if so, I updated the relevant pages in both `docs/zh/` and `docs/en/`, or explained why no docs update is needed
+- [ ] Docs, if changed, are mirrored in `docs/zh/` and `docs/en/`, included in `mkdocs.yml` nav, and pass `python scripts/check_docs_structure.py`

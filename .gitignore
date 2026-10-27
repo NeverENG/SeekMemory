@@ -15,6 +15,7 @@ __pycache__/
 /pages/memory/
 /dist/
 /data/
+/site/
 
 # Legacy local build output.
 /views/memory/

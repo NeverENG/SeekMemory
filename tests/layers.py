@@ -40,7 +40,7 @@ LAYERS: dict[str, tuple[str, ...]] = {
         "test_api_contract.py",
         "test_public_interfaces.py",
     ),
-    # Host-port conformance: 任何宿主实现都必须通过（见 docs/HOST-PORTS.md）。
+    # Host-port conformance: 任何宿主实现都必须通过（见 app/ports.py）。
     "conformance": (
         "test_host_ports_conformance.py",
     ),

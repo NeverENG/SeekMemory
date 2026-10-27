@@ -1,4 +1,4 @@
-"""Host-port conformance layer — docs/HOST-PORTS.md v1.
+"""Host-port conformance layer — app/ports.py and app/contracts.py.
 
 The cases below target the **ports**, not AstrBot event objects: any host
 implementation must pass them, and the existing AstrBot adapter passes them
@@ -71,7 +71,7 @@ class CountingModel:
 
 
 class HostPortConformanceTest(unittest.TestCase):
-    """One test per clause of HOST-PORTS.md."""
+    """One test per clause of app/ports.py."""
 
     def setUp(self) -> None:
         os.makedirs(TMP_ROOT, exist_ok=True)

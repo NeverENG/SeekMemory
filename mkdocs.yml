@@ -1,0 +1,48 @@
+site_name: SeekMemory
+docs_dir: docs
+site_dir: site
+theme:
+  name: mkdocs
+nav:
+  - Home: index.md
+  - 简体中文:
+      - 首页: zh/index.md
+      - 架构:
+          - 总览: zh/architecture/overview.md
+          - 模块:
+              - core: zh/architecture/modules/core.md
+              - app: zh/architecture/modules/app.md
+              - services: zh/architecture/modules/services.md
+              - store: zh/architecture/modules/store.md
+              - perceive: zh/architecture/modules/perceive.md
+              - recall: zh/architecture/modules/recall.md
+              - maintain: zh/architecture/modules/maintain.md
+              - Agent Runtime: zh/architecture/modules/runtime.md
+              - adapters: zh/architecture/modules/adapters.md
+              - WebUI: zh/architecture/modules/webui.md
+      - 指南:
+          - 开发环境与验证: zh/guides/development.md
+          - 管理界面: zh/guides/webui.md
+          - 人格种子: zh/guides/persona-seed.md
+  - English:
+      - Home: en/index.md
+      - Architecture:
+          - Overview: en/architecture/overview.md
+          - Modules:
+              - core: en/architecture/modules/core.md
+              - app: en/architecture/modules/app.md
+              - services: en/architecture/modules/services.md
+              - store: en/architecture/modules/store.md
+              - perceive: en/architecture/modules/perceive.md
+              - recall: en/architecture/modules/recall.md
+              - maintain: en/architecture/modules/maintain.md
+              - Agent Runtime: en/architecture/modules/runtime.md
+              - adapters: en/architecture/modules/adapters.md
+              - WebUI: en/architecture/modules/webui.md
+      - Guides:
+          - Development and checks: en/guides/development.md
+          - WebUI operations: en/guides/webui.md
+          - Persona seed: en/guides/persona-seed.md
+validation:
+  links:
+    not_found: ignore
