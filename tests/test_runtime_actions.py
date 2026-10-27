@@ -111,7 +111,18 @@ class ActionTest(unittest.TestCase):
         state = state_store.get("s1")
         state.quiet_until = 321
         state_store.put(state)
-        self.assertEqual(RepoStateStore(db.runtime_state).get("s1").quiet_until, 321)
+        loaded = RepoStateStore(db.runtime_state).get("s1")
+        self.assertEqual(loaded.quiet_until, 321)
+        state.last_event_at = 11.0
+        state.proactive_due_at = 22.0
+        state.proactive_attempts = 2
+        state.last_action_status = "succeeded"
+        state_store.put(state)
+        loaded = RepoStateStore(db.runtime_state).get("s1")
+        self.assertEqual(loaded.last_event_at, 11.0)
+        self.assertEqual(loaded.proactive_due_at, 22.0)
+        self.assertEqual(loaded.proactive_attempts, 2)
+        self.assertEqual(loaded.last_action_status, "succeeded")
         self.assertEqual(db.runtime_state.sessions(), ["s1"])
 
         recorder = EpisodeRecorder(RepoEpisodeStore(db.runtime_episodes))

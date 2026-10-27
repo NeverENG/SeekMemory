@@ -318,6 +318,28 @@ class WakePolicyTest(unittest.TestCase):
         self.assertEqual(loaded.quiet_until, 123)
         self.assertEqual(loaded.unread_count, 4)
 
+    def test_json_state_store_round_trips_new_runtime_fields(self) -> None:
+        path = os.path.join(
+            tempfile.mkdtemp(prefix="seekmem_runtime_state_new_"), "state.json"
+        )
+        first = JsonStateStore(path)
+        state = first.get("s1")
+        state.last_event_at = 11.0
+        state.proactive_due_at = 22.0
+        state.proactive_attempts = 2
+        state.last_action_at = 33.0
+        state.last_action_kind = "host_action"
+        state.last_action_status = "succeeded"
+        first.put(state)
+
+        loaded = JsonStateStore(path).get("s1")
+        self.assertEqual(loaded.last_event_at, 11.0)
+        self.assertEqual(loaded.proactive_due_at, 22.0)
+        self.assertEqual(loaded.proactive_attempts, 2)
+        self.assertEqual(loaded.last_action_at, 33.0)
+        self.assertEqual(loaded.last_action_kind, "host_action")
+        self.assertEqual(loaded.last_action_status, "succeeded")
+
     def test_runtime_surface_has_no_test_only_mutators(self) -> None:
         for name in ("quiet", "wait", "mark_read"):
             self.assertFalse(hasattr(AgentRuntime, name))
@@ -350,6 +372,9 @@ class WakePolicyTest(unittest.TestCase):
         self.assertEqual(state.wait_until, 0.0)
         self.assertEqual(state.next_retry_at, 0.0)
         self.assertEqual(state.reply_cooldown_seconds, 30.0)
+        self.assertEqual(state.proactive_due_at, 0.0)
+        self.assertEqual(state.proactive_attempts, 0)
+        self.assertEqual(state.last_action_status, "")
         runtime = AgentRuntime(store, clock=lambda: 200)
         runtime.observe(RuntimeInput("s1", "ambient", event_time=200), now=200)
         runtime.mark_delivered("s1", now=200)

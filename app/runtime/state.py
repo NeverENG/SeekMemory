@@ -12,6 +12,25 @@ from pathlib import Path
 from .contracts import SessionState
 
 
+def session_state_from_payload(
+    session_id: str, raw: dict | None
+) -> SessionState:
+    """Build state from persisted JSON, tolerating old/unknown payloads."""
+    key = str(session_id or "")
+    if not isinstance(raw, dict):
+        return SessionState(session_id=key)
+    data = {
+        name: raw[name]
+        for name in SessionState.__dataclass_fields__
+        if name in raw and raw[name] is not None
+    }
+    data["session_id"] = key
+    try:
+        return SessionState(**data)
+    except TypeError:
+        return SessionState(session_id=key)
+
+
 class InMemoryStateStore:
     """Small deterministic store used by tests and ephemeral hosts."""
 
@@ -60,19 +79,7 @@ class JsonStateStore:
     def get(self, session_id: str) -> SessionState:
         key = str(session_id or "")
         with self._lock:
-            raw = self._load().get(key)
-            if not isinstance(raw, dict):
-                return SessionState(session_id=key)
-            data = {
-                name: raw[name]
-                for name in SessionState.__dataclass_fields__
-                if name in raw and raw[name] is not None
-            }
-            data["session_id"] = key
-            try:
-                return SessionState(**data)
-            except TypeError:
-                return SessionState(session_id=key)
+            return session_state_from_payload(key, self._load().get(key))
 
     def put(self, state: SessionState) -> None:
         key = str(state.session_id or "")
@@ -111,18 +118,7 @@ class RepoStateStore:
         except Exception as exc:  # noqa: BLE001 - runtime state is fail-open
             self.last_error = type(exc).__name__
             return SessionState(session_id=key)
-        if not isinstance(raw, dict) or not raw:
-            return SessionState(session_id=key)
-        data = {
-            name: raw[name]
-            for name in SessionState.__dataclass_fields__
-            if name in raw and raw[name] is not None
-        }
-        data["session_id"] = key
-        try:
-            return SessionState(**data)
-        except TypeError:
-            return SessionState(session_id=key)
+        return session_state_from_payload(key, raw)
 
     def put(self, state: SessionState) -> None:
         try:
