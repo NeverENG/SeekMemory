@@ -64,12 +64,14 @@ class MainOwnershipTest(unittest.TestCase):
         self.assertEqual(definitions, {"__init__", "initialize", "terminate"})
 
     def test_main_has_explicit_hook_bindings(self) -> None:
-        for name in (
-            "inject_memory", "buffer_message", "capture_reply",
-            "record_delivery", "observe_agent_begin", "observe_agent_done",
-            "observe_tool", "observe_tool_result", "start_jobs",
-        ):
-            self.assertIn(f"{name} = _HOOKS[\"{name}\"]", self.source)
+        """构建器登记的每个 hook 都必须在 Main 上显式绑定，防止新增 hook 忘记接线。"""
+        import re as _re
+
+        hooks_source = (ROOT / "adapters" / "astrbot_hooks.py").read_text()
+        names = _re.findall(r'^\s+"([a-z_]+)": _register\(', hooks_source, _re.M)
+        self.assertTrue(names, "build_astrbot_hooks 里没有解析到 hook 名")
+        for name in names:
+            self.assertIn(f"{name} = _HOOKS[\"{name}\"]", self.source, name)
         self.assertNotIn("locals().update", self.source)
 
     def test_service_collection_is_a_typed_bundle(self) -> None:
