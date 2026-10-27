@@ -51,6 +51,18 @@ class AttentionHooks:
         except Exception:  # noqa: BLE001
             return False
 
+    @staticmethod
+    def _at_me(event: AstrMessageEvent) -> bool:
+        """只有真的 At 她才是 mentioned；wake_prefix 为空导致的全唤醒不算。"""
+        try:
+            me = str(event.get_self_id())
+            for comp in event.get_messages() or ():
+                if type(comp).__name__ == "At" and str(getattr(comp, "qq", "")) == me:
+                    return True
+        except Exception:  # noqa: BLE001
+            return False
+        return False
+
     def _address_names(self) -> tuple[str, ...]:
         """可被叫的名字；配置逗号分隔，默认大肥鱼。"""
         try:
@@ -187,6 +199,7 @@ class AttentionHooks:
                 session_id=str(getattr(event, "unified_msg_origin", "") or ""),
                 owner_id=self._owner_id(),
                 names=self._address_names(),
+                mentioned=self._at_me(event),
             )
             if not mapped.text:
                 return
@@ -225,6 +238,7 @@ class AttentionHooks:
                 session_id=str(getattr(event, "unified_msg_origin", "") or ""),
                 owner_id=self._owner_id(),
                 names=self._address_names(),
+                mentioned=self._at_me(event),
             )
             state = self.services.runtime.store.get(mapped.session_id)
             text = compose(mapped, self._signals(mapped, state), time.localtime().tm_hour)

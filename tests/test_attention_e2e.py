@@ -63,6 +63,16 @@ class EndToEndPolicyTest(unittest.TestCase):
         self.assertIs(decision.action, WakeAction.REPLY)
         self.assertEqual(decision.reason, "private_message")
 
+    def test_wake_all_is_not_a_mention(self) -> None:
+        """wake_prefix 为空时 is_at_or_wake_command 恒真，不能当成被 @。"""
+        event = FakeAstrBotEvent(text="随便聊聊", mentioned=True)
+        mapped = to_runtime_input(
+            event, session_id=event.unified_msg_origin, owner_id=OWNER,
+            mentioned=False,
+        )
+        self.assertFalse(mapped.mentioned)
+        self.assertFalse(mapped.addressed)
+
     def test_group_mention_replies(self) -> None:
         mapped, decision = self.decide(FakeAstrBotEvent(text="大肥鱼在吗", mentioned=True))
         self.assertEqual(mapped.scene, "group")
