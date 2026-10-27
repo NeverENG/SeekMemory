@@ -4,6 +4,14 @@
 
 ### 中文
 
+- 新增记忆感知的开口策略基础件（默认关）：`RuntimeInput` 向后兼容扩展多平台字段（scene/conversation_id/role/addressed/reply_to_me 等）；新增 `app/runtime/signals.py`（关系/相关度/热度/时间窗信号）、`attention.py`（纯函数策略，硬条件优先、主人冷却、陌生人关系额度）、`scene_hints.py`（时间/身份/亲疏提示）、`topics.py`（主动话题候选与冷却过滤）。只新增契约与纯函数，不改变线上行为（ISSUE-0035 / PR-0035）。
+- 事件分层决策：暂不引入 HostEvent/ContentPart/EventCodec，宿主适配层直接产出扩展后的 `RuntimeInput`；演进触发条件见 `docs/EVENT-CONTRACT.md`。
+
+### English
+
+- Add memory-aware attention groundwork (default off): backward-compatible multi-platform fields on `RuntimeInput` (scene/conversation_id/role/addressed/reply_to_me); new pure modules `signals.py` (relationship/relevance/heat/window), `attention.py` (hard conditions first, owner cooldown, stranger quota by relationship), `scene_hints.py` (time/role/closeness hints) and `topics.py` (proactive topic candidates with cooldown filtering). Contracts and pure functions only; no live behavior change (ISSUE-0035 / PR-0035).
+- Event layering decision: no HostEvent/ContentPart/EventCodec yet; host adapters emit the extended `RuntimeInput` directly. Evolution triggers are recorded in `docs/EVENT-CONTRACT.md`.
+
 - 修复 seed 人格注入被 180 字上限截断：`_persona_sentence()` 不再复用单条记忆的清洗函数，人格整段进入常驻层，长度只由注入预算约束；新增 `scripts/bootstrap_persona.py`（含 `--dry-run`）与回归测试 `tests/test_persona_injection.py`（ISSUE-0034 / PR-0034）。
 
 - 新增 Dream 分诊 tradeoff 评估：冻结 40 个合成主题，跑生产 `DreamCycle -> IngestService.flush` 路径，用确定性 fake provider 记录调用、token、分诊选择、抽取量、重要事实召回、错误记忆/重复率、bot 行为/自我印象覆盖和 pending 数量/年龄，并对比 `cc814ce` 与 `d9fc248`。当前按预注册阈值判为 `NOT_ACCEPTED`：调用 -80.0%、token -72.8%，但重要事实召回 65.2%、自我印象覆盖 0/1，pending 每晚线性增长 8 个主题。不修改分诊算法，不新增服务/表/写入路径。
