@@ -14,6 +14,9 @@ from .relationship import (
     band_for,
 )
 
+# Internal smoothing prior for confidence; not an evidence-admission threshold.
+_CONFIDENCE_PRIOR_COUNT = 2.0
+
 
 class RelationshipSignal(str, Enum):
     POSITIVE = "positive"
@@ -100,6 +103,8 @@ class RelationshipObservation:
 
 @dataclass(frozen=True)
 class RelationshipScoringPolicy:
+    """Resolved scoring settings; configuration parsing belongs outside core."""
+
     version: str = RELATIONSHIP_POLICY_VERSION
     learning_rate: float = 0.25
     max_revision_delta: float = 0.10
@@ -245,7 +250,7 @@ def plan_relationship_revision(
     delta = max(-policy.max_revision_delta, min(policy.max_revision_delta, raw_delta))
     affinity = max(-1.0, min(1.0, current.affinity + delta))
     evidence_count = current.evidence_count + len(counted)
-    confidence = evidence_count / (evidence_count + 2.0)
+    confidence = evidence_count / (evidence_count + _CONFIDENCE_PRIOR_COUNT)
     positive = any(
         item.signal in (RelationshipSignal.POSITIVE, RelationshipSignal.REPAIR)
         for item in counted

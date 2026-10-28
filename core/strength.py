@@ -13,9 +13,21 @@ from math import exp
 
 from .artifact import Strength
 
+# Internal algorithm parameters; these are not user configuration.
 BASE_DAYS = 30.0
 HIT_STEP = 0.1
 COOLDOWN = timedelta(minutes=30)
+
+_HIGH_AROUSAL = 0.7
+_LOW_AROUSAL = 0.3
+_NEGATIVE_VALENCE = -0.3
+_HIGH_AROUSAL_FACTOR = 1.5
+_LOW_AROUSAL_FACTOR = 0.8
+_NEGATIVE_HIGH_AROUSAL_FACTOR = 1.5
+_NEGATIVE_LOW_AROUSAL_FACTOR = 0.6
+_MIN_SALIENCE = 0.3
+_MAX_SALIENCE = 3.0
+_HIT_STABILITY_FACTOR = 0.5
 
 SHAPE_FACTORS: dict[str, float] = {
     "point": 1.0,
@@ -40,18 +52,18 @@ def _shape_factor(shape: str) -> float:
 
 def _emotion_factor(s: Strength) -> float:
     """情绪系数：高唤醒记得牢，低唤醒忘得快；负效价再叠加创伤/普通不快。"""
-    if s.arousal > 0.7:
-        factor = 1.5
-    elif s.arousal < 0.3:
-        factor = 0.8
+    if s.arousal > _HIGH_AROUSAL:
+        factor = _HIGH_AROUSAL_FACTOR
+    elif s.arousal < _LOW_AROUSAL:
+        factor = _LOW_AROUSAL_FACTOR
     else:
         factor = 1.0
 
-    if s.valence < -0.3:
-        if s.arousal > 0.7:
-            factor *= 1.5
-        elif s.arousal < 0.3:
-            factor *= 0.6
+    if s.valence < _NEGATIVE_VALENCE:
+        if s.arousal > _HIGH_AROUSAL:
+            factor *= _NEGATIVE_HIGH_AROUSAL_FACTOR
+        elif s.arousal < _LOW_AROUSAL:
+            factor *= _NEGATIVE_LOW_AROUSAL_FACTOR
     return factor
 
 
@@ -64,7 +76,7 @@ def _hits(s: Strength) -> float:
 
 def _salience(s: Strength) -> float:
     """显著度：越重要的事基础寿命越长。限制在 [0.3, 3.0] 防止极端值。"""
-    return min(3.0, max(0.3, float(s.weight)))
+    return min(_MAX_SALIENCE, max(_MIN_SALIENCE, float(s.weight)))
 
 
 def retention(s: Strength, shape: str, days: float) -> float:
@@ -73,7 +85,7 @@ def retention(s: Strength, shape: str, days: float) -> float:
     stability = (
         BASE_DAYS
         * _salience(s)
-        * (1.0 + 0.5 * _hits(s))
+        * (1.0 + _HIT_STABILITY_FACTOR * _hits(s))
         * _shape_factor(shape)
         * _emotion_factor(s)
     )

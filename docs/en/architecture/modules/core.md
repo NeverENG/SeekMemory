@@ -49,6 +49,19 @@ Family validators live in core/families. make constructs an object but does not 
 - **relationship.py / relationship_rules.py** own stable relationship IDs, snapshots, hysteresis, the ten-reason evidence rulebook, scope weights, per-cycle caps, and bounded revision plans. Models classify observations but never write affinity, delta, band, or policy version.
 - **interaction_policy.py** produces deterministic reply probability, fixed style, affection/follow-up/care/teasing permissions, and future proactive-kind permissions. Sampling is stable by immutable Source ID and fails open when the ID is absent.
 
+## Constant and policy-parameter ownership
+
+Constants stay with the rules they belong to; there is no global constants file. Equal numbers do not imply equal meaning: relationship confidence and close-band admission thresholds remain independent.
+
+| Category | Canonical owner and use |
+|---|---|
+| Internal algorithm parameters | Emotion factors, salience bounds and the hit factor belong to `strength.py`; disclosure thresholds and factors to `disclosure.py`; relationship entry/exit thresholds to `relationship.py`; confidence smoothing to `relationship_rules.py`. Named parameters live near the top of each file. New private names are neither exported from `domain.py` nor exposed as user configuration. |
+| Existing configurable policy values | `CapacityThresholds`, `RelationshipScoringPolicy` and `InteractionPolicySettings` retain their respective parameters and defaults. The fixed interaction rule table reuses the default probabilities from `InteractionPolicySettings`; configuration parsing and default consolidation in other layers are outside core constant ownership. |
+| Data contracts | Family names, Source roles, operation names and persona origins retain their domain owners. `relationship.py` owns relationship bands and its policy-version identifier, imported by the family validator. Trace derives allowed disclosure values from `DisclosureLevel`. Persisted values and their order are unchanged. |
+| Validation and diagnostic limits | Persona file size limits remain in `persona.py`, self-impression trust requirements in `bot_behavior.py`, and trace count limits/allowlists in `trace.py`. |
+
+Existing public constants keep their exports. Ownership cleanup does not change values, comparison boundaries, evaluation order, configuration-read timing or algorithm results.
+
 ## Core invariants
 
 Sources are append-only facts; Artifacts are revisable interpretations. Content updates go through ArtifactStore with expected_revision and cannot overwrite version history. subject_id, said_by, source session, and evidence must not be inferred in place of one another. Family validators own payload shape.

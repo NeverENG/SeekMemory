@@ -175,6 +175,8 @@ for name in api.__all__:
                 ("app.ports", "services.tree_service", "core.domain"),
                 ("core.ports", "core.graph", "core.domain"),
                 ("core.domain", "core.ports", "core.graph"),
+                ("core.families.relationship", "core.relationship", "core.domain"),
+                ("core.trace", "core.disclosure", "core.domain"),
             ):
                 with self.subTest(prefix=prefix, order=order):
                     result = subprocess.run(

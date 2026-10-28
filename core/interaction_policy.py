@@ -9,6 +9,7 @@ from enum import Enum
 
 from .relationship import HARD_GATE_CONFIDENCE, RelationshipBand, RelationshipSnapshot
 
+# Stable sampling identity and fixed expression limits; not configuration keys.
 INTERACTION_POLICY_VERSION = "interaction-v1"
 LOW_REPLY_CHARS = 120
 DISLIKE_REPLY_CHARS = 60
@@ -71,6 +72,8 @@ class InteractionGate:
 
 @dataclass(frozen=True)
 class InteractionPolicySettings:
+    """Resolved interaction settings and their canonical core defaults."""
+
     mode: str = "observe"
     low_private_reply_probability: float = 0.8
     dislike_private_reply_probability: float = 0.5
@@ -89,6 +92,9 @@ class InteractionPolicySettings:
                 raise ValueError(f"{name} must be within [0, 1]")
 
 
+# Reuse the settings defaults instead of repeating configurable probabilities.
+_DEFAULT_SETTINGS = InteractionPolicySettings()
+
 _RULES: dict[RelationshipBand, InteractionRule] = {
     RelationshipBand.CLOSE: InteractionRule(
         style=ReplyStyle.CUTE,
@@ -106,7 +112,7 @@ _RULES: dict[RelationshipBand, InteractionRule] = {
     RelationshipBand.NEUTRAL: InteractionRule(style=ReplyStyle.NEUTRAL),
     RelationshipBand.LOW: InteractionRule(
         style=ReplyStyle.COOL,
-        private_reply_probability=0.8,
+        private_reply_probability=_DEFAULT_SETTINGS.low_private_reply_probability,
         group_ambient_probability=0.0,
         allow_followup=False,
         max_followup_questions=0,
@@ -114,7 +120,7 @@ _RULES: dict[RelationshipBand, InteractionRule] = {
     ),
     RelationshipBand.DISLIKE: InteractionRule(
         style=ReplyStyle.MINIMAL,
-        private_reply_probability=0.5,
+        private_reply_probability=_DEFAULT_SETTINGS.dislike_private_reply_probability,
         group_ambient_probability=0.0,
         allow_followup=False,
         max_followup_questions=0,
@@ -147,7 +153,7 @@ def stable_sample(
 def decide_interaction(
     snapshot: RelationshipSnapshot,
     context: InteractionContext,
-    settings: InteractionPolicySettings = InteractionPolicySettings(),
+    settings: InteractionPolicySettings = _DEFAULT_SETTINGS,
 ) -> InteractionGate:
     """Return a candidate or enforced interaction gate for one WakePolicy result."""
     if settings.mode == "off":

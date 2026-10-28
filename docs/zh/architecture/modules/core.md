@@ -49,6 +49,19 @@ family 校验器位于 core/families。make 只构造对象，不自动校验；
 - **relationship.py / relationship_rules.py** 管理稳定关系 ID、快照、迟滞、十类 reason 证据规则、scope 权重、同轮上限和有界 revision plan。模型只分类观察，不能写 affinity、delta、band 或 policy version。
 - **interaction_policy.py** 纯函数地产生稳定回复概率、固定语气、亲昵称呼/follow-up/关心/玩笑权限和未来 proactive kind 权限。采样按不可变 Source ID 稳定；ID 缺失时 fail open。
 
+## 常量与策略参数归属
+
+常量随所属规则维护，不设全局常量文件。相同数值不一定表达相同含义，例如关系置信度门槛和亲近档位门槛分别维护。
+
+| 类别 | 唯一归属与使用方式 |
+|---|---|
+| 算法内部参数 | 遗忘的情绪系数、显著度范围及命中系数在 `strength.py`；披露的阈值与因子在 `disclosure.py`；关系进出档位阈值在 `relationship.py`；置信度平滑参数在 `relationship_rules.py`。具名参数放在文件顶部，新增内部名称不从 `domain.py` 导出，也不成为用户配置。 |
+| 已有可配置策略值 | `CapacityThresholds`、`RelationshipScoringPolicy`、`InteractionPolicySettings` 分别保留本领域的参数与默认值。互动固定规则表复用 `InteractionPolicySettings` 的默认概率；其他层的配置解析与默认值整理不属于 core 常量归属范围。 |
+| 数据约定 | 记忆类别、消息角色、操作名称及人格来源继续留在各自领域；关系档位及策略版本由 `relationship.py` 定义，family 校验器直接引用；追踪中的披露合法值由 `DisclosureLevel` 派生。持久化值和顺序不变。 |
+| 校验与诊断限制 | 人格文件长度限制留在 `persona.py`，自我印象信任要求留在 `bot_behavior.py`，追踪数量上限和白名单留在 `trace.py`。 |
+
+已有对外常量保留原导出。整理归属不改变数值、比较边界、运算顺序、配置读取时机或算法结果。
+
 ## 关键不变量
 
 Source 是追加式事实；Artifact 是可修订解释。内容修订通过仓储的 expected_revision CAS 提交，不能以新对象覆盖旧 ID 的版本历史。subject_id、said_by、来源会话和 evidence 不可相互推断替代。payload 的结构由 family validator 维护。

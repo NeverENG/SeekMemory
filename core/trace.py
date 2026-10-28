@@ -5,6 +5,9 @@ import math
 import re
 from datetime import datetime, timezone
 
+from .disclosure import DisclosureLevel
+
+# Trace contract values and internal storage bounds stay with trace projection.
 EVENTS = {"agent_begin", "llm_request", "llm_response", "agent_done",
           "message_sent", "tool_call", "tool_result"}
 FILTERS = {"all", "not_recalled", "recalled_but_withheld",
@@ -12,6 +15,10 @@ FILTERS = {"all", "not_recalled", "recalled_but_withheld",
 STATUSES = {"running", "ok", "error", "unknown"}
 _ID = re.compile(r"[A-Za-z0-9_-]{1,96}\Z")
 ID_LIMIT = 256
+_COUNT_LIMIT = 1_000_000_000
+_DISCLOSURE_LEVELS = tuple(level.value for level in DisclosureLevel)
+_RECALL_MODES = {"none", "strict", "loose"}
+_FALLBACKS = {"", "recent_profile", "recent_topic"}
 
 
 def ids(values) -> list[str]:
@@ -21,7 +28,7 @@ def ids(values) -> list[str]:
 
 
 def count(value) -> int:
-    return max(0, min(value, 1_000_000_000)) if type(value) is int else 0
+    return max(0, min(value, _COUNT_LIMIT)) if type(value) is int else 0
 
 
 def choice(value, allowed, default):
@@ -34,14 +41,14 @@ def recall_data(info: dict) -> dict:
     disclosure = disclosure if isinstance(disclosure, dict) else {}
     levels = {k: v for k, v in disclosure.items()
               if isinstance(k, str) and _ID.fullmatch(k)
-              and v in ("full", "paraphrase", "hint", "silence")}
+              and v in _DISCLOSURE_LEVELS}
     gate = info.get("gate", {})
     gate = gate if isinstance(gate, dict) else {}
     threshold = gate.get("threshold", 0)
     if type(threshold) not in (int, float) or not math.isfinite(threshold):
         threshold = 0
     return {
-        "mode": choice(info.get("mode"), {"none", "strict", "loose"}, "none"),
+        "mode": choice(info.get("mode"), _RECALL_MODES, "none"),
         "candidates": count(info.get("candidates")),
         "picked_ids": ids(info.get("picked_ids")),
         "pinned_ids": ids(info.get("pinned_ids")),
@@ -49,7 +56,7 @@ def recall_data(info: dict) -> dict:
         "dropped_ids": ids(info.get("dropped_ids")),
         "withheld_ids": ids([k for k, v in levels.items() if v == "silence"]),
         "disclosure": dict(list(levels.items())[:ID_LIMIT]),
-        "fallback": choice(info.get("fallback"), {"", "recent_profile", "recent_topic"}, ""),
+        "fallback": choice(info.get("fallback"), _FALLBACKS, ""),
         "chars": count(info.get("chars")),
         "gate": {"evaluated": gate.get("evaluated") is True,
                  "passed": count(gate.get("passed")), "rejected": count(gate.get("rejected")),

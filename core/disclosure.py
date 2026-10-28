@@ -6,6 +6,7 @@ from typing import Iterable
 
 from .artifact import Artifact, content_of
 
+# Internal disclosure policy; only decide() determines the resulting level.
 FULL_MIN = 0.55
 PARAPHRASE_MIN = 0.18
 HINT_MIN = 0.03
@@ -18,6 +19,16 @@ _SCOPE_PRIOR = {
     "shadow": 0.5,
     "secret": 0.1,
 }
+_DEFAULT_SCOPE_PRIOR = 0.4
+_SCOPE_SENSITIVITY = {"shared": 0.1, "private": 0.2, "shadow": 0.9}
+_DEFAULT_SENSITIVITY = 0.4
+_SPEAKER_CONTEXT_AFFINITY = 0.70
+_PRESENT_SUBJECT_CONTEXT_AFFINITY = 0.50
+_OTHER_CONTEXT_AFFINITY = 0.22
+_SHARED_SUBJECT_FIT = 0.8
+_UNKNOWN_SUBJECT_FIT = 0.5
+_PRESENT_OWNER_SUBJECT_FIT = 0.8
+_OTHER_SUBJECT_FIT = 0.35
 
 
 class DisclosureLevel(str, Enum):
@@ -45,7 +56,7 @@ class DisclosureDecision:
 def scope_prior(art: Artifact) -> float:
     """Return the continuous disclosure prior for a memory scope."""
     scope = str(art.header.scope or "private")
-    return _SCOPE_PRIOR.get(scope, 0.4)
+    return _SCOPE_PRIOR.get(scope, _DEFAULT_SCOPE_PRIOR)
 
 
 def sensitivity_of(art: Artifact) -> float:
@@ -53,7 +64,7 @@ def sensitivity_of(art: Artifact) -> float:
     if art.header.family == "secret":
         return 1.0
     scope = str(art.header.scope or "private")
-    return {"shared": 0.1, "private": 0.2, "shadow": 0.9}.get(scope, 0.4)
+    return _SCOPE_SENSITIVITY.get(scope, _DEFAULT_SENSITIVITY)
 
 
 def context_affinity(art: Artifact, scene: RecallScene,
@@ -68,10 +79,10 @@ def context_affinity(art: Artifact, scene: RecallScene,
         return 1.0
     subject = str(art.header.subject_id or "")
     if subject and subject == scene.speaker_id:
-        return 0.70
+        return _SPEAKER_CONTEXT_AFFINITY
     if subject and subject in scene.present_ids:
-        return 0.50
-    return 0.22
+        return _PRESENT_SUBJECT_CONTEXT_AFFINITY
+    return _OTHER_CONTEXT_AFFINITY
 
 
 def audience_overlap(art: Artifact, scene: RecallScene,
@@ -86,15 +97,15 @@ def subject_fit(art: Artifact, scene: RecallScene) -> float:
     if shareable == "public":
         return 1.0
     if scope == "shared" and shareable != "secret":
-        return 0.8
+        return _SHARED_SUBJECT_FIT
     subject = str(art.header.subject_id or "")
     if not subject:
-        return 0.5
+        return _UNKNOWN_SUBJECT_FIT
     if subject == scene.speaker_id:
         return 1.0
     if subject == scene.owner_id and subject in scene.present_ids:
-        return 0.8
-    return 0.35
+        return _PRESENT_OWNER_SUBJECT_FIT
+    return _OTHER_SUBJECT_FIT
 
 
 def exposure(art: Artifact, scene: RecallScene, relevance: float,

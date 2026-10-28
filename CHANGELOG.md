@@ -40,6 +40,8 @@
 
 ### 中文
 
+- 内部卫生：算法阈值与系数在所属 core 文件内具名维护；关系校验和追踪复用领域词表，互动规则复用已有默认概率。保持策略数值、边界判断、配置及持久化约定不变。
+
 - 内部接口：将 `core.interfaces` 拆为对外能力入口 `core.domain` 和外部依赖声明 `core.ports`，移除图的延迟导入绑定。内部调用需更新导入路径；现有领域实现入口、策略数值和外层契约保持兼容。
 
 - 内部架构：树读写集中迁入 `services.TreeService`，所需存储和缓存接口迁至 `app/ports.py`；内部 Python 调用需替换原 `core.tree.Tree` 入口。保持宿主、管理接口、配置、持久化格式及原有读写行为兼容。
@@ -79,6 +81,8 @@
 - 人格控制台接入历史版本回滚、差异比较与变化原因；安装时校验预览内容，按版本显示已安装状态；Dream 日志区分预算停止与完成，并显示调度开关。新增控制台接口需与 dashboard 同步更新，不涉及数据库迁移或配置变化（#82 / #83）。
 
 ### English
+
+- Internal hygiene: name algorithm thresholds/factors within their owning core files; relationship validation and trace reuse domain vocabularies, and interaction rules reuse existing default probabilities. Policy values, boundary comparisons, configuration and persisted contracts remain unchanged.
 
 - Internal interfaces: split `core.interfaces` into the provided `core.domain` entry and required declarations in `core.ports`, removing lazy graph binding. Internal callers must update imports; existing domain implementation entries, policy values and outer contracts remain compatible.
 

@@ -5,7 +5,10 @@ from __future__ import annotations
 import math
 from typing import Any
 
-BANDS = ("close", "warm", "neutral", "low", "dislike")
+from ..relationship import RELATIONSHIP_POLICY_VERSION, RelationshipBand
+
+# Preserve the persisted vocabulary and order from its domain owner.
+BANDS = tuple(band.value for band in RelationshipBand)
 
 
 def _number(payload: dict[str, Any], key: str, low: float, high: float) -> float:
@@ -37,8 +40,8 @@ def validate(payload: dict[str, Any]) -> None:
     policy = payload.get("policy")
     if not isinstance(policy, dict):
         raise ValueError("relationship.policy must be an object")
-    if policy.get("version") != "relationship-v1":
-        raise ValueError("relationship.policy.version must be relationship-v1")
+    if policy.get("version") != RELATIONSHIP_POLICY_VERSION:
+        raise ValueError(f"relationship.policy.version must be {RELATIONSHIP_POLICY_VERSION}")
     for key in (
         "private_weight",
         "group_weight",

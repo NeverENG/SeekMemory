@@ -8,8 +8,10 @@ from .persona import (PERSONA_ORIGIN_DREAM, PERSONA_ORIGIN_SEED,
                       PERSONA_SYNTHESIS_VERSION, seed_evolution_matches)
 
 SELF_SUBJECT = "bot:self"
+# Internal trust requirements; these do not control user-visible settings.
 MIN_EVIDENCE = 3
 MIN_CONFIDENCE = 0.9
+_MAX_PERSONA_BEHAVIORS = 3
 BEHAVIOR_TEXT = {
     "respond_emotion": "她先回应情绪，再讨论问题。",
     "clarify_question": "她在信息不足时先澄清问题。",
@@ -61,7 +63,7 @@ def _trusted_persona_header(art: Artifact) -> bool:
 
 def _trusted_behavior_kinds(payload: dict) -> list[str] | None:
     kinds = payload.get("behaviors")
-    if not isinstance(kinds, list) or not 1 <= len(kinds) <= 3:
+    if not isinstance(kinds, list) or not 1 <= len(kinds) <= _MAX_PERSONA_BEHAVIORS:
         return None
     if any(not isinstance(k, str) or k not in BEHAVIORS for k in kinds):
         return None

@@ -8,11 +8,24 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Mapping
 
+# Persisted policy identity; consumers must import this definition.
 RELATIONSHIP_POLICY_VERSION = "relationship-v1"
+
+# Internal confidence and affinity thresholds, separate from configurable weights.
 HARD_GATE_CONFIDENCE = 0.60
+_DISLIKE_ENTRY = -0.50
+_DISLIKE_EXIT = -0.25
+_LOW_ENTRY = -0.20
+_LOW_EXIT = -0.10
+_CLOSE_ENTRY = 0.60
+_CLOSE_EXIT = 0.50
+_WARM_ENTRY = 0.20
+_WARM_EXIT = 0.10
 
 
 class RelationshipBand(str, Enum):
+    """Persisted band vocabulary shared by decisions and payload validation."""
+
     CLOSE = "close"
     WARM = "warm"
     NEUTRAL = "neutral"
@@ -69,21 +82,21 @@ def band_for(
         raise ValueError("relationship values are outside their bounds")
 
     if previous is RelationshipBand.DISLIKE:
-        if value <= -0.25 or not positive_evidence:
+        if value <= _DISLIKE_EXIT or not positive_evidence:
             return RelationshipBand.DISLIKE
-    if value <= -0.50 and certainty >= HARD_GATE_CONFIDENCE:
+    if value <= _DISLIKE_ENTRY and certainty >= HARD_GATE_CONFIDENCE:
         return RelationshipBand.DISLIKE
-    if previous is RelationshipBand.LOW and value < -0.10:
+    if previous is RelationshipBand.LOW and value < _LOW_EXIT:
         return RelationshipBand.LOW
-    if value <= -0.20:
+    if value <= _LOW_ENTRY:
         return RelationshipBand.LOW
-    if previous is RelationshipBand.CLOSE and value >= 0.50:
+    if previous is RelationshipBand.CLOSE and value >= _CLOSE_EXIT:
         return RelationshipBand.CLOSE
-    if value >= 0.60 and certainty >= HARD_GATE_CONFIDENCE:
+    if value >= _CLOSE_ENTRY and certainty >= HARD_GATE_CONFIDENCE:
         return RelationshipBand.CLOSE
-    if previous is RelationshipBand.WARM and value >= 0.10:
+    if previous is RelationshipBand.WARM and value >= _WARM_EXIT:
         return RelationshipBand.WARM
-    if value >= 0.20:
+    if value >= _WARM_ENTRY:
         return RelationshipBand.WARM
     return RelationshipBand.NEUTRAL
 
