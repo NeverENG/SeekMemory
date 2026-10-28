@@ -4,6 +4,17 @@
 
 core defines the stable vocabulary and I/O-free decisions of the memory domain. It does not own SQL, cache, model calls, networking, or AstrBot events.
 
+## Single interface entry
+
+[`core/interfaces.py`](../../../../core/interfaces.py) is the module's single primary interface file. It contains declarations, explicit exports, and mixed English/Chinese behavior notes, with no business implementation. It separates:
+
+- **Provided capabilities**: domain values and operations for Artifact construction/revision/validation, Source identity, version checks, strength, disclosure, graph/tree, capacity, persona, relationship/interaction, and trace projection. Functions and types retain their original identities; their complete call signatures remain available in their definitions or through `inspect.signature()`. There are no wrapper functions or empty implementations.
+- **Required capabilities**: edge storage through `GraphArtifactStore`, Artifact/version/parent storage through `TreeArtifactStore`, and optional active-memory caching through `TreeCache`. Each method describes results, read/write effects, and necessary failure guarantees. Implementations are injected; callers own connection and cache lifetimes.
+
+New callers can use `from core.interfaces import make, Graph, TreeArtifactStore`, or the equivalent relative imports inside the plugin package. Existing `core.artifact`, `core.graph`, `core.tree`, and other imports remain valid. The three previous protocol names alias the centralized declarations. Only the private `_interface_bindings.py` handles lazy imports of `Graph`, `Tree`, and related values, avoiding cyclic initialization while graph/tree load their protocol declarations. That file is neither another interface surface nor a business implementation.
+
+Centralizing the interface preserves existing behavior: `make`/`revise` still read the system clock, and `load_thresholds` still reads environment variables. `Graph`/`Tree` invoke injected storage/cache operations; the commit, cache, parent-column, and edge updates in `Tree.add_under` are not one transaction. `edges_of` queries both ends but omits original direction; `set_parent` changes only the parent column, not edges. A cache miss does not prove database absence, and `put` does not persist data.
+
 ## Data model
 
 - **Source** is an immutable value for one original message. make_source_id derives a stable ID from a host event ID or from session, speaker, role, time, and text. Validation requires an ID, supported role, and non-empty text.

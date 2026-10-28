@@ -7,7 +7,8 @@ Edges are persisted by the repository; this module filters kinds and weights.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+
+from .interfaces import GraphArtifactStore
 
 
 @dataclass(frozen=True)
@@ -19,10 +20,6 @@ class ArtifactEdge:
     kind: str
     weight: float
 
-
-class GraphArtifactStore(Protocol):
-    def add_edge(self, src: str, dst: str, kind: str, weight: float) -> None: ...
-    def edges_of(self, node_id: str) -> list[tuple[str, str, float]]: ...
 
 KINDS = ("similar", "causal", "temporal")
 

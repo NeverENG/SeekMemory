@@ -4,6 +4,17 @@
 
 core 定义记忆领域的稳定词汇和不依赖 IO 的决策。它不负责 SQL、缓存、模型、网络或 AstrBot 事件。
 
+## 统一接口入口
+
+[`core/interfaces.py`](../../../../core/interfaces.py) 是本模块唯一主要接口文件，只包含声明、显式导出和中英混合行为说明，不实现业务。它分为两部分：
+
+- **对外提供**：领域类型，以及记忆构造/修订/校验、消息编号、版本检查、强度、披露、图与树、容量、人格、关系/互动和追踪整理能力。函数与类型直接沿用原对象，完整调用参数可由原定义或 `inspect.signature()` 查看；没有包装函数或空实现。
+- **要求外部提供**：`GraphArtifactStore` 的连接读写、`TreeArtifactStore` 的记忆/版本/父子关系读写，以及可选 `TreeCache` 的有效记忆缓存。每个方法说明返回值、读写影响和必要的失败约定。实现由外部注入，连接及缓存的生命周期也由外部管理。
+
+新调用方可使用 `from core.interfaces import make, Graph, TreeArtifactStore`；插件包中使用相应的相对导入。原来的 `core.artifact`、`core.graph`、`core.tree` 等路径继续有效，三组旧接口名称是统一声明的别名。`Graph`、`Tree` 及关联值的延迟导入绑定仅位于私有 `_interface_bindings.py`，避免图/树读取接口声明时循环初始化；该文件不提供另一套接口或业务实现。
+
+接口集中不改变现有行为：`make`/`revise` 仍读取系统时间，`load_thresholds` 仍读取环境变量。`Graph`/`Tree` 通过注入对象触发存储或缓存操作；`Tree.add_under` 的提交、缓存、父字段和连接更新不是一个整体事务。`edges_of` 查询连接两端但不返回原方向；`set_parent` 仅更新父字段，不维护连接。缓存未命中不表示数据库中不存在，`put` 不负责落库。
+
 ## 数据模型
 
 - **Source**：冻结的数据对象，标识一条原始消息；make_source_id 根据宿主事件 ID 或会话、说话人、角色、时间和正文生成稳定 ID。校验要求有 ID、受支持的 role 和非空正文。

@@ -2,30 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Protocol
-
 from .artifact import Artifact, revise
+from .interfaces import TreeArtifactStore, TreeCache
 
 EDGE_PREFIX = "tree_child:"
 LEVELS = ("impression", "scene", "detail")
-
-
-class TreeArtifactStore(Protocol):
-    def get(self, node_id: str) -> Artifact | None: ...
-    def commit(self, art: Artifact, *, expected_revision: int, op: str,
-               reason: str = "", source_ids: tuple[str, ...] = (),
-               state_events: tuple = ()) -> None: ...
-    def list(self, family: str | None = None,
-             state: str | None = None) -> list[Artifact]: ...
-    def edges_of(self, node_id: str) -> list[tuple[str, str, float]]: ...
-    def add_edge(self, src: str, dst: str, kind: str, weight: float) -> None: ...
-    def set_parent(self, node_id: str, parent_id: str | None) -> None: ...
-
-
-class TreeCache(Protocol):
-    def get(self, node_id: str) -> Artifact | None: ...
-    def put(self, art: Artifact) -> None: ...
-    def by_level(self, level: str) -> list[Artifact]: ...
 
 
 class Tree:
