@@ -16,12 +16,17 @@ services 将领域对象、app 端口以及 perceive、recall、maintain 组合�
 | ManagementService | 查询目录、详情、版本与证据；验证管理编辑和回滚；复用 RecallService 做诊断 |
 | StatusService | 为管理页提供人格时间线和账本哈希链检查 |
 | BackgroundService | 只负责周期、闲时与 Dream 调度；具体动作委托给上述服务 |
+| TreeService | 统一查询子节点和印象，协调记忆版本提交、缓存及父子关系更新 |
 
 ## 写入与失败
 
 perceive/absorb.build_plan 是无副作用转换：验证 evidence、主体边界、去重和 family payload，返回可写入计划。真正调用 ArtifactStore.commit 的是 IngestService。提交要求 CAS 版本；数据库提交成功后更新 Cache，随后可做 best-effort 的图边和印象修订。
 
 model/provider 失败时，IngestService 不把 pending Source 标记为已完成；ExtractionRepository 管理退避、最大尝试次数和 dead 状态。多会话批次中的单会话失败不会让其他已选会话完全停止。
+
+TreeService 的实现集中在 `services/tree_service.py`，通过 `app/ports.py` 的 `TreeArtifactStore`、可选 `TreeCache` 访问数据，不导入存储实现。子节点读取优先用缓存，未命中再查库且不回填缓存；印象查询仅在缓存对应层级为空时回退数据库。
+
+`add_under` 拒绝自身作为父节点，随后依次提交记忆、更新缓存、写父字段和父子连接；这些步骤不是整体事务，错误向调用方传递，提交失败不会更新缓存。对已有记忆可先生成新版本，但返回值仍是原输入对象。设置父字段不清理旧连接，清空父字段也不删除旧连接。宿主目前只构造该服务，树写入由冒烟和契约检查覆盖，尚未接入生产抽取流程。
 
 ## 调度与人工操作
 

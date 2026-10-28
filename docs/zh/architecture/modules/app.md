@@ -14,6 +14,8 @@ app 定义用例间共享的数据形状和可替换端口，放置轻量的纯�
 
 app/ports.py 定义 ChatModel、Retriever、SourceStore、ArtifactStore、ArtifactCache、ExtractionStore、LedgerStore 和 MetricsStore。ArtifactStore.commit 要求 expected_revision；commit_many 用于一组必须原子完成的版本写入。存储实现需满足这些协议，但协议本身不实现 IO。
 
+`TreeArtifactStore` 和 `TreeCache` 是 TreeService 所需的窄接口，也集中声明在 `app/ports.py`，分别包含六个存储方法和三个缓存方法；实现由 `store/` 提供。它们不再由 core 声明或导出。缓存未命中不表示数据库中不存在，缓存 `put` 不负责落库；连接和缓存的生命周期由调用方管理。
+
 ## 策略与用例辅助
 
 - **budget.py** 将系统提示、记忆注入、群上下文和历史条数约束在统一配置视图中，并提供字符到 token 的估算。估算用于预算和观测，不代表 tokenizer 精确计量。

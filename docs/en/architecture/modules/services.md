@@ -16,12 +16,17 @@ services combines domain objects, app ports, and perceive, recall, and maintain 
 | ManagementService | Queries catalog, detail, versions, and evidence; validates admin edits and rollback; reuses RecallService for diagnostics |
 | StatusService | Supplies persona timeline and ledger-chain health to management UI |
 | BackgroundService | Owns periodic, idle, and Dream cadence; delegates work to the services above |
+| TreeService | Reads children and impressions; coordinates memory revisions, cache updates, and parent/child storage |
 
 ## Writes and failures
 
 perceive/absorb.build_plan is a side-effect-free conversion: it validates evidence, subject boundary, deduplication, and family payload, then returns a write plan. IngestService is the production caller of ArtifactStore.commit. Each commit uses a CAS revision; Cache updates after the database succeeds, followed by best-effort graph linking and impression revision.
 
 Provider/model failures do not mark pending Sources complete. ExtractionRepository owns backoff, attempt limits, and the dead state. A failure in one selected session does not automatically cancel all other selected sessions.
+
+TreeService is implemented entirely in `services/tree_service.py`. It uses `TreeArtifactStore` and optional `TreeCache` from `app/ports.py`, without importing storage implementations. Child reads prefer cache and fall back to storage without filling cache; impression reads fall back only when the cached level is empty.
+
+`add_under` rejects self-parenting, then commits the memory, updates cache, sets the parent column, and adds the tree edge in order. These steps are not one transaction; failures propagate, and a failed commit leaves cache unchanged. An existing memory may gain a new revision, but the return value remains the original input. Setting or clearing the parent column does not delete old edges. The host currently constructs the service; its writes are covered by smoke and contract checks rather than the production ingestion path.
 
 ## Scheduling and admin work
 

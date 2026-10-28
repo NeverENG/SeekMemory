@@ -36,7 +36,6 @@ from ...app.runtime import (
 from ...app.runtime.tracing import RunTracer
 from ...core.capacity import CapacityGovernor, CapacityThresholds, load_thresholds
 from ...core.graph import Graph
-from ...core.tree import Tree
 from ...services import (
     AccessPolicy,
     AccessService,
@@ -48,6 +47,7 @@ from ...services import (
     RecallService,
     ServiceCollection,
     StatusService,
+    TreeService,
 )
 from ...perceive.model import ProviderChatModel
 from ...recall.retriever import HybridRetriever
@@ -91,7 +91,7 @@ class AstrBotPlugin(star.Star):
         self.services: ServiceCollection | None = None
         self.store: Store | None = None
         self.cache: Cache | None = None
-        self.tree: Tree | None = None
+        self.tree: TreeService | None = None
         self.graph: Graph | None = None
         self.hybrid_retriever: HybridRetriever | None = None
         self.buffer: AstrBotBuffer | None = None
@@ -390,7 +390,7 @@ class AstrBotPlugin(star.Star):
             self.store = open_store(str(self.data_path))
             self.cache = Cache(self.store.artifacts)
             self.cache.load()
-            self.tree = Tree(self.store.artifacts, self.cache)
+            self.tree = TreeService(self.store.artifacts, self.cache)
             self.graph = Graph(self.store.artifacts)
             self.hybrid_retriever = HybridRetriever(self.graph, self.cache)
             self.buffer = AstrBotBuffer(

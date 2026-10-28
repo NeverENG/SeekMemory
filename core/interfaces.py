@@ -1,12 +1,12 @@
 """Core's single interface entry / core 唯一主要接口入口。
 
-Provides: existing domain values and operations, explicitly exported below.
-提供：下列领域类型与操作；原实现和原导入路径继续有效。
-Requires: the three storage/cache protocols declared at the end of this file.
-需要：文件末尾声明的三组存储、缓存能力。
+Provides: domain values and operations, explicitly exported below.
+提供：下列领域类型与操作；实现保留在各自模块中。
+Requires: the graph storage protocol declared at the end of this file.
+需要：文件末尾声明的图连接存储能力。
 
 Declarations and exports only; implementations remain in their owning modules.
-本文件仅声明、导出接口，不实现业务；Graph/Tree 的导入绑定由私有模块处理。
+本文件仅声明、导出接口，不实现业务；Graph 的导入绑定由私有模块处理。
 """
 
 from __future__ import annotations
@@ -57,12 +57,9 @@ from .disclosure import (
 )
 
 # Graph: link/link_causal write; degree/neighbours read / 图：连接写入，度数和邻居只读。
-# Tree: children/impressions read; add_under commits then updates cache/relations.
-# 树：子节点和印象查询只读；添加节点依次提交记忆、更新缓存、写关系，非整体事务。
 # Lazy exports preserve object identity without an initialization cycle / 延迟导出保留原对象，避免初始化循环。
 if TYPE_CHECKING:
     from .graph import ArtifactEdge, Graph, KINDS
-    from .tree import Tree, EDGE_PREFIX, LEVELS
 
 from .capacity import (
     NORMAL, PRESSURED, SATURATED, PROTECTIVE, ENV_PREFIX,
@@ -131,56 +128,6 @@ class GraphArtifactStore(Protocol):
         ...
 
 
-class TreeArtifactStore(Protocol):
-    """Storage needed by Tree; separate calls are not one transaction / 树所需存储，多次调用不是一个整体事务。"""
-
-    def get(self, node_id: str) -> Artifact | None:
-        """Read the current revision, or None if absent / 读取当前版本，不存在返回空。"""
-        ...
-
-    def commit(self, art: Artifact, *, expected_revision: int, op: str,
-               reason: str = "", source_ids: tuple[str, ...] = (),
-               state_events: tuple = ()) -> None:
-        """Atomically save revision/evidence/ledger; expected 0 creates, conflicts raise VersionError.
-
-        原子保存版本、证据和账本；新建预期版本为 0，版本冲突抛 VersionError；不更新缓存。
-        """
-        ...
-
-    def list(self, family: str | None = None,
-             state: str | None = None) -> list[Artifact]:
-        """Read by optional family/state; None omits that filter / 按类型、状态筛选，空值表示不限制该项。"""
-        ...
-
-    def edges_of(self, node_id: str) -> list[tuple[str, str, float]]:
-        """Read (other ID, kind, weight) from both ends; direction omitted / 双向查询连接，返回另一端、类型、权重，不含方向。"""
-        ...
-
-    def add_edge(self, src: str, dst: str, kind: str, weight: float) -> None:
-        """Upsert one edge; does not change the parent column / 写入或更新一条连接，不修改父节点字段。"""
-        ...
-
-    def set_parent(self, node_id: str, parent_id: str | None) -> None:
-        """Set/clear only the parent column; absent child is a no-op / 仅设置或清空父字段，不维护连接；子节点不存在则无操作。"""
-        ...
-
-
-class TreeCache(Protocol):
-    """Optional active-memory cache; no persistence / 可选的有效记忆缓存，不负责持久化。"""
-
-    def get(self, node_id: str) -> Artifact | None:
-        """Read cached value; None does not prove storage absence / 读取缓存；未命中不表示数据库中不存在。"""
-        ...
-
-    def put(self, art: Artifact) -> None:
-        """Replace active values, remove inactive ones; call after commit / 更新有效记忆，移除非有效记忆；提交成功后调用。"""
-        ...
-
-    def by_level(self, level: str) -> list[Artifact]:
-        """Read cached active values at one abstraction level / 读取指定抽象层级的有效缓存记忆。"""
-        ...
-
-
 __all__ = [
     "FAMILIES", "Artifact", "Header", "Lineage", "Strength", "TimeSpan",
     "make", "revise", "validate", "content_of",
@@ -192,7 +139,7 @@ __all__ = [
     "FULL_MIN", "PARAPHRASE_MIN", "HINT_MIN", "DisclosureLevel", "RecallScene",
     "DisclosureDecision", "scope_prior", "sensitivity_of", "context_affinity",
     "audience_overlap", "subject_fit", "exposure", "decide", "safe_text",
-    "ArtifactEdge", "Graph", "KINDS", "Tree", "EDGE_PREFIX", "LEVELS",
+    "ArtifactEdge", "Graph", "KINDS",
     "NORMAL", "PRESSURED", "SATURATED", "PROTECTIVE", "ENV_PREFIX",
     "CapacityThresholds", "CapacitySnapshot", "CapacityDecision",
     "CapacityGovernor", "load_thresholds",
@@ -214,5 +161,5 @@ __all__ = [
     "InteractionContext", "InteractionGate", "InteractionPolicySettings",
     "stable_sample", "decide_interaction", "EVENTS", "FILTERS", "STATUSES",
     "ID_LIMIT", "ids", "count", "choice", "recall_data", "clean_event", "project_runs",
-    "GraphArtifactStore", "TreeArtifactStore", "TreeCache",
+    "GraphArtifactStore",
 ]

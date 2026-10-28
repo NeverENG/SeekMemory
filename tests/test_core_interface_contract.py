@@ -53,24 +53,23 @@ class CoreInterfaceContractTest(unittest.TestCase):
                         self.assertIn(name, interfaces.__all__)
                         self.assertIs(getattr(interfaces, name), getattr(module, name))
 
-    def test_previous_protocol_imports_are_aliases_of_the_single_declaration(self) -> None:
-        """Legacy protocol imports remain valid / 原接口导入路径继续有效。"""
+    def test_graph_protocol_import_is_an_alias_of_the_single_declaration(self) -> None:
+        """Graph keeps its existing protocol import / 图保留原接口导入路径。"""
         from core.graph import GraphArtifactStore
-        from core.tree import TreeArtifactStore, TreeCache
 
-        for old in (GraphArtifactStore, TreeArtifactStore, TreeCache):
-            self.assertIs(old, getattr(interfaces, old.__name__))
-            self.assertEqual(old.__module__, "core.interfaces")
+        self.assertIs(GraphArtifactStore, interfaces.GraphArtifactStore)
+        self.assertEqual(GraphArtifactStore.__module__, "core.interfaces")
 
     def test_storage_protocol_call_shapes_match_the_existing_implementations(self) -> None:
         """Moving declarations keeps call arguments unchanged / 迁移声明不改变调用参数。"""
         from store.artifacts import ArtifactRepository
         from store.cache import Cache
+        from app.ports import TreeArtifactStore, TreeCache
 
         for protocol, implementation in (
             (interfaces.GraphArtifactStore, ArtifactRepository),
-            (interfaces.TreeArtifactStore, ArtifactRepository),
-            (interfaces.TreeCache, Cache),
+            (TreeArtifactStore, ArtifactRepository),
+            (TreeCache, Cache),
         ):
             for name, method in vars(protocol).items():
                 if name.startswith("_") or not inspect.isfunction(method):
@@ -106,12 +105,27 @@ class CoreInterfaceContractTest(unittest.TestCase):
             elif isinstance(node, ast.Assign):
                 self.assertEqual([ast.unparse(t) for t in node.targets], ["__all__"])
                 self.assertIsInstance(node.value, ast.List)
-        for name in ("graph", "tree"):
+        for name in ("graph",):
             old = ast.parse((ROOT / "core" / f"{name}.py").read_text(encoding="utf-8"))
             self.assertFalse([
                 node.name for node in old.body if isinstance(node, ast.ClassDef)
                 and any(ast.unparse(base) == "Protocol" for base in node.bases)
             ])
+
+    def test_core_does_not_import_application_services_or_storage(self) -> None:
+        """Moving tree orchestration must not create an upward dependency."""
+        forbidden = {"app", "services", "store", "adapters", "astrbot"}
+        for path in sorted((ROOT / "core").rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    names = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    names = [node.module or ""]
+                else:
+                    continue
+                for name in names:
+                    self.assertNotIn(name.split(".")[0], forbidden, f"{path}: {name}")
 
     def test_unknown_export_raises_attribute_error(self) -> None:
         """Unknown names retain normal Python import behavior / 未知名称保持正常导入行为。"""
@@ -119,7 +133,7 @@ class CoreInterfaceContractTest(unittest.TestCase):
             getattr(interfaces, "not_a_core_operation")
 
     def test_import_order_and_plugin_package_names_do_not_create_cycles(self) -> None:
-        """Both legacy-first and interface-first imports work / 新旧入口顺序和插件包导入均可用。"""
+        """Core and service imports work in either order and under plugin packages."""
         probe = """
 import importlib
 from pathlib import Path
@@ -130,24 +144,32 @@ if prefix:
     package = types.ModuleType(prefix)
     package.__path__ = [str(Path.cwd())]
     sys.modules[prefix] = package
-root = prefix + '.core' if prefix else 'core'
+def qualify(name):
+    return prefix + '.' + name if prefix else name
 for name in sys.argv[2:]:
-    importlib.import_module(root + '.' + name)
-api = importlib.import_module(root + '.interfaces')
-graph = importlib.import_module(root + '.graph')
-tree = importlib.import_module(root + '.tree')
+    importlib.import_module(qualify(name))
+api = importlib.import_module(qualify('core.interfaces'))
+graph = importlib.import_module(qualify('core.graph'))
+ports = importlib.import_module(qualify('app.ports'))
+service = importlib.import_module(qualify('services.tree_service'))
+services = importlib.import_module(qualify('services'))
 assert api.Graph is graph.Graph
-assert api.Tree is tree.Tree
 assert api.ArtifactEdge is graph.ArtifactEdge
 assert api.GraphArtifactStore is graph.GraphArtifactStore
-assert api.TreeArtifactStore is tree.TreeArtifactStore
-assert api.TreeCache is tree.TreeCache
+assert services.TreeService is service.TreeService
+assert ports.TreeArtifactStore is service.TreeArtifactStore
+assert ports.TreeCache is service.TreeCache
+assert not {'Tree', 'EDGE_PREFIX', 'LEVELS', 'TreeArtifactStore', 'TreeCache'} & set(api.__all__)
 for name in api.__all__:
     getattr(api, name)
 """
         for prefix in ("", "_seekmemory_interface_test"):
-            for order in (("interfaces", "graph", "tree"), ("graph", "tree", "interfaces"),
-                          ("tree", "graph", "interfaces")):
+            for order in (
+                ("core.interfaces", "core.graph", "services.tree_service"),
+                ("core.graph", "services.tree_service", "core.interfaces"),
+                ("services.tree_service", "app.ports", "core.interfaces"),
+                ("app.ports", "services.tree_service", "core.interfaces"),
+            ):
                 with self.subTest(prefix=prefix, order=order):
                     result = subprocess.run(
                         [sys.executable, "-X", "utf8", "-B", "-c", probe, prefix, *order],

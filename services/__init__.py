@@ -9,6 +9,7 @@ from .management_service import ManagementService
 from .recall_service import RecallService
 from .service_collection import ServiceCollection
 from .status_service import StatusService
+from .tree_service import TreeService
 
 __all__ = [
     "AccessPolicy",
@@ -21,4 +22,5 @@ __all__ = [
     "RecallService",
     "ServiceCollection",
     "StatusService",
+    "TreeService",
 ]

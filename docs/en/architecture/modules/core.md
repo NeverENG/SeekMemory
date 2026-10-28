@@ -8,12 +8,14 @@ core defines the stable vocabulary and I/O-free decisions of the memory domain. 
 
 [`core/interfaces.py`](../../../../core/interfaces.py) is the module's single primary interface file. It contains declarations, explicit exports, and mixed English/Chinese behavior notes, with no business implementation. It separates:
 
-- **Provided capabilities**: domain values and operations for Artifact construction/revision/validation, Source identity, version checks, strength, disclosure, graph/tree, capacity, persona, relationship/interaction, and trace projection. Functions and types retain their original identities; their complete call signatures remain available in their definitions or through `inspect.signature()`. There are no wrapper functions or empty implementations.
-- **Required capabilities**: edge storage through `GraphArtifactStore`, Artifact/version/parent storage through `TreeArtifactStore`, and optional active-memory caching through `TreeCache`. Each method describes results, read/write effects, and necessary failure guarantees. Implementations are injected; callers own connection and cache lifetimes.
+- **Provided capabilities**: domain values and operations for Artifact construction/revision/validation, Source identity, version checks, strength, disclosure, graph, capacity, persona, relationship/interaction, and trace projection. Functions and types retain their original identities; their complete call signatures remain available in their definitions or through `inspect.signature()`. There are no wrapper functions or empty implementations.
+- **Required capabilities**: edge storage through `GraphArtifactStore`. Each method describes results, read/write effects, and necessary failure guarantees. Implementations are injected; callers own connection lifetimes.
 
-New callers can use `from core.interfaces import make, Graph, TreeArtifactStore`, or the equivalent relative imports inside the plugin package. Existing `core.artifact`, `core.graph`, `core.tree`, and other imports remain valid. The three previous protocol names alias the centralized declarations. Only the private `_interface_bindings.py` handles lazy imports of `Graph`, `Tree`, and related values, avoiding cyclic initialization while graph/tree load their protocol declarations. That file is neither another interface surface nor a business implementation.
+Callers can use `from core.interfaces import make, Graph, GraphArtifactStore`, or the equivalent relative imports inside the plugin package. Domain implementation paths such as `core.artifact` and `core.graph` remain valid; `core.graph.GraphArtifactStore` aliases the centralized declaration. Only the private `_interface_bindings.py` handles lazy imports of `Graph` and related values, avoiding cyclic initialization while graph loads its protocol. That file is neither another interface surface nor a business implementation.
 
-Centralizing the interface preserves existing behavior: `make`/`revise` still read the system clock, and `load_thresholds` still reads environment variables. `Graph`/`Tree` invoke injected storage/cache operations; the commit, cache, parent-column, and edge updates in `Tree.add_under` are not one transaction. `edges_of` queries both ends but omits original direction; `set_parent` changes only the parent column, not edges. A cache miss does not prove database absence, and `put` does not persist data.
+Tree read/write orchestration belongs to [TreeService](services.md), imported internally with `from services import TreeService`; `core.tree` and core's tree exports have been removed. Its required `TreeArtifactStore` and `TreeCache` declarations live in `app/ports.py`; core does not import the application or service layer.
+
+`make`/`revise` still read the system clock, and `load_thresholds` still reads environment variables. `Graph` invokes injected edge storage; `edges_of` queries both ends but omits original direction.
 
 ## Data model
 
@@ -41,7 +43,7 @@ Family validators live in core/families. make constructs an object but does not 
 - **strength.py** computes retention, decay weight, and recall/spoken/confirmed reinforcement. Explicit hits take precedence; older data may derive effective hits from weight.
 - **versioning.py** checks stable ID/family, contiguous revision, and created time; it defines state events and semantic-change detection.
 - **disclosure.py** combines context affinity, subject fit, scope prior, sensitivity, and relevance into full, paraphrase, hint, or silence. Only full may return raw Artifact content; lower levels use fixed generic text. The sensitivity of the secret family prevents disclosure.
-- **graph.py / tree.py** use injected repository protocols for relation edges and parent/child structure. They do not issue SQL. Causal edges have an explicit API but no automatic semantic inference.
+- **graph.py** uses an injected repository protocol for relation edges and does not issue SQL. Causal edges have an explicit API but no automatic semantic inference.
 - **capacity.py** converts a capacity snapshot and configurable thresholds into a state and scheduler actions as a pure decision; services perform the actions.
 - **trace.py** sanitizes run-trace fields and projects event timelines while restricting stored data.
 - **relationship.py / relationship_rules.py** own stable relationship IDs, snapshots, hysteresis, the ten-reason evidence rulebook, scope weights, per-cycle caps, and bounded revision plans. Models classify observations but never write affinity, delta, band, or policy version.

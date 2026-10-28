@@ -8,12 +8,14 @@ core 定义记忆领域的稳定词汇和不依赖 IO 的决策。它不负责 S
 
 [`core/interfaces.py`](../../../../core/interfaces.py) 是本模块唯一主要接口文件，只包含声明、显式导出和中英混合行为说明，不实现业务。它分为两部分：
 
-- **对外提供**：领域类型，以及记忆构造/修订/校验、消息编号、版本检查、强度、披露、图与树、容量、人格、关系/互动和追踪整理能力。函数与类型直接沿用原对象，完整调用参数可由原定义或 `inspect.signature()` 查看；没有包装函数或空实现。
-- **要求外部提供**：`GraphArtifactStore` 的连接读写、`TreeArtifactStore` 的记忆/版本/父子关系读写，以及可选 `TreeCache` 的有效记忆缓存。每个方法说明返回值、读写影响和必要的失败约定。实现由外部注入，连接及缓存的生命周期也由外部管理。
+- **对外提供**：领域类型，以及记忆构造/修订/校验、消息编号、版本检查、强度、披露、图、容量、人格、关系/互动和追踪整理能力。函数与类型直接沿用原对象，完整调用参数可由原定义或 `inspect.signature()` 查看；没有包装函数或空实现。
+- **要求外部提供**：`GraphArtifactStore` 的连接读写。每个方法说明返回值、读写影响和必要的失败约定；实现由外部注入，连接生命周期也由外部管理。
 
-新调用方可使用 `from core.interfaces import make, Graph, TreeArtifactStore`；插件包中使用相应的相对导入。原来的 `core.artifact`、`core.graph`、`core.tree` 等路径继续有效，三组旧接口名称是统一声明的别名。`Graph`、`Tree` 及关联值的延迟导入绑定仅位于私有 `_interface_bindings.py`，避免图/树读取接口声明时循环初始化；该文件不提供另一套接口或业务实现。
+调用方可使用 `from core.interfaces import make, Graph, GraphArtifactStore`；插件包中使用相应的相对导入。`core.artifact`、`core.graph` 等领域实现入口继续有效，`core.graph.GraphArtifactStore` 是统一声明的别名。`Graph` 及关联值的延迟导入绑定仅位于私有 `_interface_bindings.py`，避免图读取接口声明时循环初始化；该文件不提供另一套接口或业务实现。
 
-接口集中不改变现有行为：`make`/`revise` 仍读取系统时间，`load_thresholds` 仍读取环境变量。`Graph`/`Tree` 通过注入对象触发存储或缓存操作；`Tree.add_under` 的提交、缓存、父字段和连接更新不是一个整体事务。`edges_of` 查询连接两端但不返回原方向；`set_parent` 仅更新父字段，不维护连接。缓存未命中不表示数据库中不存在，`put` 不负责落库。
+树的完整读写协调由 [TreeService](services.md) 负责，内部入口为 `from services import TreeService`；原 `core.tree` 及 core 的树相关导出已移除。树所需的 `TreeArtifactStore`、`TreeCache` 声明位于 `app/ports.py`，core 不反向引用应用层或服务层。
+
+`make`/`revise` 仍读取系统时间，`load_thresholds` 仍读取环境变量。`Graph` 通过注入对象读写连接；`edges_of` 查询连接两端但不返回原方向。
 
 ## 数据模型
 
@@ -41,7 +43,7 @@ family 校验器位于 core/families。make 只构造对象，不自动校验；
 - **strength.py** 计算留存率、衰减权重和 recall/spoken/confirmed 强化；显式 hits 优先，旧数据可从 weight 推算有效命中。
 - **versioning.py** 校验新版本的稳定 ID/family、顺序连续性和 created 时间；定义状态事件及语义变化判定。
 - **disclosure.py** 把会话亲和、主体匹配、scope prior、敏感度和相关度组合为 full、paraphrase、hint 或 silence。只有 full 可返回 Artifact 原文；较低等级使用固定通用文本。secret family 的敏感度令其不能披露。
-- **graph.py / tree.py** 通过注入的仓储协议处理关系边和父子结构，不自行写 SQL。causal 边保留显式接口，没有自动语义推断。
+- **graph.py** 通过注入的仓储协议处理关系边，不自行写 SQL。causal 边保留显式接口，没有自动语义推断。
 - **capacity.py** 根据容量快照和可配置阈值，纯函数式地给出状态与调度动作；执行由 services 完成。
 - **trace.py** 清理运行追踪字段并投影运行时间线，限制可保存的数据种类。
 - **relationship.py / relationship_rules.py** 管理稳定关系 ID、快照、迟滞、十类 reason 证据规则、scope 权重、同轮上限和有界 revision plan。模型只分类观察，不能写 affinity、delta、band 或 policy version。

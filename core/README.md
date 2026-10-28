@@ -1,9 +1,10 @@
 # core module
 
 Primary interface / 主要接口：[interfaces.py](interfaces.py). It declares required
-storage/cache capabilities and exports provided domain operations without
+graph storage capabilities and exports provided domain operations without
 implementing them / 集中声明外部依赖、导出领域能力，不包含业务实现。
-Existing import paths remain compatible / 原导入路径继续兼容。
+Tree orchestration is provided by `services.TreeService`; its required ports live
+in `app/ports.py` / 树操作由服务层负责，依赖接口在应用层声明；原 core 树入口已移除。
 
 Module design and current contracts are maintained in the central bilingual documentation:
 

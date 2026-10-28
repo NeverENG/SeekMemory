@@ -14,6 +14,8 @@ app defines shared data shapes, replaceable ports, and lightweight pure policies
 
 app/ports.py defines ChatModel, Retriever, SourceStore, ArtifactStore, ArtifactCache, ExtractionStore, LedgerStore, and MetricsStore. ArtifactStore.commit requires expected_revision; commit_many is for version writes that must succeed atomically as a group. The ports describe behavior but do not implement I/O.
 
+`TreeArtifactStore` and `TreeCache` are the narrow ports required by TreeService, also declared centrally in `app/ports.py`, with six storage methods and three cache methods implemented by `store/`. Core no longer declares or exports them. A cache miss does not prove storage absence, and cache `put` does not persist data; callers own connection and cache lifetimes.
+
 ## Policies and use-case helpers
 
 - **budget.py** centralizes request-side limits for system text, memory injection, group context, and history, and provides a character-to-token estimate. The estimate is for budgets and observation, not an exact tokenizer count.

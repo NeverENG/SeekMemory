@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.artifact import Artifact, content_of, make, validate
 from core.graph import Graph
 from core.strength import reinforce, retention
-from core.tree import Tree
 from recall.assemble import build as assemble
 from recall.score import score, select
 from recall.retriever import HybridRetriever
@@ -20,6 +19,7 @@ from recall.spread import activate
 from store.cache import Cache
 from store import open_store
 from store.ledger import Ledger
+from services import TreeService
 
 
 def _mk(level: str, text: str, parent: str | None = None, weight: float = 1.0) -> Artifact:
@@ -41,7 +41,7 @@ def main() -> None:
     tmpdir = tempfile.mkdtemp()
     db = open_store(os.path.join(tmpdir, "t.db"))
     cache = Cache(db.artifacts)
-    tree = Tree(db.artifacts, cache)
+    tree = TreeService(db.artifacts, cache)
     graph = Graph(db.artifacts)
     ledger = Ledger(db.ledger)
 

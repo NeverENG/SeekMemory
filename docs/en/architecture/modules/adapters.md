@@ -6,7 +6,7 @@ adapters translates AstrBot events, providers, and message sending into applicat
 
 ## Composition root
 
-On start, AstrBotPlugin builds Store, Cache, Tree, Graph, HybridRetriever, Source-backed Buffer, CheckpointManager, application services, AgentRuntime, Jobs, WebRoutes, and background services. On stop, it stops background and management tasks, unregisters its own routes, saves the buffer, flushes checkpoints, and finally closes Store.
+On start, AstrBotPlugin builds Store, Cache, TreeService, Graph, HybridRetriever, Source-backed Buffer, CheckpointManager, application services, AgentRuntime, Jobs, WebRoutes, and background services. On stop, it stops background and management tasks, unregisters its own routes, saves the buffer, flushes checkpoints, and finally closes Store.
 
 main.py defines the plugin entry point and delegates lifecycle; composition and wiring live in adapters/astrbot/plugin.py. AstrBotPlugin explicitly owns hooks and attention components instead of sharing host state through multiple inheritance. AstrBotHooks in adapters/astrbot/hooks.py maps host hooks to service calls: access decisions, input acceptance, memory injection, assistant-reply capture, post-send delivery recording, and runtime/tool observation. It does not implement extraction, capacity, or maintenance algorithms.
 
