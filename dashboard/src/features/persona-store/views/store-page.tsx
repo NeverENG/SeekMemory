@@ -4,9 +4,11 @@ import type { ArtifactDetail } from "@/features/control/model"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ArrowUpRight, Plus, Search } from "lucide-react"
 import { Badge, Button, Input } from "@/ui"
-import avatar from "@/assets/ds-chibi-head.webp"
+import { PackArtwork } from "./pack-artwork"
+import { PackImport } from "./pack-import"
+import { parsePackFile, MAX_PACK_BYTES, downloadPack } from "../pack-file"
 import {
-  seedSchema,
+  type PersonaBundle,
   type PersonaPack,
   type PersonaSeed,
   type ConsoleClient,
@@ -34,6 +36,7 @@ export function StorePage({
     revision: number
   }>({ id: null, revision: 0 })
   const [selected, setSelected] = useState<PersonaPack | null>(null)
+  const [licenseText, setLicenseText] = useState("")
   const [digest, setDigest] = useState("")
   const [seed, setSeed] = useState<PersonaSeed | null>(null)
   const [confirmed, setConfirmed] = useState(false),
@@ -41,15 +44,17 @@ export function StorePage({
   const [error, setError] = useState(""),
     [notice, setNotice] = useState("")
   const [chatImport, setChatImport] = useState(false)
-  const [pendingImport, setPendingImport] = useState<PersonaSeed | null>(null)
+  const [pendingImport, setPendingImport] = useState<PersonaBundle | null>(null)
   const [expectedVersion, setExpectedVersion] = useState("")
   const [removeConfirmed, setRemoveConfirmed] = useState(false)
   const [saveName, setSaveName] = useState("")
+  const importRequest = useRef(0)
   const request = useRef(0),
     acting = useRef(false)
   useEffect(
     () => () => {
       request.current++
+      importRequest.current++
     },
     []
   )
@@ -66,6 +71,7 @@ export function StorePage({
     })
     setSelected(pack)
     setSeed(null)
+    setLicenseText("")
     setDigest("")
     setError("")
     setConfirmed(false)
@@ -73,6 +79,7 @@ export function StorePage({
     try {
       const result = await client.pack(pack.reference)
       if (version === request.current) {
+        setLicenseText(result.licenseText ?? "")
         setSeed(result.seed)
         setDigest(result.digest)
       }
@@ -105,16 +112,19 @@ export function StorePage({
   }
   const importFile = async (file: File | undefined) => {
     if (!file) return
+    const version = ++importRequest.current
+    setError("")
     try {
-      if (file.size > 65536) throw new Error("人格文件不能超过 64 KB")
-      const value: unknown = JSON.parse(await file.text())
-      const imported = seedSchema.parse(value)
+      if (file.size > MAX_PACK_BYTES) throw new Error("人格包不能超过 3 MiB")
+      const imported = parsePackFile(await file.text())
+      if (version !== importRequest.current) return
       setPendingImport(imported)
       setExpectedVersion(
-        vm.data?.items.find((p) => p.id === imported.id)?.version ?? ""
+        vm.data?.items.find((p) => p.id === imported.seed.id)?.version ?? ""
       )
     } catch (e) {
-      setError(e instanceof Error ? e.message : "文件格式无效")
+      if (version === importRequest.current)
+        setError(e instanceof Error ? e.message : "文件格式无效")
     }
   }
   const items =
@@ -180,7 +190,7 @@ export function StorePage({
               <div className="flex flex-wrap items-center gap-3">
                 <label className="console-upload">
                   <Plus size={15} />
-                  导入人格 JSON
+                  导入人格包 / JSON
                   <input
                     type="file"
                     accept=".json,application/json"
@@ -192,7 +202,7 @@ export function StorePage({
                   />
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  仅导入设定文件；不会导入聊天，也不会自动安装。
+                  支持完整人格包及旧版 JSON；不会自动安装。
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
@@ -257,14 +267,8 @@ export function StorePage({
                   void preview(pack)
                 }}
               >
-                <div
-                  className={`seed-art ${pack.id === "big_fish" ? "seed-art-fish" : "seed-art-neutral"}`}
-                >
-                  {pack.id === "big_fish" ? (
-                    <img src={avatar} alt="蓝发 Q 版角色趴桌头像" />
-                  ) : (
-                    <span aria-hidden="true">{pack.name.slice(0, 1)}</span>
-                  )}
+                <div className="seed-art seed-art-neutral">
+                  <PackArtwork pack={pack} client={client} />
                   <Badge variant="outline">
                     {pack.contentRating === "general"
                       ? "全年龄"
@@ -309,51 +313,51 @@ export function StorePage({
         </>
       )}
       {pendingImport && (
-        <section className="console-panel my-5 space-y-4 p-6">
-          <h2>
-            确认导入：{pendingImport.name} · v{pendingImport.version}
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {pendingImport.persona.slice(0, 160)}
-          </p>
-          <Input
-            aria-label="被更新人格包的旧版本"
-            placeholder="新增包请留空；更新同名包请填写旧版本号"
-            value={expectedVersion}
-            onChange={(e) => setExpectedVersion(e.target.value)}
-          />
-          <p className="text-xs text-muted-foreground">
-            更新仅替换本地蓝图，保留旧文件备份；需要再次安装才能改变当前人格。
-          </p>
-          <Button
-            disabled={busy}
-            onClick={() => {
-              void mutate(
-                () =>
-                  client.persona({
-                    operation: "import",
-                    seed: pendingImport,
-                    confirmed: true,
-                    ...(expectedVersion ? { expectedVersion } : {}),
-                  }),
-                "人格蓝图已保存，当前人格未改变。"
-              ).then((saved) => {
-                if (saved) setPendingImport(null)
-              })
-            }}
-          >
-            确认保存蓝图
-          </Button>
-          <Button
-            variant="ghost"
-            disabled={busy}
-            onClick={() => setPendingImport(null)}
-          >
-            取消
-          </Button>
-        </section>
+        <PackImport
+          key={pendingImport.seed.id + ":" + pendingImport.seed.version}
+          pack={pendingImport}
+          setPack={setPendingImport}
+          expectedVersion={expectedVersion}
+          setExpectedVersion={setExpectedVersion}
+          busy={busy}
+          onCancel={() => setPendingImport(null)}
+          onSave={() => {
+            void mutate(
+              () =>
+                client.persona({
+                  operation: "importPack",
+                  pack: pendingImport,
+                  confirmed: true,
+                  ...(expectedVersion ? { expectedVersion } : {}),
+                }),
+              "人格包已保存，当前人格未改变。"
+            ).then((saved) => {
+              if (saved) setPendingImport(null)
+            })
+          }}
+        />
       )}
       <PackPreview
+        client={client}
+        licenseText={licenseText}
+        onExport={() => {
+          if (!selected || acting.current) return
+          acting.current = true
+          setBusy(true)
+          setError("")
+          void client
+            .packExport(selected.reference)
+            .then((pack) => {
+              downloadPack(pack, `${pack.seed.id}.seekmemory.json`)
+            })
+            .catch((e: unknown) =>
+              setError(e instanceof Error ? e.message : "导出失败")
+            )
+            .finally(() => {
+              acting.current = false
+              setBusy(false)
+            })
+        }}
         selected={selected}
         seed={seed}
         error={error}

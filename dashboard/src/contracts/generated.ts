@@ -276,6 +276,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/astrbot_plugin_seekmemory/manage/packArtwork": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 读取人格封面（管理员鉴权，最大 2 MiB PNG） */
+        get: operations["packArtwork"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/astrbot_plugin_seekmemory/manage/packExport": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 导出完整人格包（不包含聊天来源和证据） */
+        get: operations["packExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -676,6 +710,7 @@ export interface components {
             source: string;
             contentRating: string;
             locale: string;
+            artworkRef?: string | null;
         };
         PacksResponse: {
             items: components["schemas"]["PersonaPack"][];
@@ -705,6 +740,7 @@ export interface components {
         PackResponse: {
             digest: string;
             seed: components["schemas"]["PersonaSeed"];
+            licenseText?: string;
         };
         PersonaCommand: {
             /** @constant */
@@ -728,6 +764,13 @@ export interface components {
             reference: string;
             /** @constant */
             confirmed: true;
+        } | {
+            /** @constant */
+            operation: "importPack";
+            pack: components["schemas"]["PersonaBundle"];
+            /** @constant */
+            confirmed: true;
+            expectedVersion?: string;
         };
         PersonaResult: {
             reference: string;
@@ -749,6 +792,18 @@ export interface components {
             id: string;
             revision: number;
             restoredRevision: number;
+        };
+        PersonaArtwork: {
+            /** @constant */
+            mediaType: "image/png";
+            dataBase64: string;
+        };
+        PersonaBundle: {
+            /** @constant */
+            format: "seekmemory.persona-pack/v1";
+            seed: components["schemas"]["PersonaSeed"];
+            licenseText: string;
+            artwork: components["schemas"]["PersonaArtwork"] | null;
         };
     };
     responses: never;
@@ -1912,7 +1967,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        /** @description 请求体最多 64 KiB。 */
+        /** @description 请求体最多 3 MiB；人格设定最多 64 KiB，封面最多 2 MiB。 */
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PersonaCommand"];
@@ -1973,7 +2028,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description 请求体超过 64 KiB */
+            /** @description 请求体超过 3 MiB */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -2072,6 +2127,176 @@ export interface operations {
             };
             /** @description 请求体超过 64 KiB */
             413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 未预期的内部错误 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 记忆引擎不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    packArtwork: {
+        parameters: {
+            query: {
+                reference: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 操作成功，直接返回数据，无额外 envelope。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonaArtwork"];
+                };
+            };
+            /** @description 输入无效或版本冲突 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 未登录管理员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 记忆或操作不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 请求方法不支持 */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 输入无效或版本冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 未预期的内部错误 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 记忆引擎不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    packExport: {
+        parameters: {
+            query: {
+                reference: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 操作成功，直接返回数据，无额外 envelope。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonaBundle"];
+                };
+            };
+            /** @description 输入无效或版本冲突 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 未登录管理员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 记忆或操作不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 请求方法不支持 */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 输入无效或版本冲突 */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -370,6 +370,36 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
         await self.plugin.jobs.close()
         self.assertEqual(self.plugin.store.sources.recent_sources(since="",limit=100), [])
 
+    async def test_complete_pack_artwork_export_and_install_boundaries(self):
+        from persona_pack_fixture import pack
+        service = self.plugin.services.management_service
+        seed = service.pack_detail("official/big_fish")["seed"]
+        complete = pack(seed)
+        result = await self.call("persona", {"operation": "importPack", "pack": complete, "confirmed": True})
+        reference = result["reference"]
+        for action in ("packArtwork", "packExport"):
+            await self.call(action, query={"reference": reference})
+            await self.call(action, username=None, query={"reference": reference}, expected=401)
+            await self.call(action, method="POST", query={"reference": reference}, expected=405)
+            await self.call(action, query={"reference": "mine/missing"}, expected=404)
+            await self.call(action, query={"reference": "mine/../secret"}, expected=400)
+        exported = await self.call("packExport", query={"reference": reference})
+        self.assertEqual(exported, complete)
+        self.assertEqual(service.pack_artwork(reference), complete["artwork"])
+        await self.call("packArtwork", query={"reference": "official/big_fish"}, expected=404)
+        await self.call("persona", {"operation": "importPack", "pack": {**complete, "artwork": {"mediaType": "image/png", "dataBase64": "broken"}}, "confirmed": True}, expected=400)
+        await self.call("persona", {"operation": "importPack", "pack": complete, "confirmed": False}, expected=400)
+        preview = service.pack_detail(reference)
+        current = service.cache.active("persona")[0]
+        installed = await self.call("persona", {"operation": "install", "reference": reference,
+            "expectedId": current.header.id, "expectedRevision": current.header.revision,
+            "expectedDigest": preview["digest"], "confirmed": True})
+        payload = service.artifacts.get(installed["id"]).payload
+        self.assertNotIn("artwork", payload)
+        self.assertNotIn("licenseText", payload)
+        self.assertEqual(self.plugin.store.sources.recent_sources(since="", limit=100), [])
+        await self.call("persona", {"operation": "importPack", "pack": complete, "padding": "x" * (3 * 1024 * 1024), "confirmed": True}, expected=413)
+
     async def test_persona_rollback_route_preserves_history_and_guards(self):
         service = self.plugin.services.management_service
         seed = service.pack_detail("official/big_fish")["seed"]
@@ -410,7 +440,7 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
     async def test_contract_rejects_mutated_shapes_and_requests(self):
         for schema in SPEC["components"]["schemas"].values():
             Draft202012Validator.check_schema(schema)
-        self.assertEqual(len(SPEC["paths"]), 16)
+        self.assertEqual(len(SPEC["paths"]), 18)
         result = await self.call("status")
         for bad in ({**result, "ready": "yes"}, {**result, "schedulerCount": -1}):
             with self.assertRaises(ValidationError):

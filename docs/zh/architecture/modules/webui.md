@@ -43,3 +43,6 @@ Jobs 将手动与定时任务限制为单个活动任务。Journal 保存有界�
 控制台通过 `POST manage/rollbackPersona` 提交 `{id, revision, reason, confirmed}`；确认前比较当前与目标版本，成功后刷新状态。管理服务创建新 revision 并记入账本，保留历史。该路由纳入 OpenAPI 和生产客户端校验。
 
 Dream 明确显示 budget.stopped 和 dream_enabled，避免把预算耗尽当作完整完成，或把关闭调度显示为运行中。
+
+
+人格包图片经 `GET manage/packArtwork?reference=…` 的管理员鉴权返回有界 PNG base64；完整导出使用 `GET manage/packExport?reference=…`，不暴露数据目录。目录仅返回可选、无正文的 artworkRef，图片不塞进目录响应。`POST manage/persona` 新增 importPack 命令，沿用确认、维护任务互斥及 expectedVersion 更新保护；请求体上限为 3 MiB，其他管理写入仍为 64 KiB。设定、图片和许可证共同参与预览 digest，安装只把规范 seed 交给 bootstrap。新包外层格式见[人格种子指南](../../guides/persona-seed.md)。

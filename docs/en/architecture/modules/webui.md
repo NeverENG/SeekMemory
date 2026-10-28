@@ -54,3 +54,6 @@ creates a new revision and records the reason in the ledger; history is preserve
 The route is now declared in OpenAPI and validated by the production client.
 Dream renders `budget.stopped` and `dream_enabled` explicitly, rather than treating
 a budget-limited run as full completion or disabled scheduling as active.
+
+
+`GET manage/packArtwork?reference=…` returns bounded PNG base64 through administrator authentication. `GET manage/packExport?reference=…` exports a complete pack without exposing the data directory. Catalogue responses carry only an optional content-free artworkRef, not image bytes. `POST manage/persona` adds importPack, preserving confirmation, maintenance exclusion and expectedVersion checks. Its request limit is 3 MiB; other management writes remain limited to 64 KiB. Preview digests cover seed, license and artwork; installation passes only the canonical seed to bootstrap. See the [persona seed guide](../../guides/persona-seed.md) for the envelope format.

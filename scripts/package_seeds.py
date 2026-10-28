@@ -11,6 +11,7 @@ def seed_files(root: Path, tracked: set[str]) -> set[str]:
     # Same repository validator used at runtime; no alternative seed schema.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from core.persona import normalize_persona_file
+    from core.persona_artwork import MAX_ARTWORK_BYTES, validate_artwork
 
     directory = root / 'persona_seeds'
     index = directory / 'index.json'
@@ -32,10 +33,14 @@ def seed_files(root: Path, tracked: set[str]) -> set[str]:
         for path in pack.iterdir():
             if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(directory.resolve()):
                 raise ValueError('人格包包含不安全资源')
-            if path.name not in {'persona.json', 'LICENSE'}:
-                raise ValueError('人格包包含不支持的资源；v1 使用界面自带插画')
-            if not 0 < path.stat().st_size <= 65536:
+            if path.name not in {'persona.json', 'LICENSE', 'artwork.png'}:
+                raise ValueError('人格包包含不支持的资源；封面仅支持 artwork.png')
+            if not 0 < path.stat().st_size <= (MAX_ARTWORK_BYTES if path.name == 'artwork.png' else 65536):
                 raise ValueError('人格包资源为空或过大')
+            if path.name == 'artwork.png':
+                validate_artwork(path.read_bytes())
+            if path.name == 'LICENSE' and not path.read_text(encoding='utf-8').strip():
+                raise ValueError('人格包许可证为空')
             files.add(path.relative_to(root).as_posix())
         seed = normalize_persona_file(json.loads((pack / 'persona.json').read_text(encoding='utf-8')))
         if seed['id'] != seed_id or not seed['license'] or not seed['source']:

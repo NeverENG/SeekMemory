@@ -70,7 +70,20 @@ export const dreamSchema = z.object({
     .max(100),
   limit: z.number().int(),
 }) satisfies z.ZodType<ApiResponse<"dream">>
+export const artworkSchema = z.strictObject({
+  mediaType: z.literal("image/png"),
+  dataBase64: z
+    .string()
+    .min(1)
+    .max(2796204)
+    .regex(/^[A-Za-z0-9+/]+={0,2}$/),
+}) satisfies z.ZodType<ApiResponse<"packArtwork">>
 export const packSchema = z.object({
+  artworkRef: z
+    .string()
+    .regex(/^(official|mine)\/[a-z0-9][a-z0-9._-]{1,63}@[a-f0-9]{64}$/)
+    .nullable()
+    .exactOptional(),
   reference: z.string(),
   id: z.string(),
   name: z.string(),
@@ -119,7 +132,15 @@ export const seedSchema = z.strictObject({
   content_rating: z.string().max(32).exactOptional(),
   locale: z.string().max(20).exactOptional(),
 })
+export const bundleSchema = z.strictObject({
+  format: z.literal("seekmemory.persona-pack/v1"),
+  seed: seedSchema,
+  licenseText: z.string().max(65536),
+  artwork: artworkSchema.nullable(),
+}) satisfies z.ZodType<ApiResponse<"packExport">>
+export type PersonaBundle = z.infer<typeof bundleSchema>
 export const packDetailSchema = z.object({
+  licenseText: z.string().max(65536).exactOptional(),
   seed: seedSchema,
   digest: z.string().regex(/^[a-f0-9]{64}$/),
 }) satisfies z.ZodType<ApiResponse<"pack">>
@@ -156,6 +177,8 @@ export interface ConsoleClient {
     offset?: number
   ): Promise<z.infer<typeof packsSchema>>
   pack(reference: string): Promise<z.infer<typeof packDetailSchema>>
+  packArtwork(reference: string): Promise<z.infer<typeof artworkSchema>>
+  packExport(reference: string): Promise<PersonaBundle>
   persona(command: PersonaCommand): Promise<z.infer<typeof personaResultSchema>>
 }
 export const pageIds = [

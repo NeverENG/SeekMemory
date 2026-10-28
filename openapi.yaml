@@ -2,9 +2,8 @@ openapi: 3.1.0
 info:
   title: SeekMemory 管理接口
   version: 1.0.0
-  description: 描述 Context.register_web_api 注册的插件路由与 JSON 正文。实际 HTTP 前缀、管理员认证及 iframe
-    通信由 AstrBot 宿主负责；前端通过 AstrBotPluginPage.apiGet/apiPost 使用 manage/<action>，不自行拼接
-    URL。成功响应直接返回数据，失败使用宿主错误结构；宿主代理还可能在进入插件前拒绝请求。本契约版本独立于插件发布版本。
+  description: 描述 Context.register_web_api 注册的插件路由与 JSON 正文。实际 HTTP 前缀、管理员认证及 iframe 通信由 AstrBot
+    宿主负责；前端通过 AstrBotPluginPage.apiGet/apiPost 使用 manage/<action>，不自行拼接 URL。成功响应直接返回数据，失败使用宿主错误结构；宿主代理还可能在进入插件前拒绝请求。本契约版本独立于插件发布版本。
 security:
 - AstrBotAdmin: []
 paths:
@@ -848,7 +847,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '413':
-          description: 请求体超过 64 KiB
+          description: 请求体超过 3 MiB
           content:
             application/json:
               schema:
@@ -867,7 +866,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       requestBody:
         required: true
-        description: 请求体最多 64 KiB。
+        description: 请求体最多 3 MiB；人格设定最多 64 KiB，封面最多 2 MiB。
         content:
           application/json:
             schema:
@@ -938,6 +937,126 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PersonaRollbackCommand'
+  /astrbot_plugin_seekmemory/manage/packArtwork:
+    get:
+      operationId: packArtwork
+      summary: 读取人格封面（管理员鉴权，最大 2 MiB PNG）
+      responses:
+        '200':
+          description: 操作成功，直接返回数据，无额外 envelope。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonaArtwork'
+        '401':
+          description: 未登录管理员
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 记忆或操作不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: 请求方法不支持
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 未预期的内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 记忆引擎不可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: 输入无效或版本冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 输入无效或版本冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: reference
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^(official|mine)/[a-z0-9][a-z0-9._-]{1,63}$
+  /astrbot_plugin_seekmemory/manage/packExport:
+    get:
+      operationId: packExport
+      summary: 导出完整人格包（不包含聊天来源和证据）
+      responses:
+        '200':
+          description: 操作成功，直接返回数据，无额外 envelope。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonaBundle'
+        '401':
+          description: 未登录管理员
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 记忆或操作不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: 请求方法不支持
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 未预期的内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 记忆引擎不可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: 输入无效或版本冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 输入无效或版本冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: reference
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^(official|mine)/[a-z0-9][a-z0-9._-]{1,63}$
 components:
   securitySchemes:
     AstrBotAdmin:
@@ -1154,8 +1273,7 @@ components:
       - sources
       - ledger
       additionalProperties: false
-      description: 原始快照、来源和账本保持 JSON 扩展字段；不补造历史缺失数据。header 允许既有 lineage、strength、time
-        等字段。
+      description: 原始快照、来源和账本保持 JSON 扩展字段；不补造历史缺失数据。header 允许既有 lineage、strength、time 等字段。
     PendingTopic:
       type: object
       properties:
@@ -1695,8 +1813,7 @@ components:
       - reason
       - confirmed
       additionalProperties: false
-      description: reason 去除首尾空白后校验；payload 需通过 family 校验，JSON 序列化长度不得超过 50,000。revision
-        必须等于当前版本；合并状态转换受业务约束。
+      description: reason 去除首尾空白后校验；payload 需通过 family 校验，JSON 序列化长度不得超过 50,000。revision 必须等于当前版本；合并状态转换受业务约束。
     TaskCommand:
       type: object
       properties:
@@ -2215,6 +2332,11 @@ components:
           type: string
         locale:
           type: string
+        artworkRef:
+          type:
+          - string
+          - 'null'
+          pattern: ^(official|mine)/[a-z0-9][a-z0-9._-]{1,63}@[a-f0-9]{64}$
     PacksResponse:
       type: object
       additionalProperties: false
@@ -2303,8 +2425,8 @@ components:
                 minLength: 1
                 maxLength: 2000
           maxItems: 128
-          description: When supplied, requires >=12 pairs and >=1200 total trimmed
-            characters. Backend canonical validation is authoritative.
+          description: When supplied, requires >=12 pairs and >=1200 total trimmed characters.
+            Backend canonical validation is authoritative.
     PackResponse:
       type: object
       additionalProperties: false
@@ -2317,6 +2439,9 @@ components:
           pattern: ^[a-f0-9]{64}$
         seed:
           $ref: '#/components/schemas/PersonaSeed'
+        licenseText:
+          type: string
+          maxLength: 65536
     PersonaCommand:
       oneOf:
       - type: object
@@ -2373,6 +2498,21 @@ components:
             type: string
           confirmed:
             const: true
+      - type: object
+        additionalProperties: false
+        required:
+        - operation
+        - pack
+        - confirmed
+        properties:
+          operation:
+            const: importPack
+          pack:
+            $ref: '#/components/schemas/PersonaBundle'
+          confirmed:
+            const: true
+          expectedVersion:
+            type: string
     PersonaResult:
       oneOf:
       - type: object
@@ -2435,3 +2575,37 @@ components:
         restoredRevision:
           type: integer
           minimum: 1
+    PersonaArtwork:
+      type: object
+      additionalProperties: false
+      required:
+      - mediaType
+      - dataBase64
+      properties:
+        mediaType:
+          const: image/png
+        dataBase64:
+          type: string
+          minLength: 1
+          maxLength: 2796204
+          pattern: ^[A-Za-z0-9+/]+={0,2}$
+    PersonaBundle:
+      type: object
+      additionalProperties: false
+      required:
+      - format
+      - seed
+      - licenseText
+      - artwork
+      properties:
+        format:
+          const: seekmemory.persona-pack/v1
+        seed:
+          $ref: '#/components/schemas/PersonaSeed'
+        licenseText:
+          type: string
+          maxLength: 65536
+        artwork:
+          oneOf:
+          - $ref: '#/components/schemas/PersonaArtwork'
+          - type: 'null'
