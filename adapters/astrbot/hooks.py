@@ -426,6 +426,9 @@ def _register(main_module: str, name: str, decorator, component: str = "hooks"):
 
     handler.__module__ = main_module
     handler.__qualname__ = f"Main.{name}"
+    # AstrBot 用 module + __name__ 生成 handler 唯一名；闭包同名会被当成同一个 handler
+    # 并互相覆盖。这里必须让每个 hook 拥有独立名字。
+    handler.__name__ = name
     return decorator(handler)
 
 

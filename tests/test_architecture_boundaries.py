@@ -72,6 +72,11 @@ class MainOwnershipTest(unittest.TestCase):
             self.assertIn(f"{name} = _HOOKS[\"{name}\"]", self.source)
         self.assertNotIn("locals().update", self.source)
 
+    def test_each_hook_wrapper_has_a_unique_name(self) -> None:
+        """AstrBot 用 module+__name__ 生成 handler 唯一名，闭包同名会互相覆盖。"""
+        hooks_source = (ROOT / "adapters" / "astrbot" / "hooks.py").read_text()
+        self.assertIn("handler.__name__ = name", hooks_source)
+
     def test_service_collection_is_a_typed_bundle(self) -> None:
         from dataclasses import fields
         from services.service_collection import ServiceCollection

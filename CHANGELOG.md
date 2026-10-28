@@ -14,6 +14,18 @@
 - Make the policy configurable: `attention_policy_enabled` (master switch), `attention_followup_rounds` (follow-up rounds after being called, default 3) and `attention_owner_always_reply` (reply to every owner message, default on); composition reads them into `DefaultAttentionPolicy`.
 - Regression tests: real At detection, wake-all is not a mention, owner switch, follow-up rounds.
 
+## 0.5.2 — 2026-10-28
+
+### 中文
+
+- 修复宿主钩子被同名闭包互相覆盖的问题：`_register` 生成的包装函数原来全部叫 `handler`，而 AstrBot 用 `module + __name__` 生成 handler 唯一名，导致只有第一个 hook（`inject_memory`）注册成功，`attention_gate` 等全部丢失——开口策略因此从未真正执行。现在每个 hook 显式设置 `__name__`，并加源码级回归断言。
+- 现象对照：升级到 0.5.x 后线上 30 分钟 172 条入站 / 94 条回复 / 0 条策略决策；修复后 `attention_gate` 正常拦截陌生人闲聊。
+
+### English
+
+- Fix host hooks overwriting each other because every wrapper closure was named `handler`: AstrBot derives the unique handler name from `module + __name__`, so only the first hook (`inject_memory`) registered and `attention_gate` was lost, meaning the attention policy never ran. Each wrapper now sets `__name__` explicitly, with a source-level regression assertion.
+- Symptom: after upgrading to 0.5.x the live instance produced 172 inbound events / 94 replies / 0 attention decisions in 30 minutes; after the fix `attention_gate` intercepts ambient group chats again.
+
 ## Unreleased
 
 ### 中文
