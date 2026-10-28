@@ -16,15 +16,25 @@ from app.runtime import WakeAction, RunDecision, UserRunReceipt  # noqa: E402
 from core.source import make_source_id  # noqa: E402
 
 
+class At:
+    def __init__(self, qq: str) -> None:
+        self.qq = qq
+
+
 class Event:
     def __init__(self, private: bool) -> None:
         self.private = private
         self.extras = {}
         self.created_at = 0.0
         self.unified_msg_origin = "bot:GroupMessage:g1"
+        self.self_id = "bot-1"
+        self.at_me = False
 
     def is_private_chat(self) -> bool:
         return self.private
+
+    def get_messages(self):
+        return [At(self.self_id)] if self.at_me else []
 
     def get_sender_id(self) -> str:
         return "u1"
@@ -98,11 +108,19 @@ class AdapterTest(unittest.TestCase):
         self.assertFalse(result.mentioned)
         self.assertFalse(result.question)
 
-    def test_wake_command_marks_group_message_as_direct(self) -> None:
+    def test_wake_command_alone_is_not_a_mention(self) -> None:
+        """wake_prefix 为空时每条消息都会唤醒，不能据此认为被 @。"""
         event = Event(False)
         event.is_at_or_wake_command = True
         result = AstrBotRuntimeAdapter.from_event(event, "hello", "g1", "u1")
+        self.assertFalse(result.mentioned)
+
+    def test_at_component_marks_group_message_as_direct(self) -> None:
+        event = Event(False)
+        event.at_me = True
+        result = AstrBotRuntimeAdapter.from_event(event, "hello", "g1", "u1")
         self.assertTrue(result.mentioned)
+        self.assertTrue(result.addressed)
 
     def test_model_gateway_resolves_provider_and_returns_text(self) -> None:
         class Provider:

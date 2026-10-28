@@ -38,8 +38,15 @@ class RuntimeHostContractTest(unittest.TestCase):
 
     def test_astrbot_maps_the_same_event_as_the_node_example(self):
         data = FIXTURE["input"]
-        event = SimpleNamespace(created_at=data["event_time"], is_private_chat=lambda: False,
-                                is_at_or_wake_command=True, message_id=data["event_id"])
+        class At:
+            def __init__(self, qq: str) -> None:
+                self.qq = qq
+
+        event = SimpleNamespace(
+            created_at=data["event_time"], is_private_chat=lambda: False,
+            is_at_or_wake_command=True, message_id=data["event_id"],
+            get_messages=lambda: [At(data["self_id"])],
+        )
         mapped = AstrBotRuntimeAdapter.from_event(
             event, data["text"], data["session_id"], data["speaker_id"],
             received_at=data["received_at"],

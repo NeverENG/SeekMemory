@@ -30,7 +30,12 @@ def _mentioned(event: Any) -> bool:
     都标成唤醒，按那个判断等于"所有消息都在 @ 她"。这里只认消息组件里指向 self_id 的 At。
     """
     try:
-        me = str(getattr(event, "self_id", "") or event.get_self_id() or "")
+        me = str(getattr(event, "self_id", "") or "")
+        if not me:
+            try:
+                me = str(event.get_self_id() or "")
+            except Exception:  # noqa: BLE001 - 部分宿主没有该 getter
+                me = ""
         for comp in event.get_messages() or ():
             if type(comp).__name__ == "At" and str(getattr(comp, "qq", "")) == me:
                 return True
