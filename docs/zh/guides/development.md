@@ -26,14 +26,18 @@
 
 执行严格构建：
 
+    python3 scripts/check_docs_structure.py
     mkdocs build --strict
+
+结构检查验证导航、双语页面集合及相对 Markdown 文件链接；严格构建检查站点能否按当前配置生成。两者不自动验证文档描述是否符合代码。若缺少 `material` 主题，先安装上述文档依赖，不能把依赖缺失当作文档已经通过构建。
 
 ## 后端验证层
 
-脚本依据 tests/layers.py 把平铺的 unittest 文件分为多个责任层。按改动选择适当范围：
+脚本依据 tests/layers.py 按文件名把平铺的 unittest 文件分层；当前部分文件同时含纯规则和跨模块流程，层名不保证依赖完全隔离。以下命令执行全仓对应层，不是只执行某个模块。按改动选择适当范围：
 
     python3 scripts/run_tests.py --layer unit
     python3 scripts/run_tests.py --layer contract
+    python3 scripts/run_tests.py --layer conformance
     python3 scripts/run_tests.py --layer integration
     python3 scripts/run_tests.py --layer host
     python3 scripts/run_tests.py --layer smoke
@@ -43,7 +47,9 @@
 
     python3 -m unittest discover -s tests -p 'test_*.py' -q
 
-测试不会自动证明真实模型的抽取质量，也不会在没有 AstrBot 的环境里证明宿主行为。模型评估和容量探测属于单独的人工流程；参见 [benchmarks/README.md](../../../benchmarks/README.md)。
+按能力选择 core 检查时，参见 [core 验证入口与证据范围](../architecture/modules/core.md#core-verification)：其中列出现有测试及定向命令，并区分纯规则和完整流程。接口导出检查不等于所有导出操作的完整行为覆盖。
+
+测试不会自动证明真实模型的抽取质量，也不会在没有 AstrBot 的环境里证明宿主行为。跑分与测试的测量范围不同；旧综合跑分成功仅表示报告生成，不自动判定质量无退化，BM25 另有冻结验收。字数也不等同于 token 或费用；具体定义和限制见 [benchmarks/README.md](../../../benchmarks/README.md)。
 
 ## 管理界面
 

@@ -67,3 +67,52 @@ family 校验器位于 core/families。make 只构造对象，不自动校验；
 Source 是追加式事实；Artifact 是可修订解释。内容修订通过仓储的 expected_revision CAS 提交，不能以新对象覆盖旧 ID 的版本历史。subject_id、said_by、来源会话和 evidence 不可相互推断替代。payload 的结构由 family validator 维护。
 
 实现入口：[artifact.py](../../../../core/artifact.py)、[source.py](../../../../core/source.py)、[disclosure.py](../../../../core/disclosure.py)、[versioning.py](../../../../core/versioning.py)。
+
+<a id="core-verification"></a>
+
+## 验证入口与证据范围
+
+以下是现有测试的查找入口，不是逐个导出名称的完整覆盖证明。测试文件可能同时验证多个模块；当前分层由 [tests/layers.py](../../../../tests/layers.py) 按文件名确定，不能把 `unit` 层等同于“只测 core”或“完全不访问数据库”。
+
+| 能力 | 当前测试入口 | 验证内容与限制 |
+|---|---|---|
+| 领域入口与外部依赖声明 | [test_core_interface_contract.py](../../../../tests/test_core_interface_contract.py) | 导出对象身份、声明不含业务实现、端口调用参数、依赖方向及不同导入顺序；不证明每个导出操作的业务行为均被覆盖。 |
+| Artifact 构造、修订和类别校验 | [test_artifact.py](../../../../tests/test_artifact.py) | 必填字段、默认值、文本读取及修订不改原对象；不验证数据库事务。 |
+| Source、版本与提交 | [test_kernel.py](../../../../tests/test_kernel.py) | 消息编号、版本检查及仓储提交等；同文件含纯规则、SQLite 和其他模块场景。 |
+| 留存、衰减和强化 | [test_strength.py](../../../../tests/test_strength.py)、[test_core_policy_contract.py](../../../../tests/test_core_policy_contract.py) | 留存随时间变化、情绪阈值、强化增量与冷却；不证明真实对话中的长期记忆效果。 |
+| 披露与隐私输出 | [test_core_policy_contract.py](../../../../tests/test_core_policy_contract.py)、[test_kernel.py](../../../../tests/test_kernel.py)、[test_privacy_outputs.py](../../../../tests/test_privacy_outputs.py) | 阈值边界、跨会话披露及最终上下文的受保护内容检查；最终输出检查跨越 core 与召回模块。 |
+| 图连接 | [test_link.py](../../../../tests/test_link.py) | 显式因果连接、度数及联想流程；当前测试借助 SQLite 和缓存，不是独立的纯图规则测试。 |
+| 容量决策 | [test_capacity.py](../../../../tests/test_capacity.py) | 压力状态、调度动作和配置覆盖；同文件还包含队列、存储和恢复流程。 |
+| 人格与自我印象可信条件 | [test_persona.py](../../../../tests/test_persona.py)、[test_persona_bootstrap.py](../../../../tests/test_persona_bootstrap.py)、[test_self_impression.py](../../../../tests/test_self_impression.py) | 人格初始化、证据约束及维护后的可信结果；含跨模块流程，不代表真实模型会形成恰当人格。 |
+| 关系与互动规则 | [test_relationship.py](../../../../tests/test_relationship.py)、[test_relationship_runtime.py](../../../../tests/test_relationship_runtime.py)、[test_core_policy_contract.py](../../../../tests/test_core_policy_contract.py) | 证据评分、关系档位进出阈值、稳定采样和互动权限；也包含抽取、维护和适配器场景。 |
+| 运行追踪 | [test_core_policy_contract.py](../../../../tests/test_core_policy_contract.py)、[test_run_trace.py](../../../../tests/test_run_trace.py) | 披露词表、数量限制及追踪落盘后的正文排除与恢复；后者是追踪集成检查。 |
+
+在仓库根目录定向执行接口及常见领域规则检查：
+
+```bash
+python tests/test_core_interface_contract.py
+python tests/test_core_policy_contract.py
+python tests/test_artifact.py
+python tests/test_strength.py
+```
+
+涉及版本提交、披露或完整数据路径时，按改动补充相关检查：
+
+```bash
+python tests/test_kernel.py
+python tests/test_e2e_kernel.py
+python tests/test_privacy_outputs.py
+```
+
+这些命令不是所有 core 改动的固定最小集合，也不替代上表中对应能力的检查。全仓分层命令与选择原则见[开发环境与验证](../../guides/development.md)。测试通过只说明已执行的场景符合断言；不等同于真实模型抽取质量、真实 AstrBot 宿主验收或记忆效果提升。
+
+## 跑分如何用于 core 验证
+
+目前没有覆盖全部 core 能力的独立综合跑分。现有[跑分入口](../../../../benchmarks/README.md)主要组合 core、召回和存储模块，结果需按测量内容解释：
+
+- `benchmarks/dataset.py` 调用实际 `retention` 计算合成样本的留存率；`run.py` 的强化数字则比较预先按提及次数设置的权重，没有执行实际 `reinforce`。它不能验证强化逻辑是否正确。
+- `run.py` 的旧“综合像人指数”是自定义加权分数；无期望答案的查询不计入命中率，生成报告也没有质量退化的失败门槛。不能以高分或脚本成功作为记忆增强的验收。
+- 所谓 token 压缩比实际使用字数，不能当作模型 token 数或费用；耗时依赖运行机器，日期和编号仍受系统时钟影响。
+- `benchmarks/bm25.py` 有独立冻结验收，验证其规定数据和参数下的检索结果；不覆盖所有 core 规则，也不替代完整披露和隐私检查。
+
+比较前后版本时，应记录提交、数据集、配置、运行命令和具体指标，区分算法行为、检索效果与性能。测试和跑分入口均不替代真实模型或宿主验收。

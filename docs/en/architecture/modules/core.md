@@ -67,3 +67,52 @@ Existing public constants keep their exports. Ownership cleanup does not change 
 Sources are append-only facts; Artifacts are revisable interpretations. Content updates go through ArtifactStore with expected_revision and cannot overwrite version history. subject_id, said_by, source session, and evidence must not be inferred in place of one another. Family validators own payload shape.
 
 Implementation: [artifact.py](../../../../core/artifact.py), [source.py](../../../../core/source.py), [disclosure.py](../../../../core/disclosure.py), [versioning.py](../../../../core/versioning.py).
+
+<a id="core-verification"></a>
+
+## Verification entry points and evidence limits
+
+These are entry points into existing tests, not proof of complete coverage for every exported name. A test file may exercise several modules. [tests/layers.py](../../../../tests/layers.py) currently classifies entire files by name; the `unit` layer does not mean “core only” or “no database access.”
+
+| Capability | Current test entry points | Evidence and limits |
+|---|---|---|
+| Provided domain and required-port entries | [test_core_interface_contract.py](../../../../tests/test_core_interface_contract.py) | Export identities, declarations without business implementations, port call shapes, dependency direction and import orders; not complete behavioral coverage of every exported operation. |
+| Artifact construction, revision and family validation | [test_artifact.py](../../../../tests/test_artifact.py) | Required fields, defaults, readable content and revision without mutating the original; no database transaction verification. |
+| Source, versions and commits | [test_kernel.py](../../../../tests/test_kernel.py) | Source identity, version checks and repository commits, among other scenarios; the file mixes pure rules, SQLite and other modules. |
+| Retention, decay and reinforcement | [test_strength.py](../../../../tests/test_strength.py), [test_core_policy_contract.py](../../../../tests/test_core_policy_contract.py) | Retention over time, emotion thresholds, reinforcement increments and cooldown; not long-term memory quality in real conversations. |
+| Disclosure and privacy output | [test_core_policy_contract.py](../../../../tests/test_core_policy_contract.py), [test_kernel.py](../../../../tests/test_kernel.py), [test_privacy_outputs.py](../../../../tests/test_privacy_outputs.py) | Threshold boundaries, cross-session disclosure and protected content in final context; final-output checks span core and recall. |
+| Graph links | [test_link.py](../../../../tests/test_link.py) | Explicit causal links, degree and associative flows; current tests use SQLite and cache rather than isolated pure graph rules. |
+| Capacity decisions | [test_capacity.py](../../../../tests/test_capacity.py) | Pressure states, scheduler actions and configuration overrides; the file also contains queue, persistence and recovery flows. |
+| Persona and self-impression trust | [test_persona.py](../../../../tests/test_persona.py), [test_persona_bootstrap.py](../../../../tests/test_persona_bootstrap.py), [test_self_impression.py](../../../../tests/test_self_impression.py) | Persona initialization, evidence constraints and trusted results after maintenance; includes cross-module flows, not proof that a real model forms an appropriate persona. |
+| Relationship and interaction rules | [test_relationship.py](../../../../tests/test_relationship.py), [test_relationship_runtime.py](../../../../tests/test_relationship_runtime.py), [test_core_policy_contract.py](../../../../tests/test_core_policy_contract.py) | Evidence scoring, relationship entry/exit thresholds, stable sampling and interaction permissions; also includes extraction, maintenance and adapter scenarios. |
+| Run tracing | [test_core_policy_contract.py](../../../../tests/test_core_policy_contract.py), [test_run_trace.py](../../../../tests/test_run_trace.py) | Disclosure vocabulary, count limits, and content exclusion/recovery after trace persistence; the latter is a trace integration check. |
+
+Run focused interface and common domain-rule checks from the repository root:
+
+```bash
+python tests/test_core_interface_contract.py
+python tests/test_core_policy_contract.py
+python tests/test_artifact.py
+python tests/test_strength.py
+```
+
+For version commits, disclosure or complete data paths, add checks relevant to the change:
+
+```bash
+python tests/test_kernel.py
+python tests/test_e2e_kernel.py
+python tests/test_privacy_outputs.py
+```
+
+These commands are not a fixed minimum for every core change and do not replace the capability-specific checks above. Repository-wide layer commands and selection guidance are in [Development Setup and Checks](../../guides/development.md). A pass establishes only the assertions in the scenarios executed; it does not establish real-model extraction quality, real AstrBot host compatibility or improved memory quality.
+
+## Using benchmarks to verify core
+
+There is currently no standalone aggregate benchmark covering every core capability. Existing [benchmark entry points](../../../../benchmarks/README.md) mainly combine core, recall and storage; interpret results according to what they measure:
+
+- `benchmarks/dataset.py` calls the actual `retention` function for synthetic samples. The reinforcement number in `run.py` instead compares weights preassigned from mention counts and does not execute the actual `reinforce` function. It cannot verify reinforcement correctness.
+- The legacy “human-like index” in `run.py` is a custom weighted score. No-answer queries do not enter hit scoring, and report generation has no quality-regression failure threshold. Neither a high score nor successful execution establishes improved memory.
+- The claimed token-compression ratio uses character counts, not model tokens or cost. Timing depends on the machine, while dates and identities still depend on the system clock.
+- `benchmarks/bm25.py` has separate frozen acceptance checks for retrieval on its specified data and parameters; it does not cover every core rule or replace full disclosure/privacy checks.
+
+For before/after comparisons, record revisions, dataset, configuration, commands and specific metrics. Separate algorithm behavior, retrieval quality and performance. Neither test nor benchmark entry points replace real-model or real-host acceptance.

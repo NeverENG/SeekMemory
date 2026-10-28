@@ -26,14 +26,18 @@ Start the local preview (default address: http://127.0.0.1:8000):
 
 Run a strict build:
 
+    python3 scripts/check_docs_structure.py
     mkdocs build --strict
+
+The structure check validates navigation, mirrored page sets and relative Markdown file links; the strict build checks whether the site can be generated with its current configuration. Neither automatically verifies that prose matches code. If the `material` theme is missing, install the docs dependencies above; missing dependencies do not constitute a successful build.
 
 ## Backend test layers
 
-The runner uses tests/layers.py to group flat unittest files by responsibility. Choose the needed scope for a change:
+The runner uses tests/layers.py to classify flat unittest files by name. Some files currently mix pure rules and cross-module flows, so layer names do not guarantee isolated dependencies. These commands run a repository-wide layer, not a single module. Choose the needed scope for a change:
 
     python3 scripts/run_tests.py --layer unit
     python3 scripts/run_tests.py --layer contract
+    python3 scripts/run_tests.py --layer conformance
     python3 scripts/run_tests.py --layer integration
     python3 scripts/run_tests.py --layer host
     python3 scripts/run_tests.py --layer smoke
@@ -43,7 +47,9 @@ The compatibility command for all test files is:
 
     python3 -m unittest discover -s tests -p 'test_*.py' -q
 
-Tests cannot establish real-model extraction quality by themselves. Host behavior also needs an AstrBot environment; model evaluation and capacity probes are separate manual workflows. See [benchmarks/README.md](../../../benchmarks/README.md).
+For capability-specific core checks, see [core verification entry points and evidence limits](../architecture/modules/core.md#core-verification): it lists current tests and focused commands, distinguishing pure rules from complete flows. Export checks do not establish complete behavioral coverage of all exported operations.
+
+Tests cannot establish real-model extraction quality by themselves. Host behavior also needs an AstrBot environment. Benchmarks measure different things from tests: successful legacy aggregate execution means a report was generated, not that quality passed a regression gate; BM25 has separate frozen acceptance checks. Character counts are not tokens or cost. Definitions and limits are in [benchmarks/README.md](../../../benchmarks/README.md).
 
 ## Dashboard
 
