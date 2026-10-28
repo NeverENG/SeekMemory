@@ -253,8 +253,8 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_engine_failure_after_open_does_not_leave_a_live_partial_engine(self) -> None:
         await self.plugin.terminate()
-        module = f"{ROOT.name}.adapters.astrbot.plugin"
-        with patch(f"{module}.Cache.load", side_effect=RuntimeError("private storage detail")):
+        module = importlib.import_module(f"{ROOT.name}.adapters.astrbot.plugin")
+        with patch.object(module.Cache, "load", side_effect=RuntimeError("private storage detail")):
             await self.plugin.initialize()
         self.assertFalse(self.plugin.ready)
         self.assertIsNone(self.plugin.store)
