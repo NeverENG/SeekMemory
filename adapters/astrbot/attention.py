@@ -23,6 +23,19 @@ class AttentionHooks:
             return getattr(host, name)
         raise AttributeError(name)
 
+    def _may_observe(self, event) -> bool:
+        """观察权限 helper 在 host.hooks 上，不在 host 本身；这里显式委托。"""
+        try:
+            direct = getattr(self.host, "_may_observe", None)
+            if callable(direct):
+                return bool(direct(event))
+            hooks = getattr(self.host, "hooks", None)
+            if hooks is not None:
+                return bool(hooks._may_observe(event))
+        except Exception:  # noqa: BLE001 - 取不到权限就按不可观察处理
+            return False
+        return False
+
     def _address_names(self) -> tuple[str, ...]:
         try:
             raw = str(self._c("attention_address_names", "大肥鱼,肥鱼") or "")

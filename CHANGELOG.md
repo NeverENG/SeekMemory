@@ -26,6 +26,16 @@
 - Fix host hooks overwriting each other because every wrapper closure was named `handler`: AstrBot derives the unique handler name from `module + __name__`, so only the first hook (`inject_memory`) registered and `attention_gate` was lost, meaning the attention policy never ran. Each wrapper now sets `__name__` explicitly, with a source-level regression assertion.
 - Symptom: after upgrading to 0.5.x the live instance produced 172 inbound events / 94 replies / 0 attention decisions in 30 minutes; after the fix `attention_gate` intercepts ambient group chats again.
 
+## 0.5.3 — 2026-10-28
+
+### 中文
+
+- 修复 `AttentionHooks` 访问 `_may_observe` 抛 `'Main' object has no attribute '_may_observe'`：该 helper 在 `host.hooks` 上，不在宿主本身；现在显式委托 `host` 或 `host.hooks`，并加回归测试。
+
+### English
+
+- Fix `AttentionHooks` raising `'Main' object has no attribute '_may_observe'`: the helper lives on `host.hooks`, not the host object; it now delegates explicitly and has a regression test.
+
 ## Unreleased
 
 ### 中文

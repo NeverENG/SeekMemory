@@ -70,6 +70,22 @@ class _Sources:
         return self.row
 
 
+class AttentionHookDelegationTest(unittest.TestCase):
+    def test_may_observe_falls_back_to_host_hooks(self) -> None:
+        calls = []
+
+        class Hooks:
+            def _may_observe(self, event):
+                calls.append(event)
+                return True
+
+        host = SimpleNamespace(hooks=Hooks())
+        attention = AttentionHooks(host)
+        event = object()
+        self.assertTrue(attention._may_observe(event))
+        self.assertEqual(calls, [event])
+
+
 class RuntimePluginContextTest(unittest.TestCase):
     def test_plugin_uses_explicit_host_composition(self):
         self.assertNotIn(AstrBotHooks, AstrBotPlugin.__mro__)
