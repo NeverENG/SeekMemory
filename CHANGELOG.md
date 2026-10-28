@@ -4,7 +4,7 @@
 
 ### 中文
 
-- 人格小铺支持兼容旧 JSON 的完整包导入/导出、PNG 封面及许可证预览；封面经管理员鉴权读取，图片校验与打包覆盖大小、尺寸、损坏及路径边界。更新保留旧包备份，不改变 Persona/Source 数据结构；旧代码回退前需导出纯设定 JSON。角色内容与正式插画留待后续。
+- 人格小铺支持兼容旧 JSON 的完整包导入/导出、PNG 封面及许可证预览；封面经管理员鉴权读取，图片校验与打包覆盖大小、尺寸、损坏及路径边界。更新保留旧包备份，不改变 Persona/Source 数据结构；旧代码回退前需导出纯设定 JSON。替换或取消导入会丢弃迟到的封面读取结果。角色内容与正式插画留待后续。
 
 - 星图每次加载最多读取 120 条记忆和 240 条关联，默认显示 80 条，40/80/120 切换不再请求；移除千节点选项与后台布局，避免预读过多记忆。
 
@@ -42,7 +42,7 @@
 
 ### English
 
-- Add complete persona-pack import/export compatible with legacy JSON, PNG artwork and license previews. Serve artwork through administrator authentication and validate packaging, size, dimensions, corruption and path boundaries. Preserve backups on update without changing Persona/Source schemas; export seed-only JSON before reverting to older code. Character content and final artwork remain deferred.
+- Add complete persona-pack import/export compatible with legacy JSON, PNG artwork and license previews. Serve artwork through administrator authentication and validate packaging, size, dimensions, corruption and path boundaries. Preserve backups on update without changing Persona/Source schemas; export seed-only JSON before reverting to older code. Discard late cover reads after an import is replaced or cancelled. Character content and final artwork remain deferred.
 
 - Read at most 120 graph nodes and 240 associations on load, display 80 nodes by default, and switch between 40/80/120 locally. Remove the 1,000-node option and background layout to avoid excessive prefetching.
 

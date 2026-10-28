@@ -46,6 +46,7 @@ export function StorePage({
     [notice, setNotice] = useState("")
   const [chatImport, setChatImport] = useState(false)
   const [pendingImport, setPendingImport] = useState<PersonaBundle | null>(null)
+  const [importVersion, setImportVersion] = useState(0)
   const [expectedVersion, setExpectedVersion] = useState("")
   const [removeConfirmed, setRemoveConfirmed] = useState(false)
   const [saveName, setSaveName] = useState("")
@@ -119,6 +120,7 @@ export function StorePage({
       if (file.size > MAX_PACK_BYTES) throw new Error("人格包不能超过 3 MiB")
       const imported = parsePackFile(await file.text())
       if (version !== importRequest.current) return
+      setImportVersion(version)
       setPendingImport(imported)
       setExpectedVersion(
         vm.data?.items.find((p) => p.id === imported.seed.id)?.version ?? ""
@@ -315,7 +317,7 @@ export function StorePage({
       )}
       {pendingImport && (
         <PackImport
-          key={pendingImport.seed.id + ":" + pendingImport.seed.version}
+          key={importVersion}
           pack={pendingImport}
           setPack={setPendingImport}
           expectedVersion={expectedVersion}

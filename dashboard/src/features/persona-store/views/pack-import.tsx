@@ -1,7 +1,6 @@
-import { useRef, useState } from "react"
 import { Button, Input } from "@/ui"
 import type { PersonaBundle } from "@/features/shell/model"
-import { readArtwork } from "../pack-file"
+import { useArtworkImport } from "../use-artwork-import"
 
 export function PackImport({
   pack,
@@ -20,9 +19,9 @@ export function PackImport({
   onSave: () => void
   onCancel: () => void
 }) {
-  const [error, setError] = useState("")
-  const [reading, setReading] = useState(false)
-  const request = useRef(0)
+  const { error, reading, readFile } = useArtworkImport((artwork) =>
+    setPack({ ...pack, artwork })
+  )
   return (
     <section
       className="console-panel my-5 space-y-4 p-6"
@@ -62,17 +61,7 @@ export function PackImport({
               const file = event.target.files?.[0]
               event.target.value = ""
               if (!file) return
-              const version = ++request.current
-              setReading(true)
-              setError("")
-              void readArtwork(file)
-                .then((artwork) => {
-                  if (version === request.current) setPack({ ...pack, artwork })
-                })
-                .catch((e: unknown) =>
-                  setError(e instanceof Error ? e.message : "图片无效")
-                )
-                .finally(() => setReading(false))
+              void readFile(file)
             }}
           />
         </label>
