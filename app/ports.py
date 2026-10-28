@@ -1,3 +1,11 @@
+"""Required external capabilities / 应用层要求外部提供的能力。
+
+Declarations and explicit exports only; no I/O implementation.
+仅声明与集中导出，不实现读写；资源由组装方创建、管理和关闭。
+Runtime and callback definitions retain their existing import paths.
+运行时与回调沿用原定义；集中入口不表示内部职责已经整理完成。
+"""
+
 from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
@@ -18,18 +26,25 @@ except ImportError:
     from app.contracts import ChatRequest, ChatResponse
 
 
+# Model and retrieval / 模型调用与检索。
 @runtime_checkable
 class ChatModel(Protocol):
+    """Complete one provider-neutral request / 完成一次通用模型请求。"""
+
     async def complete(self, request: ChatRequest) -> ChatResponse: ...
 
 
 @runtime_checkable
 class Retriever(Protocol):
+    """Rank a supplied Artifact pool / 从调用方提供的记忆池中检索候选。"""
+
     def retrieve(self, query: str, pool: list[Artifact]) -> list[RetrievalCandidate]: ...
 
 
 @runtime_checkable
 class SourceStore(Protocol):
+    """Append immutable evidence and read it by time/ID / 追加不可变证据，并按时间或编号读取。"""
+
     def append_sources(self, sources: list[Source]) -> int: ...
     def recent_sources(self, *, since: str, limit: int) -> list[Source]: ...
     def source_umo(self, source_id: str) -> str: ...
@@ -39,6 +54,12 @@ class SourceStore(Protocol):
 
 @runtime_checkable
 class ArtifactStore(Protocol):
+    """Read memory revisions and commit version/evidence/ledger together.
+
+    读取记忆版本；commit 原子保存版本、证据及账本，失败不得更新缓存。
+    Separate graph/parent calls are not part of commit / 连接和父节点调用不属于该原子提交。
+    """
+
     def commit(self, art: Artifact, *, expected_revision: int, op: str,
                reason: str = "", source_ids: tuple[str, ...] = (),
                state_events: tuple[StateEvent, ...] = ()) -> None: ...
@@ -117,6 +138,8 @@ class TreeCache(Protocol):
 
 @runtime_checkable
 class ArtifactCache(Protocol):
+    """Active-memory read model; put only after commit / 有效记忆的派生读视图，提交成功后才能更新。"""
+
     artifacts: ArtifactStore
 
     @property
@@ -133,17 +156,23 @@ class ArtifactCache(Protocol):
 
 @runtime_checkable
 class MetricsStore(Protocol):
+    """Read capacity measurements / 读取容量用量。"""
+
     def capacity_usage(self, now: str = "") -> dict[str, Any]: ...
 
 
 @runtime_checkable
 class LedgerStore(Protocol):
+    """Read and verify the business ledger / 读取并校验业务账本。"""
+
     def entries(self) -> list[Any]: ...
     def verify(self) -> bool: ...
 
 
 @runtime_checkable
 class ExtractionStore(Protocol):
+    """Queue Source references and record extraction outcomes / 排队原始消息引用，记录抽取结果与重试。"""
+
     def enqueue_extraction(
         self,
         source: Source,
@@ -165,3 +194,51 @@ class ExtractionStore(Protocol):
         max_attempts: int = 5,
         now: str = "",
     ) -> int: ...
+
+
+# Console data sources / 控制台所需数据；no HTTP or UI types / 不含传输或界面类型。
+from .console_ports import (
+    DreamJournal,  # recent: read recent daily runs / 读取近期夜间整理记录。
+    PersonaPacks,  # catalog/read/save/remove: manage seed packs / 列出、读取、保存及删除人格包。
+)
+
+# Runtime dependencies / 运行时所需能力；implementations are injected / 实现由外部注入。
+from .runtime.contracts import (
+    ActionPort,         # execute: perform a host action / 执行宿主动作。
+    ActionSink,         # append: persist content-free action audit / 保存无正文的动作审计。
+    Clock,              # __call__: UTC epoch seconds / 返回 UTC 时间戳秒数。
+    MemoryContextPort,  # build_context: read-only memory context / 只读构建记忆上下文。
+    MessageSender,      # send: compatibility text delivery / 兼容的文本发送接口。
+    ModelGateway,       # complete: runtime model text call / 运行时的模型文本调用。
+    ProactivePolicy,    # evaluate: pure eligibility decision / 纯规则判断主动发言条件。
+    SessionStateStore,  # get/put: mutable scheduling state, not memory / 读取和保存调度状态，不是记忆。
+    TraceSink,          # record: diagnostic event, not business audit / 记录诊断事件，不替代业务审计。
+)
+from .runtime.topics import TopicSource  # candidates: read proactive topics / 读取主动话题候选。
+from .runtime.recorder import (
+    CheckpointSink,  # record: enqueue a memory hit / 排队一次记忆命中。
+    EpisodeWriter,   # record: accept one run record / 接收一条运行记录。
+    PendingSink,     # add: add a Source-backed extraction view / 建立待抽取的原始消息视图。
+    SourceSink,      # append_sources: append raw evidence / 追加原始证据。
+)
+from .runtime.episode import EpisodeSink  # append: persist one run record / 保存一条运行记录。
+from .runtime.tracing import TraceWriter  # append: write one diagnostic row / 写入一条诊断记录。
+
+# Daily-cycle callbacks / 夜间整理所需回调；the two clock shapes are deliberately distinct / 两种时钟返回值不同。
+from .dream import (
+    Clock as DreamClock,  # datetime, unlike runtime Clock's float / 返回日期时间对象，不是运行时时钟的秒数。
+    FlushFn,             # Extract a bounded batch and return counts / 限量抽取批次并返回数量。
+    Log,                 # Emit a status message / 输出状态消息。
+    MaintainFn,          # Run maintenance and return a summary / 执行维护并返回汇总。
+    PendingFn,           # Count pending input / 统计待处理输入。
+    UsageFn,             # Read cumulative model usage / 读取累计模型用量。
+)
+
+__all__ = [
+    "ChatModel", "Retriever", "SourceStore", "ArtifactStore", "TreeArtifactStore", "TreeCache",
+    "ArtifactCache", "MetricsStore", "LedgerStore", "ExtractionStore", "DreamJournal", "PersonaPacks",
+    "ActionPort", "ActionSink", "Clock", "MemoryContextPort", "MessageSender", "ModelGateway",
+    "ProactivePolicy", "SessionStateStore", "TraceSink", "TopicSource",
+    "CheckpointSink", "EpisodeWriter", "PendingSink", "SourceSink", "EpisodeSink", "TraceWriter",
+    "DreamClock", "FlushFn", "Log", "MaintainFn", "PendingFn", "UsageFn",
+]

@@ -40,6 +40,8 @@
 
 ### 中文
 
+- 内部接口：增加 `app.domain`，并在 `app.ports` 集中列出应用层提供的能力与外部依赖；补齐中英接口清单、逻辑复杂度及职责缺口。保留原导入路径和实现位置，未改变业务规则、持久化格式或公开配置。
+
 - 文档：补齐 core 能力与现有测试的对应入口、定向验证命令及证据范围；澄清测试分层混用、旧跑分的样本权重与字数指标，以及报告生成不等于质量验收。测试、跑分和运行代码保持不变。
 
 - 内部卫生：算法阈值与系数在所属 core 文件内具名维护；关系校验和追踪复用领域词表，互动规则复用已有默认概率。保持策略数值、边界判断、配置及持久化约定不变。
@@ -83,6 +85,8 @@
 - 人格控制台接入历史版本回滚、差异比较与变化原因；安装时校验预览内容，按版本显示已安装状态；Dream 日志区分预算停止与完成，并显示调度开关。新增控制台接口需与 dashboard 同步更新，不涉及数据库迁移或配置变化（#82 / #83）。
 
 ### English
+
+- Internal interfaces: add `app.domain` and centralize required capabilities in `app.ports`; document the provided/required interface inventory, logical complexity, and responsibility gaps in both languages. Existing import paths and implementation locations remain available; business rules, persisted formats, and public configuration are unchanged.
 
 - Documentation: map core capabilities to existing tests, focused commands and evidence limits; clarify mixed test layers, fixture-weight/character-count metrics in the legacy benchmark, and report generation versus quality acceptance. Test, benchmark and runtime code remain unchanged.
 
