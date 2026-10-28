@@ -4,14 +4,14 @@
 
 core 定义记忆领域的稳定词汇和不依赖 IO 的决策。它不负责 SQL、缓存、模型、网络或 AstrBot 事件。
 
-## 统一接口入口
+## 领域能力与外部依赖入口
 
-[`core/interfaces.py`](../../../../core/interfaces.py) 是本模块唯一主要接口文件，只包含声明、显式导出和中英混合行为说明，不实现业务。它分为两部分：
+本模块将对外提供的能力和要求外部提供的能力分开，两个入口只包含显式导出或协议声明，配有中英混合行为说明，不实现业务：
 
-- **对外提供**：领域类型，以及记忆构造/修订/校验、消息编号、版本检查、强度、披露、图、容量、人格、关系/互动和追踪整理能力。函数与类型直接沿用原对象，完整调用参数可由原定义或 `inspect.signature()` 查看；没有包装函数或空实现。
-- **要求外部提供**：`GraphArtifactStore` 的连接读写。每个方法说明返回值、读写影响和必要的失败约定；实现由外部注入，连接生命周期也由外部管理。
+- **对外提供 — [`core/domain.py`](../../../../core/domain.py)**：领域类型，以及记忆构造/修订/校验、消息编号、版本检查、强度、披露、图、容量、人格、关系/互动和追踪整理能力。函数与类型直接沿用原对象，完整调用参数可由原定义或 `inspect.signature()` 查看；没有包装函数或空实现。
+- **要求外部提供 — [`core/ports.py`](../../../../core/ports.py)**：`GraphArtifactStore` 的连接读写。每个方法说明返回值、读写影响和必要的失败约定；实现由外部注入，连接生命周期也由外部管理。
 
-调用方可使用 `from core.interfaces import make, Graph, GraphArtifactStore`；插件包中使用相应的相对导入。`core.artifact`、`core.graph` 等领域实现入口继续有效，`core.graph.GraphArtifactStore` 是统一声明的别名。`Graph` 及关联值的延迟导入绑定仅位于私有 `_interface_bindings.py`，避免图读取接口声明时循环初始化；该文件不提供另一套接口或业务实现。
+调用方使用 `from core.domain import make, Graph` 获取领域能力，使用 `from core.ports import GraphArtifactStore` 获取依赖声明；插件包中使用相应的相对导入。`core.artifact`、`core.graph` 等领域实现入口继续有效，`core.graph.GraphArtifactStore` 是端口声明的同一对象。图实现直接引用 `ports.py`，`domain.py` 正常导出图类型，不再需要延迟绑定。原内部 `core.interfaces` 入口已移除。
 
 树的完整读写协调由 [TreeService](services.md) 负责，内部入口为 `from services import TreeService`；原 `core.tree` 及 core 的树相关导出已移除。树所需的 `TreeArtifactStore`、`TreeCache` 声明位于 `app/ports.py`，core 不反向引用应用层或服务层。
 

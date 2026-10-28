@@ -40,6 +40,8 @@
 
 ### 中文
 
+- 内部接口：将 `core.interfaces` 拆为对外能力入口 `core.domain` 和外部依赖声明 `core.ports`，移除图的延迟导入绑定。内部调用需更新导入路径；现有领域实现入口、策略数值和外层契约保持兼容。
+
 - 内部架构：树读写集中迁入 `services.TreeService`，所需存储和缓存接口迁至 `app/ports.py`；内部 Python 调用需替换原 `core.tree.Tree` 入口。保持宿主、管理接口、配置、持久化格式及原有读写行为兼容。
 
 - 星图每次加载最多读取 120 条记忆和 240 条关联，默认显示 80 条，40/80/120 切换不再请求；移除千节点选项与后台布局，避免预读过多记忆。
@@ -77,6 +79,8 @@
 - 人格控制台接入历史版本回滚、差异比较与变化原因；安装时校验预览内容，按版本显示已安装状态；Dream 日志区分预算停止与完成，并显示调度开关。新增控制台接口需与 dashboard 同步更新，不涉及数据库迁移或配置变化（#82 / #83）。
 
 ### English
+
+- Internal interfaces: split `core.interfaces` into the provided `core.domain` entry and required declarations in `core.ports`, removing lazy graph binding. Internal callers must update imports; existing domain implementation entries, policy values and outer contracts remain compatible.
 
 - Internal architecture: move tree orchestration to `services.TreeService` and its storage/cache ports to `app/ports.py`; internal Python callers must replace `core.tree.Tree`. Host/management contracts, configuration, persisted formats, and existing read/write behavior remain compatible.
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .interfaces import GraphArtifactStore
+from .ports import GraphArtifactStore
 
 
 @dataclass(frozen=True)

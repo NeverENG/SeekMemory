@@ -1,19 +1,15 @@
-"""Core's single interface entry / core 唯一主要接口入口。
+"""Provided domain interface / 对外提供的领域能力入口。
 
 Provides: domain values and operations, explicitly exported below.
 提供：下列领域类型与操作；实现保留在各自模块中。
-Requires: the graph storage protocol declared at the end of this file.
-需要：文件末尾声明的图连接存储能力。
+Required external capabilities are declared separately in ports.py.
+外部需要提供的能力单独声明于 ports.py。
 
 Declarations and exports only; implementations remain in their owning modules.
-本文件仅声明、导出接口，不实现业务；Graph 的导入绑定由私有模块处理。
+本文件仅导出领域接口，不实现业务。
 """
 
 from __future__ import annotations
-
-from typing import TYPE_CHECKING, Protocol
-
-from ._interface_bindings import __dir__, __getattr__
 
 # Provided capabilities / 对外提供的能力
 # Values keep their original definitions and defaults / 类型及默认值沿用原定义。
@@ -57,9 +53,7 @@ from .disclosure import (
 )
 
 # Graph: link/link_causal write; degree/neighbours read / 图：连接写入，度数和邻居只读。
-# Lazy exports preserve object identity without an initialization cycle / 延迟导出保留原对象，避免初始化循环。
-if TYPE_CHECKING:
-    from .graph import ArtifactEdge, Graph, KINDS
+from .graph import ArtifactEdge, Graph, KINDS
 
 from .capacity import (
     NORMAL, PRESSURED, SATURATED, PROTECTIVE, ENV_PREFIX,
@@ -115,19 +109,6 @@ from .trace import (
 )
 
 
-# Required capabilities / 要求外部提供的能力
-class GraphArtifactStore(Protocol):
-    """Storage needed by Graph; caller owns its lifetime / 图所需存储，生命周期由外部管理。"""
-
-    def add_edge(self, src: str, dst: str, kind: str, weight: float) -> None:
-        """Upsert by (src, dst, kind); errors propagate / 按两端及类型写入或更新，错误向上传递。"""
-        ...
-
-    def edges_of(self, node_id: str) -> list[tuple[str, str, float]]:
-        """Read (other ID, kind, weight) from both ends; direction omitted / 双向查询，返回另一端、类型、权重，不含方向。"""
-        ...
-
-
 __all__ = [
     "FAMILIES", "Artifact", "Header", "Lineage", "Strength", "TimeSpan",
     "make", "revise", "validate", "content_of",
@@ -161,5 +142,4 @@ __all__ = [
     "InteractionContext", "InteractionGate", "InteractionPolicySettings",
     "stable_sample", "decide_interaction", "EVENTS", "FILTERS", "STATUSES",
     "ID_LIMIT", "ids", "count", "choice", "recall_data", "clean_event", "project_runs",
-    "GraphArtifactStore",
 ]

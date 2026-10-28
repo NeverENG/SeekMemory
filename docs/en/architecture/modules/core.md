@@ -4,14 +4,14 @@
 
 core defines the stable vocabulary and I/O-free decisions of the memory domain. It does not own SQL, cache, model calls, networking, or AstrBot events.
 
-## Single interface entry
+## Provided domain and required-port entries
 
-[`core/interfaces.py`](../../../../core/interfaces.py) is the module's single primary interface file. It contains declarations, explicit exports, and mixed English/Chinese behavior notes, with no business implementation. It separates:
+The module separates the capabilities it provides from those callers must supply. Both entries contain explicit exports or protocol declarations with mixed English/Chinese behavior notes and no business implementation:
 
-- **Provided capabilities**: domain values and operations for Artifact construction/revision/validation, Source identity, version checks, strength, disclosure, graph, capacity, persona, relationship/interaction, and trace projection. Functions and types retain their original identities; their complete call signatures remain available in their definitions or through `inspect.signature()`. There are no wrapper functions or empty implementations.
-- **Required capabilities**: edge storage through `GraphArtifactStore`. Each method describes results, read/write effects, and necessary failure guarantees. Implementations are injected; callers own connection lifetimes.
+- **Provided capabilities — [`core/domain.py`](../../../../core/domain.py)**: domain values and operations for Artifact construction/revision/validation, Source identity, version checks, strength, disclosure, graph, capacity, persona, relationship/interaction, and trace projection. Functions and types retain their original identities; their complete call signatures remain available in their definitions or through `inspect.signature()`. There are no wrapper functions or empty implementations.
+- **Required capabilities — [`core/ports.py`](../../../../core/ports.py)**: edge storage through `GraphArtifactStore`. Each method describes results, read/write effects, and necessary failure guarantees. Implementations are injected; callers own connection lifetimes.
 
-Callers can use `from core.interfaces import make, Graph, GraphArtifactStore`, or the equivalent relative imports inside the plugin package. Domain implementation paths such as `core.artifact` and `core.graph` remain valid; `core.graph.GraphArtifactStore` aliases the centralized declaration. Only the private `_interface_bindings.py` handles lazy imports of `Graph` and related values, avoiding cyclic initialization while graph loads its protocol. That file is neither another interface surface nor a business implementation.
+Callers use `from core.domain import make, Graph` for provided capabilities and `from core.ports import GraphArtifactStore` for required capabilities, or equivalent relative imports inside the plugin package. Domain implementation paths such as `core.artifact` and `core.graph` remain valid; `core.graph.GraphArtifactStore` aliases the port declaration. Graph imports `ports.py` directly, allowing `domain.py` to export graph types normally without lazy binding. The internal `core.interfaces` entry has been removed.
 
 Tree read/write orchestration belongs to [TreeService](services.md), imported internally with `from services import TreeService`; `core.tree` and core's tree exports have been removed. Its required `TreeArtifactStore` and `TreeCache` declarations live in `app/ports.py`; core does not import the application or service layer.
 
