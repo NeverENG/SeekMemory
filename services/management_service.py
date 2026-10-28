@@ -59,9 +59,9 @@ class ManagementService:
         self.packs = packs
         self.dreams = dreams
 
-    def graph(self, limit: int = 1000) -> dict:
-        if not 1 <= limit <= 1000:
-            raise ValueError("星图上限必须为 1–1000")
+    def graph(self, limit: int = 120) -> dict:
+        if type(limit) is not int or not 1 <= limit <= 120:
+            raise ValueError("星图上限必须为 1–120")
         return console_projection.graph(self.artifacts, limit=limit)
 
     def impressions(self, offset: int = 0, limit: int = 100) -> dict:

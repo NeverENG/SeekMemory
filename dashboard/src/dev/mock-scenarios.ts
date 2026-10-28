@@ -33,7 +33,7 @@ export function scenarioClient(
     records: async () => [],
     events: async () => [],
     console: {
-      graph: async () => ({ nodes: [], edges: [], total: 0, limit: 1000 }),
+      graph: async () => ({ nodes: [], edges: [], total: 0, limit: 120 }),
       impressions: async () => ({ items: [], total: 0, offset: 0, limit: 100 }),
       dream: async () => ({ items: [], limit: 100 }),
       packs: async () => ({ items: [], total: 0, offset: 0, limit: 24 }),

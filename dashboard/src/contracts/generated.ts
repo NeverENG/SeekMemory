@@ -164,7 +164,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 控制台 graph */
+        /**
+         * 控制台 graph
+         * @description 固定读取最近更新的最多 120 个节点及 240 条关联，不接收 limit 参数。前端默认显示 80 条，可选 40/80/120，切换数量和筛选仅作用于这批记忆，不重新请求。total 为数据库中 Artifact 总数。
+         */
         get: operations["graph"];
         put?: never;
         post?: never;

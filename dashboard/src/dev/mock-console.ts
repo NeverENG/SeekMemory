@@ -1,5 +1,6 @@
 import { detailSchema, type ArtifactDetail } from "../features/control/model.ts"
 import type { MemoryRecord } from "../features/memory/model.ts"
+import { recentGraph } from "../features/memory-graph/model.ts"
 import {
   seedSchema,
   bundleSchema,
@@ -98,18 +99,21 @@ export function mockConsole(
         protected:
           r.scope === "shadow" || ["secret", "designated"].includes(r.category),
       }))
-      return {
-        nodes,
-        edges: nodes.slice(1).flatMap((n, i) => [
-          {
-            source: n.id,
-            target: nodes[i]?.id ?? n.id,
-            kind: "same_subject",
-          },
-        ]),
-        total: nodes.length,
-        limit: 1000,
-      }
+      return recentGraph(
+        {
+          nodes,
+          edges: nodes.slice(1).flatMap((n, i) => [
+            {
+              source: n.id,
+              target: nodes[i]?.id ?? n.id,
+              kind: "same_subject",
+            },
+          ]),
+          total: nodes.length,
+          limit: 120,
+        },
+        120
+      )
     },
     async impressions(offset = 0) {
       const items = records()

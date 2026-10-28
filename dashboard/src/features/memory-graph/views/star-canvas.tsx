@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/ui"
-import { Minus, Plus, RotateCcw, Pause, Play } from "lucide-react"
+import { Focus, Minus, Plus, RotateCcw, Pause, Play } from "lucide-react"
 import type { GraphSnapshot } from "@/features/shell/model"
 import { kindColors, kindLabels } from "../model"
 import { hitStar } from "../draw-scene"
@@ -37,6 +37,7 @@ export function StarCanvas({
     zoom,
     rotate,
     resetOrbit,
+    focusNode,
     setDragging,
     tooltip,
     leader,
@@ -198,6 +199,16 @@ export function StarCanvas({
         </div>
       )}
       <div className="star-controls">
+        {selected && (
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="聚焦选中记忆"
+            onClick={() => focusNode(selected)}
+          >
+            <Focus />
+          </Button>
+        )}
         <Button
           variant="outline"
           size="icon"

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
-import type { GraphSnapshot } from "../../shell/model"
-import { assemblyDuration, entranceCamera } from "../choreography"
-import { layoutSphere, type Orbit } from "../scene"
-import { drawScene, scenePalette, type ScreenStar } from "../draw-scene"
+import type { GraphSnapshot } from "../../shell/model.ts"
+import { assemblyDuration, entranceCamera } from "../choreography.ts"
+import { focusOrbit, layoutSphere, type Orbit } from "../scene.ts"
+import { drawScene, scenePalette, type ScreenStar } from "../draw-scene.ts"
 export function useStarScene(
   graph: GraphSnapshot,
   kind: string,
@@ -65,6 +65,8 @@ export function useStarScene(
       intro = 0
     let lastReplay = latest.current.replay
     const lifts = new Map<string, number>()
+    const drawSamples: number[] = [],
+      frameSamples: number[] = []
     const schedule = () => {
       if (!frame && visible && !document.hidden)
         frame = requestAnimationFrame(render)
@@ -80,7 +82,8 @@ export function useStarScene(
         last = 0
         return
       }
-      const dt = last ? Math.min(40, now - last) : 16.7
+      const frameMs = last ? now - last : 0
+      const dt = last ? Math.min(40, frameMs) : 16.7
       last = now
       const state = latest.current
       if (state.replay !== lastReplay) {
@@ -147,6 +150,18 @@ export function useStarScene(
         )
       }
       if (import.meta.env.DEV) {
+        const drawMs = performance.now() - before
+        drawSamples.push(drawMs)
+        if (frameMs > 0 && frameMs < 1000) frameSamples.push(frameMs)
+        if (drawSamples.length > 120) drawSamples.shift()
+        if (frameSamples.length > 120) frameSamples.shift()
+        const p95 = (samples: number[]) =>
+          [...samples].sort((a, b) => a - b)[
+            Math.floor((samples.length - 1) * 0.95)
+          ] ?? 0
+        element.dataset["drawP95"] = p95(drawSamples).toFixed(2)
+        element.dataset["frameP95"] = p95(frameSamples).toFixed(2)
+        element.dataset["samples"] = String(drawSamples.length)
         element.dataset["intro"] = intro.toFixed(0)
         element.dataset["stage"] =
           ["seed", "trunk", "branches", "pullback", "ready"][
@@ -156,7 +171,7 @@ export function useStarScene(
         element.dataset["nodes"] = String(state.sphere.stars.length)
         element.dataset["renderedAt"] = now.toFixed(1)
         element.dataset["drawMs"] = (performance.now() - before).toFixed(3)
-        element.dataset["frameMs"] = dt.toFixed(2)
+        element.dataset["frameMs"] = frameMs.toFixed(2)
         element.dataset["bitmapBytes"] = String(
           element.width * element.height * 4
         )
@@ -270,6 +285,20 @@ export function useStarScene(
     orbit.current = { yaw: 0.35, pitch: -0.18, zoom: 1 }
     invalidate.current()
   }, [])
+  const focusNode = useCallback((id: string) => {
+    const point = latest.current.sphere.stars.find((star) => star.id === id)
+    if (!point) return
+    entrance.current = assemblyDuration
+    const state = latest.current
+    const settled = entranceCamera(
+      state.sphere.propagation,
+      state.sphere.stars,
+      assemblyDuration
+    )
+    const focused = focusOrbit(point)
+    orbit.current = { ...focused, yaw: focused.yaw - settled.yaw }
+    invalidate.current()
+  }, [])
   const setDragging = useCallback(
     (value: boolean) => {
       if (value) takeControl()
@@ -284,6 +313,7 @@ export function useStarScene(
     zoom,
     rotate,
     resetOrbit,
+    focusNode,
     setDragging,
     tooltip,
     leader,

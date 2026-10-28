@@ -6,6 +6,10 @@
 
 - 人格小铺支持兼容旧 JSON 的完整包导入/导出、PNG 封面及许可证预览；封面经管理员鉴权读取，图片校验与打包覆盖大小、尺寸、损坏及路径边界。更新保留旧包备份，不改变 Persona/Source 数据结构；旧代码回退前需导出纯设定 JSON。角色内容与正式插画留待后续。
 
+- 星图每次加载最多读取 120 条记忆和 240 条关联，默认显示 80 条，40/80/120 切换不再请求；移除千节点选项与后台布局，避免预读过多记忆。
+
+- 将星图读取改为数据库限量快照与批量关联查询；补齐抽屉中的键盘列表、聚焦和关联视图，修复普通 HTTP 页面保存人格包的随机 ID 兼容性。保持数据库格式与公开配置不变。
+
 - 兼容 v0.5.0 的 AstrBot 包结构，修正内置人格包路径，保留上游动作审计及自动测试发现机制；验证人格包、Dream 历史及重启恢复。无额外数据库或配置变更。
 
 - 同步 v0.4.3 后的宿主运行时，保留人格包与 Dream 控制台接线；补齐重载及启动失败重试验证，将控制台文档迁入中英双语目录，日志增加“允许回复／本轮不回复”状态筛选。无新增数据库或配置变更。
@@ -39,6 +43,10 @@
 ### English
 
 - Add complete persona-pack import/export compatible with legacy JSON, PNG artwork and license previews. Serve artwork through administrator authentication and validate packaging, size, dimensions, corruption and path boundaries. Preserve backups on update without changing Persona/Source schemas; export seed-only JSON before reverting to older code. Character content and final artwork remain deferred.
+
+- Read at most 120 graph nodes and 240 associations on load, display 80 nodes by default, and switch between 40/80/120 locally. Remove the 1,000-node option and background layout to avoid excessive prefetching.
+
+- Bound graph reads in SQL and batch association queries; add a drawer-based keyboard list, focus and neighborhood actions, HTTP-compatible random persona-pack IDs. Database formats and public configuration are unchanged.
 
 - Integrate the v0.5.0 AstrBot package layout, correct the built-in persona-pack path, and retain upstream action auditing and automatic test discovery. Verify persona packs, Dream history and restart recovery without additional database or configuration changes.
 

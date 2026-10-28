@@ -1,4 +1,5 @@
 import { PackPreview } from "./pack-preview"
+import { newPackId } from "../pack-id"
 import { personaBlueprint, packInstallLabel } from "../model"
 import type { ArtifactDetail } from "@/features/control/model"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -224,7 +225,7 @@ export function StorePage({
                       const current = personaBlueprint(
                         detail,
                         saveName.trim(),
-                        `my-${crypto.randomUUID().slice(0, 12)}`
+                        newPackId()
                       )
                       return client.persona({
                         operation: "import",

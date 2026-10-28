@@ -28,9 +28,11 @@ except ImportError:
     from sqlite import SqliteRepository, dump_json, now_iso
 
 try:
+    from ..core.graph import ArtifactEdge
     from ..core.artifact import Artifact
     from ..core.versioning import StateEvent, VersionError, assert_next_revision
 except ImportError:
+    from core.graph import ArtifactEdge
     from core.artifact import Artifact
     from core.versioning import StateEvent, VersionError, assert_next_revision
 
@@ -63,9 +65,12 @@ class ArtifactRepository(SqliteRepository):
             )
 
     def count(self, family: str | None = None) -> int:
+        if family is None:
+            row = self.conn.execute("SELECT COUNT(*) AS c FROM nodes").fetchone()
+            return int(row["c"]) if row is not None else 0
         row = self.conn.execute(
-            "SELECT COUNT(*) AS c FROM nodes WHERE ? IS NULL OR family = ?",
-            (family, family),
+            "SELECT COUNT(*) AS c FROM nodes WHERE family = ?",
+            (family,),
         ).fetchone()
         return int(row["c"]) if row is not None else 0
 
@@ -185,6 +190,70 @@ class ArtifactRepository(SqliteRepository):
                 "UPDATE nodes SET parent = ?, updated_at = ? WHERE id = ?",
                 (parent_id, now_iso(), str(node_id)),
             )
+
+    def list_recent(self, limit: int) -> list[Artifact]:
+        if not 1 <= limit <= 120:
+            raise ValueError("recent artifact limit must be between 1 and 120")
+        # Limit headers before joining payload blobs; never decode the whole library.
+        rows = self.conn.execute(
+            "WITH recent AS (SELECT * FROM nodes ORDER BY updated_at DESC, id DESC LIMIT ?) "
+            "SELECT n.*, b.content AS blob_content FROM recent n "
+            "LEFT JOIN blobs b ON b.hash = n.blob ORDER BY n.updated_at DESC, n.id DESC",
+            (limit,),
+        ).fetchall()
+        return [art for art in map(row_to_artifact, rows) if art is not None]
+
+    def list_impressions(self, limit: int, offset: int = 0) -> list[Artifact]:
+        """Read one deterministic, paginated impression per subject/scope."""
+        if not 1 <= limit <= 100 or not 0 <= offset <= 100000:
+            raise ValueError("impression page parameters are out of bounds")
+        rows = self.conn.execute(
+            "WITH ranked AS ("
+            "SELECT n.*, b.content AS blob_content, "
+            "ROW_NUMBER() OVER (PARTITION BY n.subject_id, n.scope "
+            "ORDER BY n.updated_at DESC, n.revision DESC, n.id DESC) AS rn "
+            "FROM nodes n LEFT JOIN blobs b ON b.hash = n.blob "
+            "WHERE n.family = 'memory' AND n.state = 'active' "
+            "AND n.subject_id IS NOT NULL AND n.subject_id != '' "
+            "AND json_extract(b.content, '$.level') = 'impression') "
+            "SELECT * FROM ranked WHERE rn = 1 "
+            "ORDER BY subject_id, scope, updated_at DESC, id DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        ).fetchall()
+        return [art for art in map(row_to_artifact, rows) if art is not None]
+
+    def count_impressions(self) -> int:
+        """Count distinct subject/scope impression groups without loading them."""
+        row = self.conn.execute(
+            "SELECT COUNT(*) AS c FROM ("
+            "SELECT n.subject_id, n.scope FROM nodes n "
+            "LEFT JOIN blobs b ON b.hash = n.blob "
+            "WHERE n.family = 'memory' AND n.state = 'active' "
+            "AND n.subject_id IS NOT NULL AND n.subject_id != '' "
+            "AND json_extract(b.content, '$.level') = 'impression' "
+            "GROUP BY n.subject_id, n.scope)"
+        ).fetchone()
+        return int(row["c"]) if row is not None else 0
+
+    def edges_between(self, node_ids: list[str], limit: int) -> list[ArtifactEdge]:
+        ids = sorted(set(node_ids))
+        if len(ids) > 120 or not 1 <= limit <= 240:
+            raise ValueError("graph edge query exceeds snapshot bounds")
+        if not ids:
+            return []
+        marks = ",".join("(?)" for _ in ids)
+        # Unary + keeps dst as a membership filter rather than a second indexed
+        # IN constraint: otherwise SQLite probes up to N*N (src, dst) pairs.
+        # Both stored IDs and parameters are text, so membership is unchanged.
+        rows = self.conn.execute(
+            f"WITH selected(id) AS (VALUES {marks}) "
+            "SELECT e.src, e.dst, e.kind, e.weight FROM edges e "
+            "WHERE e.src IN (SELECT id FROM selected) "
+            "AND +e.dst IN (SELECT id FROM selected) "
+            "AND e.src != e.dst ORDER BY e.src, e.dst, e.kind LIMIT ?",
+            [*ids, limit],
+        ).fetchall()
+        return [ArtifactEdge(str(r["src"]), str(r["dst"]), str(r["kind"]), float(r["weight"])) for r in rows]
 
     def add_edge(self, src: str, dst: str, kind: str, weight: float) -> None:
         with self.conn:

@@ -24,3 +24,20 @@ SeekMemory 为长期对话提供可追溯、可修订的记忆。文档描述当
 | Agent Runtime | [会话注意力与运行时动作](architecture/modules/runtime.md) |
 | adapters | [AstrBot 宿主适配](architecture/modules/adapters.md) |
 | WebUI | [管理 API 与控制台](architecture/modules/webui.md) |
+
+## 架构图
+
+### AgentRuntime V3 · 平台抽象与中断
+<img src="../assets/v3-runtime-interruption-premium.png" alt="AgentRuntime V3 平台抽象与中断" width="100%">
+
+同会话新意图替换旧 run；跨会话零抢占；取消是协作式的，不等同于暂停。
+
+### 记忆内核 · 算法因子
+<img src="../assets/v3-memory-algorithm-premium.png" alt="记忆内核与算法因子" width="100%">
+
+Source 是不可变证据，Artifact 是可修订解释；召回由强度、相关性、证据闸门、披露和预算共同决定。
+
+### 梦境架构 · 人格链与记忆强化
+<img src="../assets/v3-dream-persona-architecture-premium.png" alt="梦境架构、人格链与记忆强化" width="100%">
+
+Dream 在离线周期中分类、强化、合并、遗忘和修订，并把稳定行为沉淀进同一人格链。

@@ -224,7 +224,9 @@ export function drawScene(
     ctx.fillStyle = color
     ctx.globalAlpha = alpha
     ctx.shadowColor = color
-    ctx.shadowBlur = active ? 5 : 1.5
+    // Dense snapshots keep crisp colored points; reserve costly blur for selection.
+    ctx.shadowBlur = sphere.stars.length > 120 ? 0 : 1.5
+    if (active) ctx.shadowBlur = 5
     ctx.beginPath()
     ctx.arc(p.sx, p.sy, p.r, 0, Math.PI * 2)
     ctx.fill()

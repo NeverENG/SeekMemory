@@ -6,7 +6,18 @@ Edges are persisted by the repository; this module filters kinds and weights.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Protocol
+
+
+@dataclass(frozen=True)
+class ArtifactEdge:
+    """A directed relationship between two artifacts."""
+
+    source: str
+    target: str
+    kind: str
+    weight: float
 
 
 class GraphArtifactStore(Protocol):

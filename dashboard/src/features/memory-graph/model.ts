@@ -92,6 +92,7 @@ export function recentGraph(
   const ids = new Set(nodes.map((node) => node.id))
   return {
     ...graph,
+    limit: bound,
     nodes,
     edges: graph.edges.filter(
       (edge) => ids.has(edge.source) && ids.has(edge.target)

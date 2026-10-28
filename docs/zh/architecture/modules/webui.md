@@ -27,7 +27,7 @@ Jobs 将手动与定时任务限制为单个活动任务。Journal 保存有界�
 
 | 操作 | 有界输出或命令 |
 |---|---|
-| `GET manage/graph` | 最近更新的 1,000 个 Artifact、最多 2,000 条真实或派生关联；不返回 Source 正文，遮蔽 secret/designated/shadow 内容 |
+| `GET manage/graph` | 最近更新的最多 120 个 Artifact、240 条真实或派生关联；不返回 Source 正文，遮蔽 secret/designated/shadow 内容 |
 | `GET manage/impressions?offset=0` | 按主体与范围分组的最近 100 张印象卡片；不跨隐私边界合并身份 |
 | `GET manage/dream` | 最近 100 次运行，仅保留白名单指标；缺失分诊指标为 null，不伪造为零 |
 | `GET manage/packs?collection=official&offset=0` | 24 个人格文件摘要；mine 仅读取插件数据目录 |
@@ -46,3 +46,11 @@ Dream 明确显示 budget.stopped 和 dream_enabled，避免把预算耗尽当�
 
 
 人格包图片经 `GET manage/packArtwork?reference=…` 的管理员鉴权返回有界 PNG base64；完整导出使用 `GET manage/packExport?reference=…`，不暴露数据目录。目录仅返回可选、无正文的 artworkRef，图片不塞进目录响应。`POST manage/persona` 新增 importPack 命令，沿用确认、维护任务互斥及 expectedVersion 更新保护；请求体上限为 3 MiB，其他管理写入仍为 64 KiB。设定、图片和许可证共同参与预览 digest，安装只把规范 seed 交给 bootstrap。新包外层格式见[人格种子指南](../../guides/persona-seed.md)。
+
+## 星图快照与操作
+
+`manage/graph` 固定读取最近更新的最多 120 个节点和 240 条关联，不接受 `limit` 查询参数。仓储在 SQL 内排序并限制节点数，再读取该快照内的关联；不再将全部 Artifact 解码或逐节点查询边。`total` 通过计数查询取得。当前未增加数据库索引：超大库仍有排序扫描成本，应使用实际数据规模测量。
+
+前端搜索、类型/时间/范围/对象筛选只作用于当前快照。每次加载或刷新只读取一批最多 120 条记忆；默认显示 80 条，可选 40/80/120。切换数量在前端完成，不重新请求后端，也不预取更大的节点快照。球面网格是装饰，选中后的关联与“只看关联记忆”使用真实图边。“寻找记忆”抽屉提供每页 30 条的键盘列表，选中后可聚焦、打开详情与审计。减少动态效果时跳过入场和持续动画；暂停按钮也可停止动效。
+
+保存人格蓝图使用 `crypto.getRandomValues` 生成随机 ID，兼容普通 HTTP 页面；不依赖仅安全上下文提供的 `crypto.randomUUID`。这不改变宿主登录与接口鉴权要求。

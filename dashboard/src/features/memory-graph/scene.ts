@@ -58,6 +58,14 @@ export type Orbit = {
   offsetX?: number
   focus?: Vec3
 }
+/** Turn a chosen node to the front without changing its graph coordinates. */
+export function focusOrbit(point: Vec3): Orbit {
+  return {
+    yaw: -Math.atan2(point.x, point.z),
+    pitch: Math.atan2(point.y, Math.hypot(point.x, point.z)),
+    zoom: 1,
+  }
+}
 export function rotatePoint(point: Vec3, orbit: Orbit): Vec3 {
   const x = point.x * Math.cos(orbit.yaw) + point.z * Math.sin(orbit.yaw)
   const z = -point.x * Math.sin(orbit.yaw) + point.z * Math.cos(orbit.yaw)

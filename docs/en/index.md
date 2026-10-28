@@ -24,3 +24,20 @@ SeekMemory provides traceable, revisable memory for long-running conversations. 
 | Agent Runtime | [Session attention and runtime actions](architecture/modules/runtime.md) |
 | adapters | [AstrBot host integration](architecture/modules/adapters.md) |
 | WebUI | [Management API and dashboard](architecture/modules/webui.md) |
+
+## Architecture diagrams
+
+### AgentRuntime V3 · platform abstraction and interruption
+<img src="../assets/v3-runtime-interruption-premium.png" alt="AgentRuntime V3 platform abstraction and interruption" width="100%">
+
+A new intent in the same session replaces the old run; sessions never preempt each other. Cancellation is cooperative and distinct from semantic pause.
+
+### Memory kernel · algorithm factors
+<img src="../assets/v3-memory-algorithm-premium.png" alt="Memory kernel and algorithm factors" width="100%">
+
+Source is immutable evidence and Artifact is revisable interpretation. Recall is decided by strength, relevance, evidence gate, disclosure, and budget.
+
+### Dream · persona chain and memory reinforcement
+<img src="../assets/v3-dream-persona-architecture-premium.png" alt="Dream, persona chain, and memory reinforcement" width="100%">
+
+Dream classifies, reinforces, merges, forgets, and revises during the offline cycle, then carries stable behavior into one continuous persona chain.

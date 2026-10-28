@@ -129,12 +129,34 @@
   font-size: 11px;
   letter-spacing: 0.08em;
   border-bottom: 1px solid var(--glass-border);
+  color: var(--foreground);
 }
 .sphere-callout-kind i {
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: currentColor;
+}
+.map-list-item {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--foreground);
+  background: var(--card);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.map-list-item:hover,
+.map-list-item[aria-pressed="true"] {
+  background: var(--secondary);
+}
+.map-list-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 .sphere-callout-kind span {
   margin-left: auto;

@@ -13,7 +13,7 @@ const scenarioOptions: readonly SelectOption<PreviewScenario>[] = [
   { value: "loading", label: "加载中" },
   { value: "empty", label: "空数据" },
   { value: "error", label: "加载失败" },
-  { value: "long", label: "压力预览（千节点）" },
+  { value: "long", label: "大数据预览（最近 120 条）" },
 ]
 
 export default function MockApp() {

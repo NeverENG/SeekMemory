@@ -17,14 +17,14 @@ export const graphSchema = z.object({
         protected: z.boolean(),
       })
     )
-    .max(1000),
+    .max(120),
   edges: z
     .array(
       z.object({ source: z.string(), target: z.string(), kind: z.string() })
     )
-    .max(2000),
+    .max(240),
   total: z.number().int().nonnegative(),
-  limit: z.number().int(),
+  limit: z.number().int().min(1).max(120),
 }) satisfies z.ZodType<ApiResponse<"graph">>
 export const impressionsSchema = z.object({
   items: z

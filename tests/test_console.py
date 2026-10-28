@@ -49,12 +49,38 @@ class ConsoleTest(unittest.TestCase):
         for scope in ['private', 'shadow']:
             self.seed('memory', {'text':'PRIVATE_SENTINEL', 'level':'impression', 'subject_kind':'user'}, subject_id='123', scope=scope)
         self.seed('memory', {'text':'world', 'level':'impression'}, subject_id='world')
-        result = self.service.impressions(offset=0, limit=2)
+        with patch.object(self.store.artifacts, 'list', side_effect=AssertionError('unbounded read')):
+            result = self.service.impressions(offset=0, limit=2)
+            page = self.service.impressions(offset=2, limit=1)
         self.assertEqual(result['total'], 3)
         self.assertEqual(len(result['items']), 2)
+        self.assertEqual(len(page['items']), 1)
         shadow = next(c for c in result['items'] if c['scope']=='shadow')
         self.assertNotIn('PRIVATE_SENTINEL', shadow['summary'])
         with self.assertRaises(ValueError): self.service.impressions(offset=-1)
+
+    def test_graph_reads_recent_snapshot_without_full_library_or_per_node_edges(self):
+        from dataclasses import replace
+        old = self.seed('memory', {'text': 'old', 'level': 'fact'}, id='old')
+        for i in range(1005):
+            art = module('core.artifact').make('memory', {'text': f'item-{i}', 'level': 'fact'}, id=f'item-{i:04d}')
+            art = replace(art, header=replace(art.header, time=replace(art.header.time, updated='2099-01-01T00:00:00Z')))
+            self.store.artifacts.upsert(art)
+        self.store.artifacts.add_edge('item-1004', 'item-1003', 'related', 1)
+        self.store.artifacts.add_edge('item-1004', old.header.id, 'related', 1)
+        for limit in (40, 80, 120):
+            with self.subTest(limit=limit), \
+                 patch.object(self.store.artifacts, 'list', side_effect=AssertionError('unbounded read')), \
+                 patch.object(self.store.artifacts, 'edges_of', side_effect=AssertionError('per-node query')):
+                result = self.service.graph(limit=limit)
+                self.assertEqual(result['total'], 1006)
+                self.assertEqual(result['limit'], limit)
+                self.assertEqual(len(result['nodes']), limit)
+                self.assertEqual(result['nodes'][0]['id'], 'item-1004')
+                self.assertEqual(result['nodes'][-1]['id'], f'item-{1005-limit:04d}')
+                self.assertEqual(result['edges'], [{'source': 'item-1004', 'target': 'item-1003', 'kind': 'related'}])
+        self.assertEqual(self.store.artifacts.edges_between([], 240), [])
+        self.assertEqual(len(self.store.artifacts.edges_between(['item-1004', 'item-1003', old.header.id], 1)), 1)
 
     def test_dream_projection_excludes_error_bodies(self):
         self.store.dreams.begin('2026-10-25')
@@ -134,8 +160,8 @@ class ConsoleTest(unittest.TestCase):
         for index in range(1005):
             self.seed('memory', {'level':'fact', 'text':f'entry {index}'}, subject_id='same')
         result=self.service.graph()
-        self.assertEqual(len(result['nodes']),1000)
-        self.assertLessEqual(len(result['edges']),2000)
+        self.assertEqual(len(result['nodes']),120)
+        self.assertLessEqual(len(result['edges']),240)
         self.assertEqual(result['total'],1005)
         self.assertTrue(all(e['source']!=e['target'] for e in result['edges']))
 

@@ -1,9 +1,8 @@
 # SeekMemory
 
-**让 AI 在不同入口、不同模型、不同时间里，仍然是同一个她。**
+**一个面向长期陪伴的 AgentRuntime 与记忆内核。**
 
-> 不是把聊天记录重新塞回上下文。
-  而是让 Agent 拥有统一的运行方式、可追溯的记忆内核，以及一条会持续生长的人格链。
+> 平台只是入口。Runtime 负责这一轮怎么活，Memory Kernel 负责她为什么还是她。
 
 <div align="center">
   <a href="https://github.com/NeverENG/SeekMemory/releases/latest">
@@ -14,334 +13,331 @@
 </div>
 
 <p align="center">
-  <a href="docs/zh/architecture/overview.md">SeekMemory 设计架构</a> /
-  <a href="docs/zh/index.md">模块设计文档</a> /
+  <a href="docs/zh/architecture/overview.md">架构总览</a> /
+  <a href="docs/zh/index.md">文档</a> /
   <a href="docs/en/index.md">English</a>
   <br>
   <a href="#quick-start">快速开始</a> /
-  <a href="https://github.com/NeverENG/SeekMemory">GitHub</a>
+  <a href="#verification">验证</a> /
+  <a href="https://github.com/NeverENG/SeekMemory/issues">Issues</a>
 </p>
 
 <p align="center">
-  <img src="docs/assets/readme-future-vision.jpg" alt="SeekMemory 多平台未来愿景：8 个入口，1 颗大脑，1 份人格" width="100%">
+  <img src="docs/assets/readme-future-vision-v2.png" alt="SeekMemory 多平台未来愿景" width="100%">
 </p>
 
 <p align="center">
-  <sub>多平台入口，不是八个窗口的不同上下文，而是同一颗记忆大脑的不同入口。</sub>
+  <sub>多平台入口不是多套上下文，而是同一颗记忆大脑的不同入口。</sub>
 </p>
 
 ---
 
-## 为什么需要 SeekMemory
+## 工程定位
 
-AI 正在从单个聊天窗口，变成分布在多个平台上的长期存在。
+SeekMemory 不是“把聊天记录切块再塞进 prompt”的检索器，而是给 Agent 提供一套长期运行基础件：
 
-QQ、微信、B 站、X、贴吧、Telegram、抖音、GitHub……
+- **Host-neutral Runtime**：平台事件只经过 Adapter 和 RuntimeInput；
+- **可追溯记忆**：Source 是不可变证据，Artifact 是可修订解释；
+- **可解释召回**：相关性、强度、时间、证据、披露和预算共同决定上下文；
+- **统一动作**：Runtime 发起动作走 ActionExecutor -> ActionPort；
+- **连续人格**：Persona 不是一段固定 prompt，而是一条带证据的版本链；
+- **边界清晰**：平台差异留在 host adapter，不污染核心运行时。
 
-每一个入口都能产生新的对话，但不一定产生同一个 Agent。
-
-如果每个平台各自维护一套会话、一套记忆、一套人设，用户最终见到的不是“一个她”，而是很多个碰巧长得很像的分身。
-
-单纯把上下文拉长，也解决不了这个问题。
-
-> 上下文解决的是这一次。
-> 记忆解决的是下一次。
-> 人格解决的是长期相处之后，她还是不是她。
-
-SeekMemory 想做的，是给 Agent 一套统一管理层：
-
-- **统一入口**：不同平台通过各自的 Adapter 进入同一个运行时；
-- **统一记忆**：经历在不同入口之间沉淀到同一个记忆内核；
-- **统一人格**：模型可以更换，但身份和人格链保持连续。
-
----
-
-## 三个核心支柱
-
-### 1. 多平台 Agent 管理
-
-平台只是入口，不是记忆边界。
-
-QQ、微信、B 站等平台，都应该通过各自的接入适配进入同一套 AgentRuntime。
-
-平台差异留在边界。
-
-运行时、记忆、人格不感知具体平台。
-
-这样新增一个入口，不需要把记忆、模型、工具和人格全部重做一遍。
-
-### 2. 记忆内核：从经历，到理解
-
-普通记忆方案往往只做一件事：
+## 系统边界
 
 ```text
-聊天记录 → 切块 → 检索 → 拼进 prompt
+Platform / Host
+  -> PlatformAdapter
+       toRuntimeInput(session, event)
+       executeAction(ActionRequest)
+  -> HostBridge
+       acceptUser / context / records
+  -> RuntimeInput
+  -> AgentRuntime
+       SessionState
+       AttentionPolicy
+       RunControl / RunPolicy
+       Worker / Scheduler
+       ActionExecutor
+  -> MemoryContextPort / ModelGateway / ActionPort
+  -> Platform / Host
 ```
 
-这能解决“找资料”。
+| 层 | 职责 | 不负责 |
+|---|---|---|
+| `adapters/*` | 平台事件转换、宿主能力注入 | attention、proactive、memory 策略 |
+| `AgentRuntime` | session 状态、是否回复、何时回复、run 生命周期 | 平台 SDK、SQLite、人设文案 |
+| `Memory Kernel` | Source / Artifact / 版本 / 召回 / 披露 | 平台发送、模型对话循环 |
+| `ActionExecutor` | attempt -> terminal、动作审计 | 平台 API 实现 |
+| `ActionPort` | 平台发送、回复、转发等能力 | 记忆与决策 |
 
-但它很难解决“认人”。
-
-SeekMemory 把记忆分成四个层次：
-
-**Fact → Scene → Impression → Persona**
-
-- **Fact**：稳定的事实；
-- **Scene**：具有时间边界的经历；
-- **Impression**：从多次经历中形成的理解；
-- **Persona**：长期稳定下来的性格与表达方式。
-
-记忆不是只增不减。
-
-Dream 周期会强化重要的记忆、合并相似的经历、遗忘不再重要的细节，并用新的证据修订旧结论。
-
-旧版本不会消失，而是留在版本链中，保留可追溯的痕迹。
-
-### 3. 人格链：不是换人设，是同一个人继续长大
-
-Persona 不是一段固定提示词。
-
-它是一条连续的版本链。
-
-V1、V2、V3 不是三个不同的角色。
-
-她们共享同一个 Persona ID，同一条证据链，只是表达方式、行为模式和边界感在变化。
-
-<p align="center">
-  <img src="docs/assets/readme-persona-chain.jpg" alt="Persona 版本链：V1、V2、V3 共享同一个 Persona ID" width="96%">
-</p>
-
-<p align="center">
-  <sub>不同阶段的人格表达，不是三个角色，而是同一个她持续长大。</sub>
-</p>
+`session_id` 是运行 lane，`speaker_id` 是事件参与者，`subject_key` 是跨 session 的共享记忆主体。三者不能混用。
 
 ---
 
-## 架构总览
+## 运行链路：AgentRuntime V3
 
-SeekMemory 的核心结构可以概括为：
+<img src="docs/assets/v3-runtime-interruption-premium.png" width="100%">
 
-```text
-平台入口
-  → 接入适配
-  → AgentRuntime
-  → 能力端口
-  → Memory Kernel
-  → Dream / Persona
-  → 存储与观测
-```
-
-AgentRuntime 负责这一轮怎么活。
-
-Memory Kernel 负责她为什么还是她。
-
-<p align="center">
-  <img src="docs/assets/readme-agent-runtime.jpg" alt="AgentRuntime 多平台运行架构" width="100%">
-</p>
-
-<p align="center">
-  <sub>QQ、微信、B 站等平台是同级入口，统一经过 AgentRuntime 后再进入记忆内核。</sub>
-</p>
+*平台只是入口；RunControl 以 session 为边界，同会话替换旧 run，跨会话互不抢占。*
 
 ### 一条消息的完整生命周期
 
-一条消息进入 SeekMemory 后，会经历一条完整的运行链路：
+```text
+1. Adapter       接收平台事件
+2. normalize     -> RuntimeInput
+3. Runtime       记录 Source / 更新 SessionState / 评估注意力和动作
+4. context       向 MemoryContextPort 请求有界记忆上下文
+5. model         通过 ModelGateway 调用宿主模型
+6. action        通过 ActionExecutor + ActionPort 发回平台
+7. record        Source / Episode / Trace / delivery cursor
+8. dream         离线强化、合并、遗忘、修订，进入人格链
+```
 
-1. **接入**：平台 Adapter 接收事件；
-2. **标准化**：转换为统一的运行时输入；
-3. **运行编排**：AgentRuntime 判断注意力、会话状态和行动；
-4. **记忆召回**：通过能力端口请求 Memory Kernel；
-5. **记忆筛选**：在可见范围、相关性、重要性、时间和隐私边界内选择内容；
-6. **模型与工具**：通过统一能力端口调用模型和工具；
-7. **消息发送**：回到对应平台；
-8. **统一写回**：记录 Source、运行结果和投递状态；
-9. **Dream**：在后续整理周期中沉淀为印象和人格。
+### 核心契约
 
-在这一整条链路里，平台只是入口。
+> 以下是 V3 目标契约；当前 `app/runtime/contracts` 与 Issue #154 是实际实现的准绳。
 
-真正决定 Agent 是否连续的，是 Runtime 和 Memory Kernel。
+```python
+RuntimeInput(
+    session_id: str,
+    text: str,
+    speaker_id: str = "",
+    subject_key: str = "",
+    event_id: str = "",
+    event_time: float = 0.0,
+    received_at: float = 0.0,
+)
+RunDecision(action, reason, attention, must_reply)
+ActionRequest(session_id, kind, text="")
+```
+
+### 中断语义
+
+V3 不是“所有消息一来就杀 run”，而是把中断做成可注入的运行时能力：
+
+| 场景 | 行为 |
+|---|---|
+| 同 session 新 user input | 取消旧 run，启动新 run |
+| 不同 session | 互不取消 |
+| 新 user input vs active proactive | 不启动 proactive |
+| 取消发生在 ActionPort 前 | action terminal = `cancelled` |
+| ActionPort 已经执行 | 记录真实 success / failure，不伪造 cancelled |
+| “我去刷视频了” | 语义暂停，不取消正在生成的回复 |
+
+```text
+RunPolicy  决定是否替换
+RunHandle  提供协作式 cancel token
+Runtime    负责 run 生命周期
+Host       负责把自己的模型/发送任务接到 token 上
+```
+
+实现设计见 [Runtime V3 Issue #154](https://github.com/NeverENG/SeekMemory/issues/154)。
 
 ---
 
-## Memory Kernel：不是记忆库，是连续性内核
+## 记忆内核：Source → Artifact → Recall
 
-<p align="center">
-  <img src="docs/assets/readme-memory-architecture.jpg" alt="SeekMemory 记忆架构：AgentRuntime、Memory Kernel、Recall 与 Dream" width="100%">
-</p>
+<img src="docs/assets/v3-memory-algorithm-premium.png" width="100%">
 
-<p align="center">
-  <sub>Source 是不可变事实，Artifact 是可修订解释；召回、Dream 与人格链共同构成记忆内核。</sub>
-</p>
-
-记忆内核主要做三件事：
+*Source 是不可变证据，Artifact 是可修订解释；召回由强度、相关性、证据闸门、披露和预算共同决定。*
 
 ### 写入
 
-原始经历先被保留为不可变的事实。
+```text
+Source
+  -> Perceive / Extract
+  -> Artifact
+  -> DB.commit（版本、证据、账本同一事务）
+  -> Cache（派生读模型）
+```
 
-系统再从事实中提炼出可修订的理解。
-
-理解携带着主体、时间、场景、版本和来源，而不是一段被随意拼回去的文本。
+- Source 只追加，不覆盖；
+- Artifact 每次修订保留稳定 ID 和 revision；
+- `subject_id`、`said_by`、`lineage.sources` 分别表示“关于谁”、“由谁产生”、“由哪些证据支持”；
+- 写入失败保留待处理行，不把不完整输入静默标记为成功。
 
 ### 读取
 
-召回不是简单的相似度 top-k。
+```text
+Scope / Visible Pool
+  -> Graph activation + BM25
+  -> Recall score
+  -> Evidence Gate
+  -> Disclosure
+  -> ContextBudget
+  -> Prompt
+```
 
-它需要判断：
+召回不是单纯的 top-k：相关性证据决定“能不能进来”，强度、新鲜度、最近使用和 activation 参与排序，主体、scope 和敏感度决定“能说多少”，最终由 ContextBudget 截断为有界上下文。
 
-- 这条记忆和当前话题是否真的相关；
-- 它是否重要；
-- 它是否已经过时；
-- 它最近是否刚被提过；
-- 它属于谁；
-- 当前场景下能不能说、能说多少。
+### 算法因子
 
-最终只有少量内容进入上下文。
-
-不是重放完整历史，而是只带回此刻需要的那一页。
-
-### 维护
-
-Dream 负责长期整理。
-
-强化、合并、遗忘、修订。
-
-这不是删除记忆。
-
-而是把经历慢慢炼成理解，并让理解影响人格。
-
----
-
-## 多平台管理：入口可以不同，她只能有一个
-
-<p align="center">
-  <img src="docs/assets/readme-future-vision.jpg" alt="SeekMemory 多平台入口愿景" width="100%">
-</p>
-
-多平台管理包含的不只是“接线”。
-
-它还包含：
-
-- 统一身份：不同平台账号映射到同一个主体；
-- 统一会话：私聊、群聊、注意力、等待、冷却和重试共享同一套运行状态；
-- 统一能力：记忆、模型、工具、消息发送和观测通过统一端口接入；
-- 统一记忆：不同入口的经历沉淀到同一份记忆内核；
-- 统一人格：模型可以更换，但 Persona ID 和人格链保持连续；
-- 统一观测：一次运行为什么召回、为什么沉默、为什么投递失败，都能被追踪。
-
-> 入口可以不同，模型可以更换。
-> 但记忆和人格，只有一份。
-
-当前可验证的公开接入仍以 **AstrBot / QQ** 为主。
-
-微信、B 站等平台在架构上是同级接入方向，具体适配进度以发布版本为准。
-
-Web 管理端不是多平台入口，它是记忆、运行和召回过程的观测界面。
+| 因子 | 当前实现 |
+|---|---|
+| 留存率 | `R(t) = exp(-t / S)` |
+| 稳定度 | `S = 30 × salience × (1 + 0.5×hits) × shape × emotion` |
+| shape | `point 1.0 · span 1.2 · pattern 3.0 · rule 999` |
+| 强化 | `recall +0.1 · spoken +0.3 · confirmed +0.2` |
+| 命中冷却 | 30 分钟 |
+| 排序分 | `3.0×literal + 2.0×tag + 1.5×emotion + 1.0×weight + 0.5×freshness + 1.5×activation − 2.0×recent` |
+| 新鲜度 | `exp(-age_days / 14)` |
+| 探索 | `0.1`，按输入文本稳定采样 |
+| 证据闸门 | `max(0.5, top_evidence × 0.3)` |
+| 披露 | `context_affinity × subject_fit × scope_prior × (1−sensitivity) × topic` |
 
 ---
 
-## 工程基础
+## Dream 与人格链
 
-SeekMemory 在实现上坚持几条边界：
+<img src="docs/assets/v3-dream-persona-architecture-premium.png" width="100%">
 
-- **Source 不可变**：原始对话是事实层；
-- **Artifact 可修订**：解释必须带着版本、来源和证据；
-- **写入原子提交**：版本、证据和审计记录一起落下；
-- **召回与生成分离**：记忆检索不额外调用模型；
-- **隐私先于表达**：先决定 full、paraphrase、hint 还是 silence；
-- **运行时隔离**：平台、模型、存储和工具通过能力端口接入；
-- **故障不阻塞聊天**：边界层 fail-open，核心不变量 fail loudly；
-- **过程可观测**：记忆库、版本、召回预览、运行 trace 和生命周期日志都可以被检查。
+*Dream 在离线周期中分类、强化、合并、遗忘和修订，再把稳定行为沉淀进同一人格链。*
 
-这是一个长期运行的系统应该有的边界。
+```text
+DreamCycle (03:30, idempotent, resumable)
+  -> Flush / Extract (triage)
+  -> Memory Classification (Fact / Scene / Impression / Persona)
+  -> Strength / Merge / Forget / Revise
+  -> Self Impression (≥3 independent evidence, confidence ≥ 0.9)
+  -> Persona Evolution (Top 3 behaviors + seed evolution)
+  -> Active Persona / revision chain
+  -> Dream ledger
+```
+
+Dream 有明确预算：`batches ≤ 12`、`calls ≤ 12`、`tokens ≤ 60k`。中途失败保留待处理行，下一次从断点继续；同一天重跑幂等。
+
+人格链不是固定 prompt，而是一条带证据的版本链：
+
+```text
+Seed Persona
+  -> Self Impression
+  -> Behavior candidates
+  -> Dream evolution
+  -> Active Persona
+  -> History / rollback
+```
 
 ---
 
-## 快速开始
+## 平台接入契约
 
-如 [最新 Release](https://github.com/NeverENG/SeekMemory/releases/latest) 页面附有 `astrbot_plugin_seekmemory.zip`，可下载后通过 AstrBot ZIP 安装；如果没有该安装包，请使用下面的源码安装方式：
+平台插件只做两件事：把平台事件映射成 `RuntimeInput`，把 `ActionRequest` 执行成平台 API。
+
+```js
+createPlatformAdapter({
+  platform: 'qq',
+  capabilities: { private: true, mention: true, replyTo: true },
+  toRuntimeInput(session, event) { ... },
+  executeAction(request) { ... },
+})
+
+const bridge = createHostBridge({ kernel, adapter, logger })
+```
+
+`DshSession` / `DshEvent` 由 DSH 或平台插件拥有，SeekMemory 不冻结其内部形状。
+
+| 宿主 | 接入方式 | 状态 |
+|---|---|---|
+| AstrBot | `adapters/astrbot` | 生产线可验证 |
+| DSH | `dsh-seekmemory/platform-contract` + `host-bridge` | 基础契约已落地，平台插件并行开发中 |
+| 其他平台 | PlatformAdapter | 需要 thin adapter |
+
+契约细节见 [`adapters/dsh/PLATFORM-CONTRACT.md`](adapters/dsh/PLATFORM-CONTRACT.md) 和 [Issue #150](https://github.com/NeverENG/SeekMemory/issues/150)。
+
+---
+
+## 仓库结构
+
+```text
+app/runtime/          AgentRuntime、策略、ActionExecutor、Worker
+app/runtime/contracts RuntimeInput / RunDecision / ActionRequest / ports
+core/                 Source / Artifact / version / disclosure / strength
+perceive/             DialogueTurn、抽取、重要性
+recall/               图激活、BM25、gate、assembly
+maintain/             decay / merge / self impression / persona
+app/dream.py          DreamCycle 编排
+services/             维护、抽取、召回等用例
+store/                SQLite、版本仓储、缓存
+adapters/astrbot/     AstrBot 宿主适配
+adapters/dsh/         DSH host bridge + platform contract
+dashboard/            管理界面
+webui/                宿主无关 API / journal / trace
+```
+
+实现边界：core 不依赖宿主或存储；SQL 只在 store；AstrBot/DSH 类型留在 adapters；服务层组合业务模块。
+
+---
+
+## Quick Start
+
+优先使用 [最新 Release](https://github.com/NeverENG/SeekMemory/releases/latest) 中的 `astrbot_plugin_seekmemory.zip`，在 AstrBot 里通过 ZIP 安装。
+
+源码安装：
 
 ```bash
 git clone https://github.com/NeverENG/SeekMemory.git \
   AstrBot/data/plugins/astrbot_plugin_seekmemory
 ```
 
-GitHub 自动生成的 Source code ZIP 是开发源码包，不是可安装的插件包。
-
-重启 AstrBot，并至少配置：
+重启 AstrBot，至少配置：
 
 ```text
 owner_umo
 observe_groups
-```
-
-启用单节点 AgentRuntime：
-
-```text
 runtime_gate_enabled: true
-runtime_wait_seconds: 5
-runtime_tick_seconds: 5
 ```
 
-插件数据目录中的主要运行时文件：
+插件数据目录：
 
 ```text
-memory.db
-runtime_state.json      # fallback
-runtime_episodes.jsonl  # fallback
-run_traces.jsonl
+memory.db                 # SQLite 主存储
+runtime_state.json        # fallback / 导入导出
+runtime_episodes.jsonl    # fallback / 观测
+run_traces.jsonl          # 运行 trace
 ```
 
-SQLite 是主存储。运行时状态和 trace 文件支撑管理视图与运行观测。
-
 ---
 
-## 评估与边界
+## Verification
 
-SeekMemory 的评估分成两类：
+```bash
+python3 scripts/run_tests.py --layer unit
+python3 scripts/run_tests.py --layer integration
+python3 scripts/run_tests.py --layer smoke
+python3 scripts/check_docs_structure.py
 
-- **固定长对话基准**：分层命中、遗忘正确性、召回、注入字符数；
-- **大型群聊仿真**：多用户、跨会话、噪声与延迟场景。
+cd adapters/dsh && npm test
+```
 
-这些结果用于比较不同记忆策略，不代表开放域模型的长时程推理能力，也不代表所有自然语言撤回和冲突场景都已经解决。
-
-详细数据、生成方式和限制说明见：
-
-- [benchmarks/results](benchmarks/results)
-- [开发环境与验证](docs/zh/guides/development.md)
-- [架构总览](docs/zh/architecture/overview.md)
-- [核心不变量](docs/zh/architecture/modules/core.md#关键不变量)
-
----
+真实 AstrBot 宿主测试需要可用宿主环境；CI 覆盖 Python 3.10/3.11/3.12、前端契约、Node adapter、打包内容和真实 Python AgentRuntime loopback。
 
 ## 当前状态
 
-当前主线的重点：
+已落地：
 
-- 多平台入口与统一 AgentRuntime；
-- Source / Artifact / 版本 / 证据 / 审计；
-- 分层记忆与 Dream 维护；
-- 可修订的 Persona 版本链；
-- 记忆召回、披露与上下文预算；
-- 管理视图、召回诊断与运行 trace。
+- AgentRuntime 会话状态、注意力策略、延迟派发与主动话题；
+- Source / Artifact / revision / evidence / ledger；
+- Graph + BM25 召回、证据闸门、披露和上下文预算；
+- Dream / 人格链 / 记忆强化；
+- ActionExecutor 单一动作链路；
+- AstrBot 生产适配和 DSH platform contract。
 
-已知边界：
+继续演进：
 
-- 多平台正式适配按发布版本推进；
-- 多实例幂等性、完整工具循环和更长周期的生产验证仍在继续；
-- 主动能力与统一隐私矩阵仍在演进。
-
----
+- V3 RunControl 中断实现：[Issue #154](https://github.com/NeverENG/SeekMemory/issues/154)；
+- DSH QQ / B站 / X 平台插件：[Issue #150](https://github.com/NeverENG/SeekMemory/issues/150)；
+- 多实例幂等、完整工具循环和更长周期生产验证。
 
 ## 文档
 
 - [中文文档](docs/zh/index.md) / [English documentation](docs/en/index.md)
 - [架构总览](docs/zh/architecture/overview.md)
+- [Runtime 模块](docs/zh/architecture/modules/runtime.md)
+- [Recall 模块](docs/zh/architecture/modules/recall.md)
 - [开发环境与验证](docs/zh/guides/development.md)
-- [管理界面操作](docs/zh/guides/webui.md)
 - [贡献指南](CONTRIBUTING.md)
-- [Issues](https://github.com/NeverENG/SeekMemory/issues) / [Pull Requests](https://github.com/NeverENG/SeekMemory/pulls)
 
-## 许可证
+## License
 
 MIT 或 Apache-2.0。

@@ -14,6 +14,7 @@ import { graphLayers, edgeLabels } from "../scene"
 import "./memory-map.css"
 import type { ManagementClient } from "@/features/control/model"
 import { StarCanvas } from "./star-canvas"
+import { MemoryList } from "./memory-list"
 export function MemoryMap({
   client,
   initialNode,
@@ -25,10 +26,10 @@ export function MemoryMap({
   initialNode: string
   onInspect: (id: string) => void
 }) {
+  const [limit, setLimit] = useState(80)
   const read = useCallback(() => client.graph(), [client])
   const vm = useResource(read)
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [limit, setLimit] = useState(80)
   const [layer, setLayer] = useState("")
   const [query, setQuery] = useState(initialNode),
     [kind, setKind] = useState("all"),
@@ -36,6 +37,7 @@ export function MemoryMap({
     [subject, setSubject] = useState("all"),
     [since, setSince] = useState("")
   const [selected, setSelected] = useState(initialNode)
+  const [focus, setFocus] = useState("")
   const matching = useMemo(
     () =>
       vm.data
@@ -45,10 +47,10 @@ export function MemoryMap({
             scope,
             subject,
             since,
-            focus: "",
+            focus,
           })
         : null,
-    [vm.data, query, kind, scope, subject, since]
+    [vm.data, query, kind, scope, subject, since, focus]
   )
   const filtered = useMemo(
     () => (matching ? recentGraph(matching, limit) : null),
@@ -64,6 +66,7 @@ export function MemoryMap({
   const resetView = () => {
     setSelected("")
     setLayer("")
+    setFocus("")
   }
   const relationKinds = [
     ...new Set(
@@ -77,7 +80,8 @@ export function MemoryMap({
     kind !== "all" ||
     scope !== "all" ||
     subject !== "all" ||
-    since
+    since ||
+    focus
   )
   return (
     <div className="console-page console-map-page">
@@ -173,6 +177,7 @@ export function MemoryMap({
                   setScope("all")
                   setSubject("all")
                   setSince("")
+                  setFocus("")
                 }}
               >
                 清除筛选
@@ -181,6 +186,15 @@ export function MemoryMap({
                 查看 {nodes.length} 条记忆
               </Button>
             </div>
+            <MemoryList
+              key={`${query}/${kind}/${scope}/${subject}/${since}/${focus}/${limit}`}
+              nodes={nodes}
+              selected={selected}
+              onSelect={(id) => {
+                selectNode(id)
+                setFiltersOpen(false)
+              }}
+            />
           </DetailDrawer>
           <div
             className="constellation-layers"
@@ -220,6 +234,17 @@ export function MemoryMap({
                   ))}
                 </select>
               </label>
+              {focus ? (
+                <Button variant="ghost" onClick={() => setFocus("")}>
+                  退出关联视图
+                </Button>
+              ) : (
+                current && (
+                  <Button variant="ghost" onClick={() => setFocus(current.id)}>
+                    只看关联记忆
+                  </Button>
+                )
+              )}
             </div>
             <StarCanvas
               graph={filtered}
