@@ -1,5 +1,19 @@
 # 变更记录
 
+## 0.5.1 — 2026-10-28
+
+### 中文
+
+- 修复开口策略在 `wake_prefix` 为空时把每条群消息误判为「被 @」：映射层改为只认消息组件里指向 `self_id` 的 At，不再使用 `is_at_or_wake_command`。此前陌生人闲聊都会触发回复。
+- 策略参数化：新增 `attention_policy_enabled`（总开关）、`attention_followup_rounds`（点名后陪聊轮数，默认 3）、`attention_owner_always_reply`（主人是否每条都回，默认开）；组合层从配置读取并传给 `DefaultAttentionPolicy`。
+- 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
+
+### English
+
+- Fix the attention policy treating every group message as an @-mention when `wake_prefix` is empty: the host mapping now only accepts a real `At` component targeting `self_id` instead of `is_at_or_wake_command`. Previously ambient stranger chatter triggered replies.
+- Make the policy configurable: `attention_policy_enabled` (master switch), `attention_followup_rounds` (follow-up rounds after being called, default 3) and `attention_owner_always_reply` (reply to every owner message, default on); composition reads them into `DefaultAttentionPolicy`.
+- Regression tests: real At detection, wake-all is not a mention, owner switch, follow-up rounds.
+
 ## Unreleased
 
 ### 中文

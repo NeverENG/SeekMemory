@@ -271,5 +271,20 @@
     "description": "用户活动后多久允许主动发起会话（秒，默认 1800）",
     "type": "int",
     "default": 1800
+  },
+  "attention_policy_enabled": {
+    "description": "开口策略总开关",
+    "type": "bool",
+    "default": true
+  },
+  "attention_followup_rounds": {
+    "description": "被 @/叫名字后继续陪聊几轮",
+    "type": "int",
+    "default": 3
+  },
+  "attention_owner_always_reply": {
+    "description": "主人消息是否每条都回",
+    "type": "bool",
+    "default": true
   }
 }

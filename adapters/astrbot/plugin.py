@@ -205,7 +205,10 @@ class AstrBotPlugin(star.Star):
         )
         runtime = AgentRuntime(
             state_store,
-            policy=DefaultAttentionPolicy(),
+            policy=DefaultAttentionPolicy(
+                followup_rounds=int(self._c("attention_followup_rounds", 3)),
+                owner_always_reply=bool(self._c("attention_owner_always_reply", True)),
+            ),
             trace=self.trace,
             clock=self.clock,
             memory_context=SeekMemoryContextAdapter(self._runtime_memory_context),

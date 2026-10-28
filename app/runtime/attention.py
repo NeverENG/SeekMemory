@@ -19,8 +19,9 @@ from .contracts import (
 class DefaultAttentionPolicy:
     """Minimal deterministic reply policy used by AgentRuntime."""
 
-    def __init__(self, followup_rounds: int = 3) -> None:
+    def __init__(self, followup_rounds: int = 3, owner_always_reply: bool = True) -> None:
         self.followup_rounds = max(0, int(followup_rounds))
+        self.owner_always_reply = bool(owner_always_reply)
 
     def evaluate(
         self, event: RuntimeInput, state: SessionState, now: float
@@ -28,7 +29,7 @@ class DefaultAttentionPolicy:
         if not str(event.text or "").strip():
             return AttentionDecision(WakeAction.IGNORE, "empty_text")
 
-        if event.is_owner:
+        if event.is_owner and self.owner_always_reply:
             return AttentionDecision(
                 WakeAction.REPLY,
                 "owner",

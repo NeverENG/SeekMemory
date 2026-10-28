@@ -24,8 +24,19 @@ def _text(event: Any) -> str:
 
 
 def _mentioned(event: Any) -> bool:
-    """AstrBot 用 is_at_or_wake_command 表示被 @ 或唤醒前缀命中。"""
-    return bool(getattr(event, "is_at_or_wake_command", False))
+    """真正 @ 她才算 mentioned。
+
+    不能用 ``is_at_or_wake_command``：wake_prefix 为空字符串时 AstrBot 会把每条群消息
+    都标成唤醒，按那个判断等于"所有消息都在 @ 她"。这里只认消息组件里指向 self_id 的 At。
+    """
+    try:
+        me = str(getattr(event, "self_id", "") or event.get_self_id() or "")
+        for comp in event.get_messages() or ():
+            if type(comp).__name__ == "At" and str(getattr(comp, "qq", "")) == me:
+                return True
+    except Exception:  # noqa: BLE001 - 宿主字段缺失按未点名处理
+        return False
+    return False
 
 
 def _scene(event: Any) -> str:

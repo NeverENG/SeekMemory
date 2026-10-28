@@ -13,10 +13,17 @@ from app.runtime.attention import DefaultAttentionPolicy
 from app.runtime.contracts import SessionState, WakeAction
 
 
+class At:
+    def __init__(self, qq: str) -> None:
+        self.qq = qq
+
+
 class FakeAstrBotEvent:
     def __init__(self, **kw) -> None:
         self.message_str = kw.get("text", "")
-        self.is_at_or_wake_command = kw.get("mentioned", False)
+        self.is_at_or_wake_command = kw.get("wake_all", kw.get("mentioned", False))
+        self._at_me = kw.get("at_me", kw.get("mentioned", False))
+        self._at_other = kw.get("at_other", False)
         self.sender_id = kw.get("sender_id", "10001")
         self.group_id = kw.get("group_id", "7001")
         self.thread_id = kw.get("thread_id", "")
@@ -28,6 +35,13 @@ class FakeAstrBotEvent:
         self.role = kw.get("role", "")
         self.scene = kw.get("scene", "")
         self._private = kw.get("private", False)
+
+    def get_messages(self):
+        if self._at_me:
+            return [At(self.self_id)]
+        if self._at_other:
+            return [At("someone-else")]
+        return []
 
     def is_private_chat(self) -> bool:
         return self._private
@@ -47,6 +61,21 @@ class EndToEndPolicyTest(unittest.TestCase):
         return mapped, self.policy.evaluate(
             mapped, state or SessionState("s"), 1000.0
         )
+
+    def test_wake_all_is_not_a_mention(self) -> None:
+        mapped, decision = self.decide(
+            FakeAstrBotEvent(text="随便聊聊", wake_all=True)
+        )
+        self.assertFalse(mapped.mentioned)
+        self.assertFalse(mapped.addressed)
+        self.assertIs(decision.action, WakeAction.OBSERVE)
+
+    def test_at_other_is_not_a_mention(self) -> None:
+        mapped, decision = self.decide(
+            FakeAstrBotEvent(text="@别人 你看", at_other=True)
+        )
+        self.assertFalse(mapped.mentioned)
+        self.assertIs(decision.action, WakeAction.OBSERVE)
 
     def test_private_message_maps_and_replies(self) -> None:
         mapped, decision = self.decide(

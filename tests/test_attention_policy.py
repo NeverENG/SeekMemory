@@ -18,6 +18,32 @@ def event(**overrides) -> RuntimeInput:
     return RuntimeInput(**base)
 
 
+class OwnerAndFollowupTest(unittest.TestCase):
+    def test_owner_off_falls_back_to_ambient(self) -> None:
+        policy = DefaultAttentionPolicy(owner_always_reply=False)
+        decision = policy.evaluate(
+            event(role="owner"), SessionState("s"), 0.0
+        )
+        self.assertIs(decision.action, WakeAction.OBSERVE)
+
+    def test_owner_private_still_replies_when_owner_switch_is_off(self) -> None:
+        policy = DefaultAttentionPolicy(owner_always_reply=False)
+        decision = policy.evaluate(
+            event(role="owner", private=True), SessionState("s"), 0.0
+        )
+        self.assertIs(decision.action, WakeAction.REPLY)
+        self.assertEqual(decision.reason, "private_message")
+
+    def test_followup_rounds_come_from_config(self) -> None:
+        policy = DefaultAttentionPolicy(followup_rounds=2)
+        state = SessionState("s")
+        state.followup_by_speaker = {"u1": 2}
+        decision = policy.evaluate(event(speaker_id="u1"), state, 0.0)
+        self.assertIs(decision.action, WakeAction.REPLY)
+        self.assertEqual(decision.reason, "followup")
+        self.assertEqual(decision.followup_remaining, 1)
+
+
 class DefaultAttentionPolicyTest(unittest.TestCase):
     def setUp(self) -> None:
         self.policy = DefaultAttentionPolicy()

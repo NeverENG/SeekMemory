@@ -53,6 +53,8 @@ class AttentionHooks:
         """Apply the single runtime decision to AstrBot before generation."""
         if not self.ready or self.services is None or not self._may_observe(event):
             return
+        if not bool(self._c("attention_policy_enabled", True)):
+            return
         try:
             mapped = to_runtime_input(
                 event,
