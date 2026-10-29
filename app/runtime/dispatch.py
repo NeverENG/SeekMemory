@@ -19,6 +19,7 @@ from .contracts import (
 from .actions import ActionExecutor
 from .recorder import RunRecorder
 from .topics import TopicCandidate
+from .writeback import DeliveryReceipt, DeliveryWritebacks
 
 
 def save_state(store: SessionStateStore, state: SessionState) -> None:
@@ -60,7 +61,8 @@ class Dispatch:
     def __init__(self, *, store: SessionStateStore, clock: Callable[[], float],
                  memory_context: MemoryContextPort | None, model_gateway: ModelGateway | None,
                  action_executor: ActionExecutor | None, message_sender: MessageSender | None,
-                 recorder: RunRecorder | None, trace: TraceSink | None) -> None:
+                 recorder: RunRecorder | None, trace: TraceSink | None,
+                 writebacks: DeliveryWritebacks) -> None:
         self.store = store
         self.clock = clock
         self.memory_context = memory_context
@@ -69,6 +71,7 @@ class Dispatch:
         self.message_sender = message_sender
         self.recorder = recorder
         self.trace = trace
+        self.writebacks = writebacks
         self.states = StateOperations(store)
 
     def build_context(self, event: RuntimeInput, *, now: float, reason: str) -> MemoryContext:
@@ -109,7 +112,9 @@ class Dispatch:
                 raise RuntimeError(result.reason or "send_failed")
             return True
         if self.message_sender is not None:
-            return bool(await self.message_sender.send(session_id, text))
+            if not await self.message_sender.send(session_id, text):
+                raise RuntimeError("send_failed")
+            return True
         raise RuntimeError("runtime_port_missing")
 
 
@@ -207,7 +212,7 @@ class Dispatch:
                     ).isoformat(timespec="seconds"),
                 )
                 if self.trace is not None:
-                    self.trace.record(
+                    self._trace(
                         "runtime",
                         "deferred_failed",
                         {"error": type(exc).__name__, "attempt": attempts},
@@ -222,35 +227,21 @@ class Dispatch:
                 error=type(exc).__name__,
             )
 
-        moment = max(moment, float(self.clock()))
-        at = datetime.datetime.fromtimestamp(
-            moment, datetime.timezone.utc
-        ).isoformat(timespec="seconds")
-        recorded = self.recorder.record_deferred_reply(
-            run_id=run_id,
-            session_id=session_id,
-            text=reply,
-            speaker_id=str(context.bot_id or "bot"),
-            user_source_id=source_id,
-            at=at,
-        )
-        self.mark_delivered(
-            session_id, moment, claimed=claimed,
+        receipt = self.writebacks.remember(DeliveryReceipt(
+            run_id=run_id, session_id=session_id, moment=moment, mode="deferred",
+            decision="wait", reason="deferred_wait", text=reply,
+            speaker_id=str(context.bot_id or "bot"), user_source_id=source_id,
+            response_chars=len(str(reply).strip()), claimed=claimed,
             read_through_seq=claimed.last_unread_seq,
-        )
-        if self.trace is not None:
-            self.trace.record(
-                "runtime",
-                "deferred_delivered",
-                {"chars": recorded.response_chars, "attempt": attempts},
-            )
-        return RunResult(
-            run_id,
-            session_id,
-            True,
-            assistant_source_id=recorded.assistant_source_id,
-            response_chars=recorded.response_chars,
-        )
+        ))
+        # The receipt exists before reading a fallible clock or writing anything.
+        # 在读取可能失败的时钟或执行写入前，交付凭据已经存在。
+        try:
+            receipt.moment = max(moment, float(self.clock()))
+        except Exception:
+            pass
+        self.writebacks.retry(self.store, self.recorder, session_id)
+        return receipt.result(self.writebacks.for_session(session_id) is not None)
 
 
     async def dispatch_proactive(
@@ -282,6 +273,7 @@ class Dispatch:
             event_time=context.event_time,
             received_at=context.received_at,
         )
+        claimed = transitions.snapshot(self.store.get(session_id))
         try:
             memory = self.build_context(runtime_input, now=moment, reason="proactive")
             prompt = (memory.text or "").strip()
@@ -301,7 +293,7 @@ class Dispatch:
                 callback_key=f"proactive:{run_id}",
             )
         except (Exception, asyncio.CancelledError) as exc:
-            state = self.store.get(session_id)
+            state = transitions.snapshot(self.store.get(session_id))
             state.last_proactive_at = moment
             state.proactive_attempts = int(state.proactive_attempts or 0) + 1
             state.last_action = "wait"
@@ -325,30 +317,19 @@ class Dispatch:
                     raise exc
             return RunResult(run_id, session_id, False, error=type(exc).__name__)
 
-        at = datetime.datetime.fromtimestamp(
-            moment, datetime.timezone.utc
-        ).isoformat(timespec="seconds")
-        recorded = self.recorder.record_deferred_reply(
-            run_id=run_id,
-            session_id=session_id,
-            text=reply,
-            speaker_id=str(context.bot_id or "bot"),
-            user_source_id=context.source_id,
-            decision="proactive",
-            reason=decision.reason,
-            at=at,
-        )
-        state = self.store.get(session_id)
-        state.last_proactive_at = moment
-        state.proactive_attempts = int(state.proactive_attempts or 0) + 1
-        state.proactive_due_at = 0.0
-        state.last_action = "reply"
-        state.last_reason = decision.reason
-        self._save(state)
-        return RunResult(
-            run_id,
-            session_id,
-            True,
-            assistant_source_id=recorded.assistant_source_id,
-            response_chars=recorded.response_chars,
-        )
+        receipt = self.writebacks.remember(DeliveryReceipt(
+            run_id=run_id, session_id=session_id, moment=moment, mode="proactive",
+            decision="proactive", reason=decision.reason, text=reply,
+            speaker_id=str(context.bot_id or "bot"), user_source_id=context.source_id,
+            response_chars=len(str(reply).strip()), claimed=claimed,
+        ))
+        self.writebacks.retry(self.store, self.recorder, session_id)
+        return receipt.result(self.writebacks.for_session(session_id) is not None)
+
+    def _trace(self, *args, **kwargs) -> None:
+        """Keep diagnostics outside business failure handling / 诊断不影响业务失败处理。"""
+        try:
+            if self.trace is not None:
+                self.trace.record(*args, **kwargs)
+        except Exception:
+            pass

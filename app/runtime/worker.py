@@ -54,15 +54,22 @@ class RuntimeWorker:
         self._semaphores: dict[object, asyncio.Semaphore] = {}
 
     def _record_failure(self, status: str, error: Exception, session_id: str = "") -> None:
-        if self.trace is not None:
-            self.trace.record(
-                "runtime",
-                status,
-                {
-                    "session_id": session_id,
-                    "error": type(error).__name__,
-                },
-            )
+        try:
+            if self.trace is not None:
+                self.trace.record("runtime", status, {"error": type(error).__name__, "session_id": session_id})
+        except Exception:
+            pass
+
+    def retry_writebacks(self) -> int:
+        """Retry only writes even when speaking is disabled / 即使关闭发言也只补写。"""
+        retry = getattr(self.runtime, "retry_writebacks", None)
+        if not callable(retry):
+            return 0
+        try:
+            return int(retry())
+        except Exception as exc:
+            self._record_failure("writeback_retry_failed", exc)
+            return 0
 
     def _moment(self, now: float | None) -> float:
         if now is not None:
@@ -139,6 +146,7 @@ class RuntimeWorker:
             self._dispatching.discard(session_id)
 
     async def tick(self, now: float | None = None) -> int:
+        self.retry_writebacks()
         if not self.enabled():
             return 0
         moment = self._moment(now)
@@ -199,9 +207,13 @@ class RuntimeWorker:
         return dispatched
 
     async def run_forever(self) -> None:
-        while True:
-            await asyncio.sleep(max(1.0, float(self.interval_seconds())))
-            try:
-                await self.tick()
-            except Exception as exc:  # noqa: BLE001 - keep the worker alive
-                self._record_failure("worker_tick_failed", exc)
+        """Poll existing work; retry writes once more on cancellation / 轮询已有任务，取消时再补写一次。"""
+        try:
+            while True:
+                await asyncio.sleep(max(1.0, float(self.interval_seconds())))
+                try:
+                    await self.tick()
+                except Exception as exc:  # noqa: BLE001 - keep polling / 继续轮询
+                    self._record_failure("worker_tick_failed", exc)
+        finally:
+            self.retry_writebacks()

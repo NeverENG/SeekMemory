@@ -62,14 +62,15 @@ class JsonStateStore:
     def _load(self) -> dict[str, dict]:
         if self._items is not None:
             return self._items
-        self._items = {}
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
         except FileNotFoundError:
+            self._items = {}
             return self._items
-        except Exception as exc:  # noqa: BLE001 - runtime state is fail-open
+        except Exception as exc:  # noqa: BLE001 - do not invent empty state / 不伪造空状态
             self.last_error = type(exc).__name__
-            return self._items
+            raise
+        self._items = {}
         if isinstance(data, dict):
             self._items = {
                 str(key): value for key, value in data.items()
@@ -85,11 +86,11 @@ class JsonStateStore:
     def put(self, state: SessionState) -> None:
         key = str(state.session_id or "")
         with self._lock:
-            items = self._load()
+            items = dict(self._load())
             items[key] = asdict(state)
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            payload = json.dumps(items, ensure_ascii=False, sort_keys=True)
             try:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                payload = json.dumps(items, ensure_ascii=False, sort_keys=True)
                 fd, temp = tempfile.mkstemp(prefix=".runtime-state-", dir=str(self.path.parent))
                 try:
                     with os.fdopen(fd, "w", encoding="utf-8") as handle:
@@ -97,12 +98,14 @@ class JsonStateStore:
                         handle.flush()
                         os.fsync(handle.fileno())
                     os.replace(temp, self.path)
+                    self._items = items
                     self.last_error = ""
                 finally:
                     if os.path.exists(temp):
                         os.unlink(temp)
-            except Exception as exc:  # noqa: BLE001 - runtime state failure is not fatal
+            except Exception as exc:  # noqa: BLE001 - let orchestration retry / 交给编排重试
                 self.last_error = type(exc).__name__
+                raise
 
 
 class RepoStateStore:
@@ -116,14 +119,16 @@ class RepoStateStore:
         key = str(session_id or "")
         try:
             raw = self.repository.get(key)
-        except Exception as exc:  # noqa: BLE001 - runtime state is fail-open
+        except Exception as exc:  # noqa: BLE001 - preserve unknown state / 保留未知状态
             self.last_error = type(exc).__name__
-            return SessionState(session_id=key)
+            raise
+        self.last_error = ""
         return session_state_from_payload(key, raw)
 
     def put(self, state: SessionState) -> None:
         try:
             self.repository.put(str(state.session_id or ""), asdict(state))
             self.last_error = ""
-        except Exception as exc:  # noqa: BLE001 - runtime state is fail-open
+        except Exception as exc:  # noqa: BLE001 - let orchestration retry / 交给编排重试
             self.last_error = type(exc).__name__
+            raise

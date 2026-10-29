@@ -32,6 +32,8 @@ from .actions import ActionExecutor
 from .recorder import RecordedReply, RunRecorder
 from .attention import DefaultAttentionPolicy
 from .topics import TopicCandidate
+from .writeback import DeliveryReceipt, DeliveryWritebacks
+from .episode import normalize_tool_calls
 
 from . import transitions
 from .transitions import MAX_FOLLOWUP_SPEAKERS
@@ -64,6 +66,7 @@ class AgentRuntime:
         self.action_executor = action_executor
         self.message_sender = message_sender
         self.recorder = recorder
+        self._writebacks = DeliveryWritebacks()
 
     def build_context(self, event: RuntimeInput, *, now: float | None = None,
                       reason: str = "inbound") -> MemoryContext:
@@ -84,7 +87,7 @@ class AgentRuntime:
         event_time = float(event.event_time or 0.0)
         if event_time > 0 and state.last_event_at > event_time:
             if self.trace is not None:
-                self.trace.record("runtime", "stale_event", {
+                self._trace("runtime", "stale_event", {
                     "event_time": event_time, "last_event_at": state.last_event_at,
                 })
             return RunDecision(WakeAction.IGNORE, "stale_event")
@@ -94,7 +97,7 @@ class AgentRuntime:
         self._save(state)
         result = decision.runtime_decision()
         if self.trace is not None:
-            self.trace.record("runtime", result.action.value, {
+            self._trace("runtime", result.action.value, {
                 "reason": result.reason, "unread": state.unread_count,
                 "ignored_streak": state.ignored_streak,
             })
@@ -187,21 +190,15 @@ class AgentRuntime:
     ) -> None:
         """Commit one delivered normal run and advance session delivery state."""
         moment = self.clock() if now is None else float(now)
-        if self.recorder is not None:
-            self.recorder.record_delivery(
-                run_id=run_id,
-                session_id=session_id,
-                decision=decision,
-                reason=reason,
-                response_chars=response_chars,
-                tool_calls=tool_calls,
-                user_source_id=user_source_id,
-                assistant_source_id=assistant_source_id,
-                at=datetime.datetime.fromtimestamp(
-                    moment, datetime.timezone.utc
-                ).isoformat(timespec="seconds"),
-            )
-        self.mark_delivered(session_id, moment, read_through_seq=read_through_seq)
+        if self._writebacks.completed(session_id, run_id) is not None:
+            return
+        self._writebacks.remember(DeliveryReceipt(
+            run_id=run_id, session_id=session_id, moment=moment, mode="normal",
+            decision=decision, reason=reason, response_chars=response_chars,
+            tool_calls=normalize_tool_calls(tool_calls), user_source_id=user_source_id,
+            assistant_source_id=assistant_source_id, read_through_seq=read_through_seq,
+        ))
+        self._writebacks.retry(self.store, self.recorder, session_id)
 
     def record_error(
         self,
@@ -230,12 +227,18 @@ class AgentRuntime:
     async def dispatch_deferred(self, context: RunContext, *, now: float | None = None,
                                 max_attempts: int = 3, base_seconds: float = 2.0) -> RunResult:
         """Execute one deferred run through injected ports / 通过注入端口执行一次延迟回复。"""
+        pending = self._retry_before_dispatch(context)
+        if pending is not None:
+            return pending
         return await self._dispatcher().dispatch_deferred(context, now=now, max_attempts=max_attempts,
                                                            base_seconds=base_seconds)
 
     async def dispatch_proactive(self, context: RunContext, decision: ProactiveDecision, *,
                                  topic: TopicCandidate | None = None, now: float | None = None) -> RunResult:
         """Execute one proactive run with its own policy / 按主动策略执行一次主动发言。"""
+        pending = self._retry_before_dispatch(context)
+        if pending is not None:
+            return pending
         return await self._dispatcher().dispatch_proactive(context, decision, topic=topic, now=now)
 
     def schedule_proactive(self, session_id: str, delay_seconds: float, *, now: float | None = None) -> SessionState:
@@ -279,4 +282,32 @@ class AgentRuntime:
         """Bind current ports without exposing this facade / 绑定当前端口，不传递整个入口对象。"""
         return Dispatch(store=self.store, clock=self.clock, memory_context=self.memory_context,
                         model_gateway=self.model_gateway, action_executor=self.action_executor,
-                        message_sender=self.message_sender, recorder=self.recorder, trace=self.trace)
+                        message_sender=self.message_sender, recorder=self.recorder, trace=self.trace,
+                        writebacks=self._writebacks)
+
+    def retry_writebacks(self) -> int:
+        """Retry writes without model/send access, including with speaking disabled.
+
+        只补写，不调用模型或发送；关闭后台发言时仍可调用，返回完成项数。
+        """
+        completed = 0
+        retry = getattr(self.recorder, "retry_pending", None)
+        if callable(retry):
+            completed += retry()
+        return completed + self._writebacks.retry(self.store, self.recorder)
+
+    def _retry_before_dispatch(self, context: RunContext) -> RunResult | None:
+        """Finish old delivery before starting new background work / 后台新任务开始前补完旧交付。"""
+        pending = self._writebacks.for_session(context.session_id)
+        self.retry_writebacks()
+        if pending is not None:
+            return pending.result(self._writebacks.for_session(context.session_id) is not None)
+        return self._writebacks.completed(context.session_id, context.run_id)
+
+    def _trace(self, *args, **kwargs) -> None:
+        """Keep diagnostic failures separate from state changes / 诊断失败与状态变化分开。"""
+        try:
+            if self.trace is not None:
+                self.trace.record(*args, **kwargs)
+        except Exception:
+            pass

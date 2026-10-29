@@ -163,3 +163,23 @@ def pending_changed(state: SessionState, claimed: SessionState) -> bool:
         or state.wait_until != claimed.wait_until
         or state.next_retry_at != claimed.next_retry_at
     )
+
+
+def finish_proactive(state: SessionState, moment: float, reason: str,
+                     claimed: SessionState | None) -> SessionState:
+    """Finish only the claimed proactive marker, retaining new user work.
+
+    仅完成已领取的主动任务，保留后来用户消息安排的新任务。
+    """
+    state = snapshot(state)
+    state.last_proactive_at = max(state.last_proactive_at, moment)
+    if claimed is None or (
+        state.proactive_due_at == claimed.proactive_due_at
+        and state.proactive_attempts == claimed.proactive_attempts
+        and state.last_seen_at == claimed.last_seen_at
+    ):
+        state.proactive_attempts = int(state.proactive_attempts or 0) + 1
+        state.proactive_due_at = 0.0
+        state.last_action = "reply"
+        state.last_reason = reason
+    return state

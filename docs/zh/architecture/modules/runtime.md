@@ -40,3 +40,11 @@ runtime_gate_enabled 默认 false。关闭时，等待和后台 deferred dispatc
 RunRecorder 是 Source、pending projection、checkpoint 和 episode 的唯一运行时写回协调者，以 run_id 和确定性 Source ID 防止重复回调重复写入。runtime_episodes 是追加式业务审计元数据；RunTracer/TraceStore 是受字段白名单约束的诊断时间线。二者不保存对话正文，不互相替代。
 
 ToolPolicy 在模型请求前可从 req.func_tool 移除不允许的工具；观察工具调用的 hook 只是诊断信号，不能单独阻止执行。实际过滤由 runtime_tool_filter_enabled 控制，默认关闭。
+
+## 交付后补写
+
+Runtime 在确认发送后立即保留进程内交付凭据。会话确认、Source/队列及审计分阶段完成；失败返回 `RunResult(delivered=True, error="writeback_pending")`，不重新生成或发送。`AgentRuntime.retry_writebacks()` 返回完成的补写项数；worker 每轮在发言开关判断前调用，停止时再次尝试。同一会话旧交付未补完时，后台新发言暂停，普通消息仍接收。普通交付回调同样先确认会话，再补审计。
+
+RunRecorder 保留原始消息、投影及逐条强化的完成位置，失败仅重试缺失阶段。新仓储审计的稳定编号来自会话和 run_id，历史记录不改写。状态读取错误不再伪装成空会话，状态/审计写入失败保留 last_error 并抛出；编排方负责重试，诊断仍不影响业务。文件替换失败保留磁盘和内存中的旧状态。
+
+凭据及补偿不跨进程持久化。突然退出或发送结果未知仍可能重试，不能据此承诺跨重启单次发送。

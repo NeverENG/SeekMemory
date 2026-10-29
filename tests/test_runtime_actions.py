@@ -163,7 +163,7 @@ class ActionTest(unittest.TestCase):
         self.assertEqual(rows[0]["decision"], "reply")
         self.assertIn("memory_search", rows[0]["tool_calls"])
 
-    def test_db_episode_pruning_and_fail_open(self) -> None:
+    def test_db_pruning_and_storage_failures_are_observable(self) -> None:
         db = open_store(os.path.join(tempfile.mkdtemp(prefix="seekmem_runtime_prune_"), "memory.db"))
         recorder = EpisodeRecorder(RepoEpisodeStore(db.runtime_episodes))
         for i in range(3):
@@ -187,12 +187,16 @@ class ActionTest(unittest.TestCase):
                 raise RuntimeError("busy")
 
         state_store = RepoStateStore(BrokenState())
-        self.assertEqual(state_store.get("s1").session_id, "s1")
-        state_store.put(state_store.get("s1"))
+        with self.assertRaises(RuntimeError):
+            state_store.get("s1")
+        from app.runtime import SessionState
+        with self.assertRaises(RuntimeError):
+            state_store.put(SessionState("s1"))
         self.assertEqual(state_store.last_error, "RuntimeError")
         episode_store = RepoEpisodeStore(BrokenEpisodes())
-        episode_store.append(EpisodeRecord(session_id="s1", at="t", decision="x",
-                                           reason="y", action="z", delivered=False))
+        with self.assertRaises(RuntimeError):
+            episode_store.append(EpisodeRecord(session_id="s1", at="t", decision="x",
+                                               reason="y", action="z", delivered=False))
         self.assertEqual(episode_store.last_error, "RuntimeError")
 
     def test_episode_jsonl_has_no_message_body(self) -> None:

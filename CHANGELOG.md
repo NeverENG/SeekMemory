@@ -40,6 +40,8 @@
 
 ### 中文
 
+- 运行时：确认发送后保留进程内凭据，写回失败仅补状态、原始消息/队列及审计；关闭后台发言及停止时仍补写。保存失败可被编排识别，文件失败不覆盖旧状态，新增审计使用稳定运行编号。不改数据库结构或旧记录，不保证断电后绝对不重发。
+
 - 夜间整理：分离纯时间/预算规则；台账结束失败如实返回失败及已完成数量，错误不再保存异常正文，诊断失败不影响整理结果。
 
 - 修复强化提交成功但缓存失败后的重复提交；缓存补偿读取最新版本，未提交命中和缓存补偿分别保留。
@@ -89,6 +91,8 @@
 - 人格控制台接入历史版本回滚、差异比较与变化原因；安装时校验预览内容，按版本显示已安装状态；Dream 日志区分预算停止与完成，并显示调度开关。新增控制台接口需与 dashboard 同步更新，不涉及数据库迁移或配置变化（#82 / #83）。
 
 ### English
+
+- Retain process-local receipts after confirmed sending and retry only state, Source/projection and audit writes, including with speaking disabled and at shutdown. Surface storage failures, preserve old file state and derive stable IDs for new audit rows. No schema or historical-row changes; crashes may still lead to resend.
 
 - Separate daily time/budget rules; report journal finish failure with completed counts, omit exception bodies, and isolate diagnostic failures.
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Iterable, Protocol
 from uuid import uuid4
 
@@ -52,6 +52,19 @@ class RecordedReply:
     response_chars: int
 
 
+@dataclass
+class _SourceWriteback:
+    """Completed stages for one immutable Source / 一条不可变原始消息的已完成写回阶段。"""
+
+    source: Source = field(repr=False)
+    deferred: bool = False
+    recall_ids: tuple[str, ...] = ()
+    source_done: bool = False
+    projection_done: bool = False
+    topic_id: str = ""
+    reinforced: set[str] = field(default_factory=set)
+
+
 class RunRecorder:
     """Owns assistant Source, pending buffer and episode write-back.
 
@@ -79,6 +92,9 @@ class RunRecorder:
         self._turns: dict[str, RecordedTurn] = {}
         self._replies: dict[str, RecordedReply] = {}
         self._episodes: set[str] = set()
+        self._pending_turns: dict[str, _SourceWriteback] = {}
+        self._pending_replies: dict[str, _SourceWriteback] = {}
+        self._pending_episodes: dict[str, EpisodeRecord] = {}
 
     @staticmethod
     def new_run_id() -> str:
@@ -124,24 +140,8 @@ class RunRecorder:
             clean,
             moment,
         )
-        if self.sources is not None:
-            self.sources.append_sources([source])
-        topic_id = ""
-        if self.buffer is not None:
-            turn = self.buffer.add(
-                session,
-                clean,
-                speaker,
-                source_id,
-                moment,
-                source=source,
-                turn_id=turn_id,
-                deferred=deferred,
-            )
-            topic_id = str(getattr(turn, "topic_id", "") or "")
-        result = RecordedTurn(source_id, turn_id, topic_id)
-        self._turns[key] = result
-        return result
+        progress = self._pending_turns.setdefault(key, _SourceWriteback(source, deferred))
+        return self._finish_user(key, progress)
 
     def record_reply(
         self,
@@ -194,24 +194,10 @@ class RunRecorder:
             moment,
             reply_to=str(reply_to or "") or None,
         )
-        if self.sources is not None:
-            self.sources.append_sources([source])
-        if self.buffer is not None:
-            self.buffer.add(
-                session,
-                clean,
-                speaker,
-                source_id,
-                moment,
-                source=source,
-                turn_id=turn,
-                role="assistant",
-            )
-        if self.checkpoint is not None:
-            self._reinforce_recall(recall_ids, moment)
-        result = RecordedReply(key, session, turn, source_id, len(clean))
-        self._replies[key] = result
-        return result
+        progress = self._pending_replies.setdefault(
+            key, _SourceWriteback(source, recall_ids=tuple(dict.fromkeys(recall_ids or ()))),
+        )
+        return self._finish_reply(key, progress)
 
     def record_delivery(
         self,
@@ -329,14 +315,6 @@ class RunRecorder:
             at=at,
         )
 
-    def _reinforce_recall(self, recall_ids: Iterable[str], at: str) -> None:
-        if self.checkpoint is None:
-            return
-        for art_id in recall_ids or ():
-            art = self.cache.get(str(art_id)) if self.cache is not None else None
-            if art is not None and getattr(art.header, "family", "") == "memory":
-                self.checkpoint.record(art, at=at)
-
     def _record_episode(
         self,
         *,
@@ -359,7 +337,7 @@ class RunRecorder:
             return
         if self.episodes is None:
             return
-        self.episodes.record(EpisodeRecord(
+        episode = EpisodeRecord(
             session_id=str(session_id or ""),
             at=str(at or self.clock()),
             decision=str(decision or ""),
@@ -373,6 +351,80 @@ class RunRecorder:
             user_source_id=str(user_source_id or ""),
             assistant_source_id=str(assistant_source_id or ""),
             run_id=key,
-        ))
+        )
+        pending_key = key or self.new_run_id()
+        episode = self._pending_episodes.setdefault(pending_key, episode)
+        self.episodes.record(episode)
+        self._pending_episodes.pop(pending_key, None)
         if key:
             self._episodes.add(key)
+
+    def _write_source(self, progress: _SourceWriteback) -> None:
+        """Resume only unfinished evidence and queue stages / 仅续写未完成的证据及队列阶段。"""
+        source = progress.source
+        if not progress.source_done:
+            if self.sources is not None:
+                self.sources.append_sources([source])
+            progress.source_done = True
+        if not progress.projection_done:
+            if self.buffer is not None:
+                kwargs = dict(source=source, turn_id=source.turn_id)
+                if source.role == "assistant":
+                    kwargs["role"] = "assistant"
+                else:
+                    kwargs["deferred"] = progress.deferred
+                turn = self.buffer.add(source.session_id, source.text, source.speaker_id,
+                                       source.id, source.at, **kwargs)
+                progress.topic_id = str(getattr(turn, "topic_id", "") or "")
+            progress.projection_done = True
+
+    def _finish_user(self, key: str, progress: _SourceWriteback) -> RecordedTurn:
+        """Complete and release a user write-back / 完成并释放用户消息写回。"""
+        self._write_source(progress)
+        result = RecordedTurn(progress.source.id, progress.source.turn_id, progress.topic_id)
+        self._turns[key] = result
+        self._pending_turns.pop(key, None)
+        return result
+
+    def _finish_reply(self, key: str, progress: _SourceWriteback) -> RecordedReply:
+        """Complete reply stages, retaining successful reinforcement IDs / 完成回复阶段，保留已完成强化编号。"""
+        self._write_source(progress)
+        if self.checkpoint is not None:
+            for art_id in progress.recall_ids:
+                if art_id in progress.reinforced:
+                    continue
+                art = self.cache.get(str(art_id)) if self.cache is not None else None
+                if art is not None and getattr(art.header, "family", "") == "memory":
+                    self.checkpoint.record(art, at=progress.source.at)
+                progress.reinforced.add(art_id)
+        source = progress.source
+        result = RecordedReply(key, source.session_id, source.turn_id, source.id, len(source.text))
+        self._replies[key] = result
+        self._pending_replies.pop(key, None)
+        return result
+
+    def retry_pending(self) -> int:
+        """Retry writes without generation or sending; return completed items.
+
+        只补写，不生成或发送；返回完成项数。失败项保留到下一轮。
+        """
+        completed = 0
+        for pending, finish in ((self._pending_turns, self._finish_user),
+                                (self._pending_replies, self._finish_reply)):
+            for key, progress in list(pending.items()):
+                try:
+                    finish(key, progress)
+                    completed += 1
+                except Exception:
+                    continue
+        if self.episodes is not None:
+            for key, episode in list(self._pending_episodes.items()):
+                try:
+                    self.episodes.record(episode)
+                except Exception:
+                    continue
+                self._pending_episodes.pop(key, None)
+                if episode.run_id:
+                    self._episodes.add(episode.run_id)
+                completed += 1
+        return completed

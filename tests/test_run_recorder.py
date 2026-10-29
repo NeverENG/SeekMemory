@@ -7,6 +7,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -102,6 +103,42 @@ class RunRecorderTest(unittest.TestCase):
         self.assertEqual(len(self.buffer.rows), 1)
         self.assertEqual(len(self.checkpoint.records), 1)
         self.assertEqual(first.run_id, "run-1")
+
+    def test_projection_failure_retries_without_reappending_source(self):
+        with patch.object(self.buffer, "add", side_effect=OSError("busy")):
+            with self.assertRaises(OSError):
+                self.recorder.record_reply(run_id="partial", session_id="s1", text="reply",
+                                           speaker_id="bot", turn_id="t1")
+        self.assertEqual(len(self.db.sources), 1)
+        self.assertEqual(self.recorder.retry_pending(), 1)
+        self.assertEqual(len(self.db.sources), 1)
+        self.assertEqual(len(self.buffer.rows), 1)
+
+    def test_partial_reinforcement_never_repeats_completed_ids(self):
+        self.recorder.cache.items["n2"] = self.recorder.cache.items["n1"]
+        def record(art, at=""):
+            if len(self.checkpoint.records) == 1:
+                raise OSError("busy")
+            self.checkpoint.records.append((art, at))
+        with patch.object(self.checkpoint, "record", side_effect=record):
+            with self.assertRaises(OSError):
+                self.recorder.record_reply(run_id="partial", session_id="s1", text="reply",
+                                           speaker_id="bot", recall_ids=("n1", "n2"))
+        self.recorder.retry_pending()
+        self.assertEqual(len(self.checkpoint.records), 2)
+        self.assertEqual(len(self.db.sources), 1)
+        self.assertEqual(len(self.buffer.rows), 1)
+
+    def test_user_projection_failure_retains_original_source_identity(self):
+        with patch.object(self.buffer, "add", side_effect=OSError("busy")):
+            with self.assertRaises(OSError):
+                self.recorder.record_user(session_id="s1", text="hello", speaker_id="u1", event_id="e1")
+        source = self.db.sources[0]
+        self.recorder.retry_pending()
+        again = self.recorder.record_user(session_id="s1", text="hello", speaker_id="u1", event_id="e1")
+        self.assertEqual(again.source_id, source.id)
+        self.assertEqual(len(self.db.sources), 1)
+        self.assertEqual(len(self.buffer.rows), 1)
 
 
     def test_user_turn_write_back_is_idempotent_by_event_id(self):

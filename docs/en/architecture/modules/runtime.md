@@ -40,3 +40,11 @@ runtime_gate_enabled defaults to false. While disabled, wait and background defe
 RunRecorder is the single runtime write-back coordinator for Sources, pending projection, checkpoint, and episodes. run_id and deterministic Source IDs prevent repeated callbacks from duplicating writes. runtime_episodes is append-only business audit metadata; RunTracer/TraceStore is a field-whitelisted diagnostic timeline. They are separate and neither stores conversation bodies.
 
 ToolPolicy can remove disallowed tools from req.func_tool before the model request. A post-call tool observation hook is diagnostic and cannot block execution by itself. Actual request filtering is controlled by runtime_tool_filter_enabled and is disabled by default.
+
+## Write-back after delivery
+
+Runtime retains a process-local receipt immediately after confirmed sending. Session acknowledgement, Source/projection and audit complete in stages; failures return `RunResult(delivered=True, error="writeback_pending")` without generating or sending again. `AgentRuntime.retry_writebacks()` returns completed write-back items. The worker calls it before checking speaking enablement and again on shutdown. Unfinished session delivery blocks new background sends while normal input remains accepted. Normal delivery callbacks also acknowledge state before retrying audit.
+
+RunRecorder retains completion positions for Source, projection and individual reinforcement IDs, retrying only missing stages. New repository audit IDs derive from session/run identity; historical rows remain unchanged. State read errors no longer masquerade as empty sessions; state/audit writes retain last_error and raise so orchestration can retry. Diagnostics remain isolated. Failed file replacement preserves both durable and cached old state.
+
+Receipts and compensation are not durable across processes. Crashes and unknown send outcomes may still trigger retries; this is not an exactly-once delivery guarantee across restarts.

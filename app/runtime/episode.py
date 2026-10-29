@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import threading
 import uuid
@@ -174,8 +175,9 @@ class JsonlEpisodeStore:
                     handle.write(json.dumps(payload, ensure_ascii=False,
                                             sort_keys=True) + "\n")
                 self.last_error = ""
-            except Exception as exc:  # noqa: BLE001 - episode logging is fail-open
+            except Exception as exc:  # noqa: BLE001 - let the recorder retry / 交给记录器重试
                 self.last_error = type(exc).__name__
+                raise
 
 
 class RepoEpisodeStore:
@@ -187,10 +189,14 @@ class RepoEpisodeStore:
 
     def append(self, episode: EpisodeRecord) -> None:
         payload = asdict(episode)
-        payload["id"] = f"ep_{uuid.uuid4().hex}"
+        identity = hashlib.sha256(
+            f"{episode.session_id}\0{episode.run_id}".encode("utf-8")
+        ).hexdigest() if episode.run_id else uuid.uuid4().hex
+        payload["id"] = f"ep_{identity}"
         payload["tool_calls"] = list(normalize_tool_calls(episode.tool_calls))
         try:
             self.repository.append(payload)
             self.last_error = ""
-        except Exception as exc:  # noqa: BLE001 - episode logging is fail-open
+        except Exception as exc:  # noqa: BLE001 - let the recorder retry / 交给记录器重试
             self.last_error = type(exc).__name__
+            raise
