@@ -293,6 +293,7 @@ from .runtime.contracts import (
     ActionPort,         # execute: perform a host action / 执行宿主动作。
     ActionSink,         # append: persist content-free action audit / 保存无正文的动作审计。
     Clock,              # __call__: UTC epoch seconds / 返回 UTC 时间戳秒数。
+    MemoryContextRecorder,
     MemoryContextPort,  # build_context: read-only memory context / 只读构建记忆上下文。
     MessageSender,      # send: compatibility text delivery / 兼容的文本发送接口。
     ModelGateway,       # complete: runtime model text call / 运行时的模型文本调用。
@@ -324,7 +325,7 @@ from .dream import (
 __all__ = [
     "ChatModel", "Retriever", "SourceStore", "ArtifactStore", "TreeArtifactStore", "TreeCache",
     "ArtifactCache", "MetricsStore", "LedgerStore", "ExtractionStore", "DreamJournal", "PersonaPacks",
-    "ActionPort", "ActionSink", "Clock", "MemoryContextPort", "MessageSender", "ModelGateway",
+    "ActionPort", "ActionSink", "Clock", "MemoryContextRecorder", "MemoryContextPort", "MessageSender", "ModelGateway",
     "ProactivePolicy", "SessionStateStore", "TraceSink", "TopicSource",
     "CheckpointSink", "EpisodeWriter", "PendingSink", "SourceSink", "EpisodeSink", "TraceWriter",
     "DreamClock", "FlushFn", "Log", "MaintainFn", "PendingFn", "UsageFn",

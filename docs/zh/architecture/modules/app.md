@@ -182,3 +182,5 @@ ChatModel 是无会话状态的调用端口。app 的 budget、flush 和 wake/ti
 代码入口：[domain.py](../../../../app/domain.py)、[ports.py](../../../../app/ports.py)；运行时交付约束见 [Agent Runtime](runtime.md)。
 
 抽取回调可通过 `ExtractionFailure` 携带已完成的写入和话题数量。夜间整理将这些数量保留在失败结果与台账中；已准备写入的恢复仍由回调方负责。
+
+记忆上下文构造使用纯 `RecallService.query()`。明确包含记录通过可选通用 `MemoryContextRecorder` 转发；普通宿主钩子在附加到请求后调用，后台在模型调用前立即调用。运行时不包含指定记忆规则；旧 `RecallService.build()` 仍是兼容的查询加记录入口。

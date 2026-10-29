@@ -1,4 +1,7 @@
-"""recall.assemble：把记忆组装成一段叙述化的注入文本。"""
+"""Render disclosed memories with existing narrative ordering and character budgets; no writes.
+
+按既有叙述顺序及字数预算转换已披露记忆，不执行写入。
+"""
 
 from __future__ import annotations
 
@@ -6,10 +9,10 @@ import re
 from datetime import date
 from typing import Any
 
-try:  # 作为 astrbot 插件包的一部分导入
+try:  # Plugin namespace / 插件命名空间。
     from ..core.artifact import Artifact, content_of
     from .designated import deliverable, triggers_of
-except ImportError:  # 作为顶层 recall 包导入（脚本 / 测试）
+except ImportError:  # Top-level package / 顶层包。
     from core.artifact import Artifact, content_of
     from recall.designated import deliverable, triggers_of
 
@@ -27,7 +30,7 @@ SHADOW_SENTENCE = "有件事你答应过别人不说"
 
 
 def _clean(value: Any, limit: int = 180) -> str:
-    """压平空白、补「但」前逗号、去句末符号，最后加上句号。"""
+    """Normalize narrative whitespace and punctuation / 规范叙述空白及标点。"""
     text = " ".join(str(value or "").split())
     text = re.sub(r"(?<=[^，。！？；：、\s不非])但", "，但", text)
     text = text.strip("。！？!?；;，,、 ")
@@ -37,13 +40,13 @@ def _clean(value: Any, limit: int = 180) -> str:
 
 
 def _clip(value: Any, limit: int = 60) -> str:
-    """截断引语或标题，不带句号。"""
+    """Clip a quote/title using the existing length rule / 按既有长度规则裁剪引语或标题。"""
     text = _clean(value, limit)
     return text[:-1] if text.endswith("。") else text
 
 
 def _raw(art: Artifact) -> str:
-    """取通用可读文本，最后回退 content_of。"""
+    """Read family text with the existing content fallback / 按既有内容回退读取类型正文。"""
     for key in ("text", "shadow_text", "summary", "title"):
         value = art.payload.get(key)
         if isinstance(value, str) and value.strip():
@@ -55,14 +58,14 @@ def _raw(art: Artifact) -> str:
 
 
 def _voice(text: str, about: str) -> str:
-    """把记忆里的第一人称改写成注入时的第二人称。"""
+    """Convert the existing first-person memory wording to second person / 将既有记忆第一人称转换为第二人称。"""
     if about == "relation":
         text = text.replace("我们", "你们")
     return text.replace("我的", "你的").replace("我", "你")
 
 
 def _when(created: str) -> str:
-    """绝对日期转相对时间前缀（DESIGN 6.3）。"""
+    """Format the existing relative date wording / 转换既有相对日期措辞。"""
     try:
         day = date.fromisoformat(str(created)[:10])
     except (TypeError, ValueError):
@@ -75,7 +78,7 @@ def _when(created: str) -> str:
 
 
 def _media_sentence(art: Artifact) -> str:
-    """media 层：谁给谁看过什么，带类型与主题。"""
+    """Render the existing media memory description / 转换既有媒体记忆说明。"""
     payload = art.payload
     kind = str(payload.get("type") or "video").lower()
     measure, noun = MEDIA.get(kind, ("个", "视频"))
@@ -93,7 +96,7 @@ def _media_sentence(art: Artifact) -> str:
 
 
 def _example_sentence(art: Artifact) -> str:
-    """example 层：他说的原话与你当时的回应。"""
+    """Render a prior user quote and assistant response / 转换先前用户原话及助手回应。"""
     user, reply = _clip(art.payload.get("user")), _clip(art.payload.get("assistant"))
     if user and reply:
         return f"你记得有一次他说「{user}」，你回「{reply}」。"
@@ -103,7 +106,7 @@ def _example_sentence(art: Artifact) -> str:
 
 
 def _guarded_sentence(art: Artifact) -> str:
-    """secret / designated 层：只给影子句或托付提示，不泄露内容。"""
+    """Render only a guarded hint without disclosing protected content / 仅转换保护提示，不披露受保护内容。"""
     if art.header.family == "designated":
         trigger = _clip("、".join(triggers_of(art)) or "那个东西", 40)
         return f"他让你记着一件事，等提到「{trigger}」时再告诉他。"
@@ -112,13 +115,13 @@ def _guarded_sentence(art: Artifact) -> str:
 
 
 def _shadow_sentence(art: Artifact) -> str:
-    """scope=shadow：任何会话都只注入影子句，正文绝不进入输出。"""
+    """Render shadow wording without the original body in any session / 在所有会话仅转换影子措辞，不使用原正文。"""
     shadow = _clean(art.payload.get("shadow_text") or SHADOW_SENTENCE)
     return f"你记得，{shadow}" if shadow else ""
 
 
 def _designated_sentence(art: Artifact) -> str:
-    """designated 已满足三条硬条件：交出完整正文，而不是提示句。"""
+    """Render a designated body after its existing access gates passed / 在既有访问条件通过后转换指定正文。"""
     body = _clean(art.payload.get("text"), 600)
     if not body:
         return ""
@@ -126,7 +129,7 @@ def _designated_sentence(art: Artifact) -> str:
 
 
 def _memory_sentence(art: Artifact) -> str:
-    """memory 层：场景带相对时间，细节回指，印象换一种开头。"""
+    """Render memory wording for its existing abstraction level / 按既有抽象层级转换记忆措辞。"""
     text = _clean(_voice(_raw(art), str(art.payload.get("about") or "")))
     if not text:
         return ""
@@ -140,11 +143,7 @@ def _memory_sentence(art: Artifact) -> str:
 
 
 def _persona_sentence(art: Artifact) -> str:
-    """persona 层：人格沉淀本身已是第二人称自述，不再补「你记得」。
-
-    人格文本是整段设定，不能按单条记忆的 180 字上限截断；只做压平空白与
-    句末整理，长度由注入预算统一约束（persona 属于 header，不会被逐条丢弃）。
-    """
+    """Render the whole persona without per-memory clipping; the total budget still applies / 转换完整人格，不按单条记忆裁剪，总预算仍适用。"""
     text = " ".join(str(_voice(_raw(art), "self") or "").split())
     text = text.strip("。！？!?；;，,、 ")
     if len(text) > 4000:
@@ -154,11 +153,7 @@ def _persona_sentence(art: Artifact) -> str:
 
 def _sentence(art: Artifact, text: str | None = None,
               is_private: bool | None = None) -> tuple[str, str]:
-    """按 scope / family / level 选措辞，返回 (裁剪层, 句子)。
-
-    text / is_private 为 None 表示调用方没有会话上下文（脚本或旧调用），
-    designated 只输出托付提示；传入上下文后按三条硬条件决定是否交付正文。
-    """
+    """Choose shadow/family wording; missing designated context only permits a hint / 选择影子或类型措辞，缺少指定记忆上下文时仅允许提示。"""
     if str(art.header.scope or "") == "shadow":
         return "shadow", _shadow_sentence(art)
     family = art.header.family
@@ -182,10 +177,12 @@ def _sentence(art: Artifact, text: str | None = None,
 
 
 def _render(items: list[tuple[str, str]]) -> str:
+    """Join already prepared sentences in order / 按顺序连接已准备句子。"""
     return "".join(sentence for _, sentence in items)
 
 
 def _drop(items: list[tuple[str, str]], layers: tuple[str, ...]) -> int | None:
+    """Remove the last eligible layer item and return its position / 移除末尾符合层级条件的项并返回位置。"""
     index = next((i for i in range(len(items) - 1, -1, -1) if items[i][0] in layers), None)
     if index is None:
         return None
@@ -194,6 +191,7 @@ def _drop(items: list[tuple[str, str]], layers: tuple[str, ...]) -> int | None:
 
 
 def _dedupe_key(art: Artifact) -> str:
+    """Use shadow text or existing content as the assembly duplicate key / 使用影子文本或既有内容作为组装去重键。"""
     if str(art.header.scope or "") == "shadow":
         shadow = str(art.payload.get("shadow_text") or "").strip()
         return "shadow:" + (shadow or art.header.id)
@@ -201,6 +199,7 @@ def _dedupe_key(art: Artifact) -> str:
 
 
 def _dedupe(arts: list[Artifact]) -> list[Artifact]:
+    """Keep the existing nonempty noncontained narrative entries / 按既有规则保留非空且互不包含的叙述条目。"""
     kept: list[Artifact] = []
     seen: list[str] = []
     for a in arts:
@@ -223,6 +222,7 @@ def build_with_meta(
     notes: dict[str, str] | None = None,
     overrides: dict[str, str] | None = None,
 ) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
+    """Assemble within the character budget and return final/dropped IDs / 在字数预算内组装，返回最终及丢弃编号。"""
     input_ids = [art.header.id for art in arts]
     arts = _dedupe(arts)
     if not arts or budget <= 0:
@@ -306,6 +306,7 @@ def build(arts: list[Artifact], budget: int = 2000,
           *, text: str | None = None, is_private: bool | None = None,
           notes: dict[str, str] | None = None,
           overrides: dict[str, str] | None = None) -> str:
+    """Assemble narrative text without persistence / 组装叙述文本，不持久化。"""
     return build_with_meta(
         arts, budget, text=text, is_private=is_private,
         notes=notes, overrides=overrides,

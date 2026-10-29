@@ -1,8 +1,6 @@
-"""recall.score：给单条记忆打分，并按分数与探索率选出注入集合。
+"""Score and select supplied candidates using bounded derived caches and existing formulas.
 
-打分复用 recall.seed 缓存的二元组 / 标签，消息侧的二元组、情绪词计数
-与文本小写形式按 text 缓存，日期新鲜度按 created 在单次 select 内复用；
-select 走批量打分（省掉逐条函数调用与重复取数），排序与探索逻辑不变。
+按有界派生缓存及既有公式评分和选择给定候选，不写入业务状态。
 """
 
 from __future__ import annotations
@@ -12,12 +10,12 @@ import random
 from collections import OrderedDict
 from datetime import date
 
-try:  # 作为 astrbot 插件包的一部分导入
+try:  # Plugin namespace / 插件命名空间。
     from ..core.artifact import Artifact
     from ..core.retrieval import RetrievalCandidate
     from . import gate as gate_mod
     from .seed import bigrams, dice, signals_of
-except ImportError:  # 作为顶层 recall 包导入（脚本 / 测试）
+except ImportError:  # Top-level package / 顶层包。
     from core.artifact import Artifact
     from core.retrieval import RetrievalCandidate
     from recall import gate as gate_mod
@@ -29,7 +27,7 @@ ABS_DAYS = 10_000
 ORDINAL_DAYS = 500_000
 EPOCH_ORDINAL = date(1970, 1, 1).toordinal()
 
-# 相关性闸门（Recall Gate）只认证据，阈值与常量见 recall.gate。
+# Evidence gate thresholds belong to recall.gate / 证据条件阈值归 recall.gate 管理。
 
 TEXT_CACHE_LIMIT = 16
 STATIC_CACHE_LIMIT = 20_000
@@ -40,7 +38,7 @@ _FRESH_CACHE: OrderedDict[tuple[str, float], float] = OrderedDict()
 
 
 def _text_stats(text: str) -> tuple[frozenset[str], int, str, int, int, bool]:
-    """消息侧只算一次：二元组、小写、正负情绪词数、是否在笑。"""
+    """Cache query grams, case and emotion signals once per text / 每个文本只缓存一次查询二元组、大小写及情绪信号。"""
     cached = _TEXT_CACHE.get(text)
     if cached is not None:
         _TEXT_CACHE.move_to_end(text)
@@ -62,7 +60,7 @@ def _text_stats(text: str) -> tuple[frozenset[str], int, str, int, int, bool]:
 
 def _tag_match(low: str, grams: frozenset[str], total: int,
                tags: tuple[str, ...]) -> float:
-    """标签命中比例，0~1；标签越少，单条命中越值钱。"""
+    """Compute the existing normalized tag-hit proportion / 计算既有规范标签命中比例。"""
     if not tags:
         return 0.0
     hits = sum(
@@ -73,7 +71,7 @@ def _tag_match(low: str, grams: frozenset[str], total: int,
 
 
 def _emotion_match(pos: int, neg: int, smile: bool, strength: object) -> float:
-    """消息情绪与记忆强度/效价的贴合度，0~1。"""
+    """Compute bounded query and memory emotion alignment / 计算有上限的查询及记忆情绪贴合度。"""
     arousal = max(0.0, min(1.0, strength.arousal))
     if not pos and not neg:
         return 0.3 * arousal
@@ -90,7 +88,7 @@ def _emotion_match(pos: int, neg: int, smile: bool, strength: object) -> float:
 
 def _emotion_value(pos: int, neg: int, smile: bool, arousal: float,
                    valence: float, funny: float) -> float:
-    """_emotion_match 的批量版本：素材已从静态缓存取出。"""
+    """Compute existing emotion alignment from precomputed values / 根据预计算值计算既有情绪贴合度。"""
     if not pos and not neg:
         return 0.3 * arousal
     polarity = 1 if pos > neg else -1 if neg > pos else 0
@@ -105,7 +103,7 @@ def _emotion_value(pos: int, neg: int, smile: bool, arousal: float,
 
 
 def _age_days(created: str, now_days: float) -> float:
-    """把 now_days 归一成距今天数：0 用 created 算，正小数视为年龄，大数视为绝对天数。"""
+    """Compute age using the existing date/ordinal fallback rules / 按既有日期及日序回退规则计算年龄。"""
     if 0 < now_days < ABS_DAYS:
         return float(now_days)
     try:
@@ -119,7 +117,7 @@ def _age_days(created: str, now_days: float) -> float:
 
 
 def _freshness(created: str, now_days: float) -> float:
-    """指数新鲜度：当天 1.0，约两周衰减到 0.37；按日期复用结果。"""
+    """Compute and cache existing exponential date freshness / 计算并缓存既有指数日期新鲜度。"""
     key = (created, now_days)
     cached = _FRESH_CACHE.get(key)
     if cached is not None:
@@ -133,7 +131,7 @@ def _freshness(created: str, now_days: float) -> float:
 
 
 def _recently_used(art: Artifact) -> float:
-    """最近刚用过返回 1.0，用于 -2.0 惩罚；命中数以 header.strength 为准。"""
+    """Read used markers and strength hits for the existing penalty / 读取已用标记及强度命中次数以计算既有惩罚。"""
     try:
         hits = int(art.header.strength.hits)
     except (TypeError, ValueError):
@@ -144,7 +142,7 @@ def _recently_used(art: Artifact) -> float:
 
 
 def _static(art: Artifact) -> tuple:
-    """与消息无关的打分素材，按对象身份缓存，供 score / select 复用。"""
+    """Cache immutable per-object scoring signals with a bound / 按对象缓存不变评分信号，并限制数量。"""
     key = id(art)
     cached = _STATIC_CACHE.get(key)
     if cached is not None:
@@ -163,12 +161,7 @@ def _static(art: Artifact) -> tuple:
 
 
 def score(art: Artifact, text: str, activation: float, now_days: float) -> float:
-    """
-    单条记忆的综合分（DESIGN 5.1）。
-
-    3.0×字面 + 2.0×标签 + 1.5×情绪 + 1.0×weight
-    + 0.5×新鲜度 + 1.5×激活 − 2.0×刚用过。
-    """
+    """Combine existing lexical, tag, emotion, strength, age and activation weights / 组合既有字面、标签、情绪、强度、年龄及激活权重。"""
     _, grams, tags, weight, arousal, valence, funny, created, recent = _static(art)
     text_grams, total, low, pos, neg, smile = _text_stats(text)
     return (
@@ -195,19 +188,7 @@ def select(
     lexical_weight: float = 2.0,
     diagnostics: dict | None = None,
 ) -> list[Artifact]:
-    """
-    按分数取 top-k，并以 explore 概率随机捞一条非 top 的记忆做探索。
-
-    candidates 兼容裸 Artifact 与 (Artifact, activation) 二元组；seed
-    固定即可复现，不传时用 text 当种子，保证同一条消息选出同一批。
-
-    gate=True 时先过证据闸门（ISSUE-0017）：只有字面、标签、激活、情绪
-    四项累计的 evidence 达到 max(绝对下限, top_evidence × 相对下限) 的候选
-    才注入；weight / freshness / recent 只参与排序。没有候选达标、或消息
-    是纯问时间的时钟类问题，都返回 []（不相关就不注入）。
-    gate=False 保持旧行为（永远尽量凑满 k），供消融实验对比。
-    min_ev_abs / min_ev_rel 用来覆盖 recall.gate 的默认证据阈值（配置/标定）。
-    """
+    """Apply evidence gates, rank top-k and optional seeded exploration / 应用证据条件、选择最高前 k 项并可进行有种子探索。"""
     if diagnostics is not None:
         diagnostics.update(evaluated=False, passed=0, rejected=0, threshold=0.0)
     if k <= 0 or not candidates:

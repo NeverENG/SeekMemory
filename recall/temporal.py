@@ -1,4 +1,7 @@
-"""Temporal validity and relative date windows for recall."""
+"""Apply existing date validity and relative-window rules without time conversion or writes.
+
+应用既有日期有效性及相对窗口规则，不转换时间或执行写入。
+"""
 
 from __future__ import annotations
 
@@ -13,6 +16,7 @@ except ImportError:
 
 
 def as_date(value: str | None) -> date | None:
+    """Parse the existing first-ten-character ISO calendar date / 解析既有前十字符 ISO 日历日期。"""
     if not value:
         return None
     try:
@@ -22,7 +26,7 @@ def as_date(value: str | None) -> date | None:
 
 
 def valid_at(art: Artifact, today: date | None = None) -> bool:
-    """Return whether an Artifact may be used on the given day."""
+    """Check existing inclusive validity and expiry dates / 检查既有包含边界的有效及过期日期。"""
     moment = today or date.today()
     span = art.header.time
     lower = as_date(span.valid_from)
@@ -38,16 +42,18 @@ def valid_at(art: Artifact, today: date | None = None) -> bool:
 
 
 def filter_valid(arts: Iterable[Artifact], today: date | None = None) -> list[Artifact]:
+    """Keep memories valid on the supplied or existing current day / 保留给定日或既有当前日有效的记忆。"""
     return [art for art in arts if valid_at(art, today)]
 
 
 def _next_month(day: date) -> date:
+    """Read the first calendar day of the following month / 读取下个月的首个日历日。"""
     return date(day.year + (1 if day.month == 12 else 0),
                 1 if day.month == 12 else day.month + 1, 1)
 
 
 def query_window(text: str, today: date | None = None) -> tuple[date, date] | None:
-    """Resolve common Chinese relative expressions into an inclusive date range."""
+    """Resolve existing Chinese relative-date expressions into inclusive ranges / 将既有中文相对日期表达转换为包含边界的范围。"""
     raw = str(text or "")
     moment = today or date.today()
     if "\u4eca\u5929" in raw:
@@ -83,11 +89,13 @@ def query_window(text: str, today: date | None = None) -> tuple[date, date] | No
 
 
 def event_date(art: Artifact) -> date | None:
+    """Read creation date with the existing validity-start fallback / 读取创建日期，并保留既有有效起始日期回退。"""
     span = art.header.time
     return as_date(span.created) or as_date(span.valid_from)
 
 
 def in_window(art: Artifact, window: tuple[date, date] | None) -> bool:
+    """Apply inclusive event-date bounds; absent bounds allow all / 应用包含边界的事件日期范围，无范围时全部允许。"""
     if window is None:
         return True
     day = event_date(art)

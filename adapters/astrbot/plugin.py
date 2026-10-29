@@ -219,6 +219,7 @@ class AstrBotPlugin(star.Star):
             trace=self.trace,
             clock=self.clock,
             memory_context=SeekMemoryContextAdapter(self._runtime_memory_context),
+            context_recorder=SeekMemoryContextAdapter(self._runtime_memory_context, self._record_memory_context),
             wait_seconds=(
                 int(self._c("runtime_wait_seconds", 5))
                 if bool(self._c("runtime_gate_enabled", False)) else 0
@@ -435,6 +436,10 @@ class AstrBotPlugin(star.Star):
         )
         return MemoryContext(text=block, info=info)
 
+    def _record_memory_context(self, context: MemoryContext) -> None:
+        """Record actual inclusion using the recall writer / 通过召回写入入口记录实际包含情况。"""
+        self.services.recall_service.record_context_injection(context.text, context.info)
+
     def _calls_path(self) -> str:
         """调用日志路径：和数据目录放一起。"""
         return str(self.data_path.parent / "calls.jsonl")
@@ -447,7 +452,7 @@ class AstrBotPlugin(star.Star):
     def _recall_block(
         self, text: str, umo: str = "", private: bool = False, speaker: str = ""
     ) -> tuple[str, dict]:
-        return self.services.recall_service.build(
+        return self.services.recall_service.query(
             text,
             umo,
             private,

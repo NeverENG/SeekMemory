@@ -1,8 +1,6 @@
-"""Pure recent-Source ranking for evidence discovery.
+"""Rank supplied raw evidence for Artifact discovery; return identifiers and scores only.
 
-Sources are internal evidence only. This module never returns or renders Source
-text; callers use source ids to look up derived Artifacts through the existing
-Artifact visibility/disclosure path.
+为查找记忆排序给定原始证据，仅返回编号及分数，不执行写入。
 """
 
 from __future__ import annotations
@@ -30,7 +28,7 @@ CALIBRATION = 8.0
 
 @dataclass(frozen=True)
 class SourceHit:
-    """Content-free ranking result used only for Artifact discovery."""
+    """Hold content-free evidence discovery ID and score / 保存不含正文的证据查找编号及分数。"""
 
     source_id: str
     score: float
@@ -39,10 +37,12 @@ class SourceHit:
 
 
 def _normalise(text: object) -> str:
+    """Normalize evidence query text with existing character rules / 按既有字符规则规范化证据查询文本。"""
     return re.sub(r"\s+", "", str(text or "")).casefold()
 
 
 def _time(value: str) -> datetime.datetime | None:
+    """Parse existing evidence timestamps without new timezone rules / 解析既有证据时间戳，不添加时区规则。"""
     try:
         return datetime.datetime.fromisoformat(str(value or "").strip())
     except (TypeError, ValueError):
@@ -50,6 +50,7 @@ def _time(value: str) -> datetime.datetime | None:
 
 
 def _lexical_scores(query: str, sources: Sequence[Source]) -> dict[str, float]:
+    """Compute lexical evidence scores over supplied Source rows / 在给定原始消息行中计算字面证据分数。"""
     terms = tuple(dict.fromkeys(tokenize(query)))
     if not terms or not sources:
         return {}
@@ -92,14 +93,7 @@ def query_recent(
     limit: int = 0,
     now: datetime.datetime | None = None,
 ) -> list[SourceHit]:
-    """Rank Source evidence with local BM25 plus recency/context signals.
-
-    Sources may come from any session. The caller may use the returned ids to
-    discover derived Artifacts; no Source text crosses the privacy boundary.
-    Explicit recall intent may use recent Sources with weak lexical overlap;
-    ordinary queries require a positive lexical match. Clock, greeting and
-    empty queries never start Source evidence discovery.
-    """
+    """Rank bounded supplied evidence; return identifiers only, never context bodies / 排序有数量上限的给定证据，仅返回编号，不返回上下文正文。"""
     text = str(query or "").strip()
     mode = intent_of(text)
     if not text or mode == "none":

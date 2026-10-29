@@ -62,6 +62,10 @@ BackgroundService 管 nightly/idle/Dream/weekly/checkpoint/runtime worker 的启
 
 `IngestService.retry_writebacks()` 不调用模型，仅执行已准备的持久化，返回完成的操作数。`BackgroundService.retry_writebacks()` 在空闲及定时抽取开关之前、检查点以及停止自有任务后，委托抽取和运行时补偿。补偿限当前进程，不新增数据库或格式，也不承诺崩溃或跨进程严格单次执行。
 
-失败的抽取批次抛出兼容 `RuntimeError` 的 `app.contracts.ExtractionFailure`，携带已完成记忆数、话题数及无正文错误类型。夜间整理将这些计数纳入失败结果和台账，不将已完成写入报告为零。成功返回值不变。回归场景位于 `tests/test_ingest_failure_recovery.py`；撤销恢复提交即可恢复旧流程，无需数据迁移。
+存在已完成提交的失败抽取批次抛出兼容 `RuntimeError` 的 `app.contracts.ExtractionFailure`，携带已完成记忆数、话题数及无正文错误类型。夜间整理将这些计数纳入失败结果和台账，不将已完成写入报告为零。成功返回值不变。回归场景位于 `tests/test_ingest_failure_recovery.py`；撤销恢复提交即可恢复旧流程，无需数据迁移。
 
 透明诊断包装使用 `__tracebackhide__` 标记自身栈帧；Journal 记录业务来源位置时跳过这些帧。测试分别验证真实文件、行、函数归属及正文隐私，不绑定私有函数名称。
+
+没有已完成提交时，抽取失败保持原异常类型；存在已完成写入时才携带明确进度。
+
+记忆上下文构造使用纯 `RecallService.query()`。明确包含记录通过可选通用 `MemoryContextRecorder` 转发；普通宿主钩子在附加到请求后调用，后台在模型调用前立即调用。运行时不包含指定记忆规则；旧 `RecallService.build()` 仍是兼容的查询加记录入口。

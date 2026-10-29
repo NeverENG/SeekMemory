@@ -11,7 +11,7 @@ from typing import Callable
 
 from . import transitions
 from .contracts import (
-    ActionKind, ActionRequest, MemoryContext, MemoryContextPort, MemoryContextRequest,
+    ActionKind, ActionRequest, MemoryContext, MemoryContextRecorder, MemoryContextPort, MemoryContextRequest,
     MessageSender, ModelGateway, ProactiveDecision, RunContext, RunResult,
     RuntimeInput, SessionState, SessionStateStore, TraceSink,
 )
@@ -61,7 +61,8 @@ class Dispatch:
                  memory_context: MemoryContextPort | None, model_gateway: ModelGateway | None,
                  action_executor: ActionExecutor | None, message_sender: MessageSender | None,
                  recorder: RunRecorder | None, trace: TraceSink | None,
-                 writebacks: DeliveryWritebacks) -> None:
+                 writebacks: DeliveryWritebacks,
+                 context_recorder: MemoryContextRecorder | None = None) -> None:
         self.store = store
         self.clock = clock
         self.memory_context = memory_context
@@ -71,11 +72,23 @@ class Dispatch:
         self.recorder = recorder
         self.trace = trace
         self.writebacks = writebacks
+        self.context_recorder = context_recorder
         self.states = StateOperations(store)
 
     def build_context(self, event: RuntimeInput, *, now: float, reason: str) -> MemoryContext:
         """Resolve context without knowing the host / 获取上下文，不依赖宿主。"""
         return build_context(self.memory_context, event, now, reason)
+
+    def record_context_injection(self, context: MemoryContext) -> None:
+        """Record actual context before calling the model; ordinary failures stay isolated.
+
+        在调用模型前记录实际上下文，普通记录失败保持隔离。
+        """
+        if self.context_recorder is not None:
+            try:
+                self.context_recorder.record_context_injection(context)
+            except Exception:
+                self._trace("runtime", "context_record_failed", {})
 
     def clear_wait(self, session_id: str, now: float | None) -> SessionState:
         """Persist cleared wait/retry deadlines / 保存已清理的等待及重试期限。"""
@@ -179,6 +192,7 @@ class Dispatch:
             memory = self.build_context(
                 runtime_input, now=moment, reason="deferred"
             )
+            self.record_context_injection(memory)
             reply = await self.model_gateway.complete(
                 session_id, text, memory.text or None
             )
@@ -285,6 +299,7 @@ class Dispatch:
                 prompt = (
                     f"{prompt}\n\n主动由头（来自记忆）：{topic_text}"
                 ).strip()
+            self.record_context_injection(memory)
             reply = await self.model_gateway.complete(
                 session_id, prompt or context.text, None
             )

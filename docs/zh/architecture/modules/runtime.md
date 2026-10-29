@@ -54,3 +54,5 @@ RunRecorder 保留原始消息、投影及逐条强化的完成位置，失败�
 运行时入口保留在 runtime.py；transitions.py 只计算独立状态副本，dispatch.py 通过端口执行后台任务，writeback.py 管理已确认交付的补偿。三者不反向依赖 AgentRuntime；recorder.py 唯一协调原始消息/队列/强化/审计写回。现有 state、episode、actions 内的存储转接以及宿主 tracing、工具过滤暂留原处。源码说明统一英文在前、中文等义，接口清单见 app 模块文档。
 
 文件审计补偿以原有 `session_id/run_id` 字段识别完整已保存行；追加结果不确定时重新读取已保存编号，防止再次追加。此去重仅覆盖同实例及重建实例后的完整行，不是跨进程文件锁，也不增加文件字段。
+
+记忆上下文构造使用纯 `RecallService.query()`。明确包含记录通过可选通用 `MemoryContextRecorder` 转发；普通宿主钩子在附加到请求后调用，后台在模型调用前立即调用。运行时不包含指定记忆规则；旧 `RecallService.build()` 仍是兼容的查询加记录入口。

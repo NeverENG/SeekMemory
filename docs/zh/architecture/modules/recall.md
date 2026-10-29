@@ -26,3 +26,24 @@ family=secret 完全不会进入普通候选。scope=shadow 的 memory 只允许
 ## 观测
 
 返回的 info 包含 mode、候选计数、gate 结果、披露等级、fallback、final_ids、dropped_ids 和 Source fallback 计数。正常日志只应记录统计与 ID；不应输出 Source 正文或组装的私密内容。
+
+## 明确接口与副作用
+
+`recall/domain.py` 明确导出受支持查询、检索及组装入口和上下文注入写入入口；`recall/ports.py` 复用 app 已有仓储、缓存及检索器协议。旧导入保持可用。`query_block()` 与 `RecallService.query()` 是纯记忆查询：允许缓存、原始消息、版本读取及派生内存索引，不提交记忆或修改给出状态；预览使用纯查询。
+
+`record_context()` 与 `RecallService.record_context_injection()` 是明确写入：仅当指定记忆正文出现在最终块中且编号通过组装时，记录该记忆。含义仍为**正文已进入模型上下文**，与之后模型或发送成功无关。AstrBot 在将块附加到请求后记录；延迟和主动运行时在模型调用前立即调用可选通用 `MemoryContextRecorder`，运行时不包含指定记忆领域规则。
+
+旧 `build_block()` 与 `RecallService.build()` 保留参数、返回值和默认的查询加记录行为，`dry_run=True` 仍只读。新增调用方需要注意这一兼容副作用；运行时构造上下文使用服务的纯查询。
+
+| 文件 | 职责与副作用 | 逻辑复杂度及耦合 |
+|---|---|---|
+| `pipeline.py` | 候选→评分及筛选→披露→组装，以及兼容写入包装 | 中至高：协调既有规则，无重复查询实现 |
+| `selection.py` | 配置解释、说话人身份及近期记忆回退 | 低：纯规则，主体贴合是排序信号 |
+| `source_fallback.py` | 限量证据读取→当前记忆查找 | 中：仅查询，不注入原始消息正文 |
+| `disclosure.py` | 应用共享隐私决策及安全措辞替换 | 中：渲染前唯一披露阶段 |
+| `context_recording.py`、`designated.py` | 明确上下文包含记录及既有私聊、触发词条件 | 中：版本写入与查询分开 |
+| `retriever.py`、`bm25.py`、`seed.py`、`tokenizer.py`、`spread.py` | 派生字面及图信号、索引失效及有限扩展 | 中：不调用模型或网络，不写业务状态 |
+| `score.py`、`gate.py`、`intent.py`、`temporal.py` | 既有评分、证据、意图及日期规则 | 中：公式、阈值及时间行为不变 |
+| `assemble.py`、`history.py`、`drift.py`、`scope.py` | 叙述预算、可选印象历史、偶然浮现及明确候选访问 | 中：调用方提供候选和资源 |
+
+`tests/test_recall_context_integration.py` 覆盖纯读取、兼容默认写入、明确重复记录、预算丢弃正文及模型或发送失败时机。`tests/test_recall_interface_contract.py` 验证明确导出及可选通用运行时能力；全新导入检查覆盖顶层及插件命名空间。既有隐私、范围及冻结 BM25 验收仍需执行，这些测试不是真实模型质量证据。

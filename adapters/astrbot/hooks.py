@@ -133,6 +133,7 @@ class AstrBotHooks:
                     + "\n"
                 )
                 req.system_prompt = (req.system_prompt or "") + framed
+                self.services.runtime.record_context_injection(context)
                 if self._c("debug_log", False):
                     logger.info(f"[seekmemory] 注入 {len(block)} 字")
             trace_info, trace_status = info, "ok"

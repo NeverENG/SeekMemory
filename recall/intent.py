@@ -1,12 +1,6 @@
-"""唤起方式门控：这条消息该不该翻记忆，翻多宽。
+"""Classify existing recall intent from supplied text without model calls.
 
-人不是每句都去翻回忆的。寒暄、问几点、让你写个正则，这些不需要翻；
-说"上次那事儿"、说"我好累"，才需要把相关的旧事拎上来。
-
-三种结果：
-- ``none``   不检索（只留常驻层：人格与印象）
-- ``strict`` 正常检索（证据闸门按默认阈值）
-- ``loose``  放宽检索（明确回忆或情绪场景，多给一点预算）
+按给定文本判断既有召回意图，不调用模型。
 """
 
 from __future__ import annotations
@@ -42,17 +36,17 @@ PROFILE_RECALL = re.compile(
 
 
 def is_topic_recall(text: str) -> bool:
-    """是否是明确的聊天回忆请求。"""
+    """Recognize an explicit conversation-memory question / 识别明确的聊天回忆问题。"""
     return bool(TOPIC_RECALL.search(str(text or "")))
 
 
 def is_profile_recall(text: str) -> bool:
-    """是否在询问个人基础信息。"""
+    """Recognize an explicit personal-profile question / 识别明确的个人基础信息问题。"""
     return bool(PROFILE_RECALL.search(str(text or "")))
 
 
 def intent_of(text: str) -> str:
-    """返回 none / strict / loose。空消息按 strict 处理（由上层决定）。"""
+    """Return the existing none/strict/loose recall mode / 返回既有 none、strict 或 loose 召回模式。"""
     line = str(text or "").strip()
     if not line:
         return "strict"

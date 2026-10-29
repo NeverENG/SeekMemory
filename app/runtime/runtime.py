@@ -12,6 +12,7 @@ from .contracts import (
     ActionKind,
     ActionRequest,
     MemoryContext,
+    MemoryContextRecorder,
     MemoryContextPort,
     MemoryContextRequest,
     MessageSender,
@@ -58,6 +59,7 @@ class AgentRuntime:
         action_executor: ActionExecutor | None = None,
         message_sender: MessageSender | None = None,
         recorder: RunRecorder | None = None,
+        *, context_recorder: MemoryContextRecorder | None = None,
     ) -> None:
         self.store = store
         self.policy = policy or DefaultAttentionPolicy()
@@ -69,6 +71,7 @@ class AgentRuntime:
         self.action_executor = action_executor
         self.message_sender = message_sender
         self.recorder = recorder
+        self.context_recorder = context_recorder
         self._writebacks = DeliveryWritebacks()
 
     def build_context(self, event: RuntimeInput, *, now: float | None = None,
@@ -76,6 +79,17 @@ class AgentRuntime:
         """Build read-only memory context / 构建只读记忆上下文。"""
         moment = self.clock() if now is None else float(now)
         return build_context(self.memory_context, event, moment, reason)
+
+    def record_context_injection(self, context: MemoryContext) -> None:
+        """Forward actual context inclusion through the optional generic capability.
+
+        通过可选通用能力转发实际上下文包含情况，不包含记忆领域规则。
+        """
+        if self.context_recorder is not None:
+            try:
+                self.context_recorder.record_context_injection(context)
+            except Exception:
+                self._trace("runtime", "context_record_failed", {})
 
     def _save(self, state: SessionState) -> None:
         save_state(self.store, state)
@@ -287,7 +301,7 @@ class AgentRuntime:
         return Dispatch(store=self.store, clock=self.clock, memory_context=self.memory_context,
                         model_gateway=self.model_gateway, action_executor=self.action_executor,
                         message_sender=self.message_sender, recorder=self.recorder, trace=self.trace,
-                        writebacks=self._writebacks)
+                        writebacks=self._writebacks, context_recorder=self.context_recorder)
 
     def retry_writebacks(self) -> int:
         """Retry writes without model/send access, including with speaking disabled.

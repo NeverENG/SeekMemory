@@ -1,10 +1,13 @@
-"""字符 bigram 分词；保留词频以供 BM25 计算。"""
+"""Tokenize supplied text into existing normalized character pairs without I/O.
+
+将给定文本转换为既有规范字符二元组，不执行读写。
+"""
 
 from __future__ import annotations
 
 
 def tokenize(text: str) -> list[str]:
-    """返回规范化字符 bigram；单字符输入保留一个 token。"""
+    """Return existing normalized character pairs and preserve single characters / 返回既有规范字符二元组，保留单字符。"""
     chars = [char for char in str(text or "").lower() if char.isalnum()]
     if len(chars) == 1:
         return chars

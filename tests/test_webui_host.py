@@ -480,6 +480,33 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(persona.header.id, info["final_ids"])
         self.assertIn("你先回应情绪", block)
 
+    async def test_designated_is_recorded_only_after_prompt_attachment(self) -> None:
+        event = PrivateEvent("保管的清单呢", "designated-context")
+        await self.restart_plugin(owner_umo=event.unified_msg_origin)
+        make = importlib.import_module(f"{ROOT.name}.core.artifact").make
+        art = make("designated", {
+            "text": "专属保管正文", "trigger": "清单", "owner_umo": event.unified_msg_origin,
+        })
+        self.plugin.store.artifacts.commit(art, expected_revision=0, op="create")
+        self.plugin.cache.put(art)
+
+        class RejectedPrompt:
+            @property
+            def system_prompt(self):
+                return "base"
+
+            @system_prompt.setter
+            def system_prompt(self, _value):
+                raise ValueError("request rejected")
+
+        await self.plugin.inject_memory(event, RejectedPrompt())
+        self.assertFalse(self.plugin.store.artifacts.get(art.header.id).payload.get("given"))
+        request = SimpleNamespace(system_prompt="base")
+        await self.plugin.inject_memory(event, request)
+        self.assertIn(art.payload["text"], request.system_prompt)
+        self.assertTrue(self.plugin.store.artifacts.get(art.header.id).payload.get("given"))
+        self.assertEqual(len(self.plugin.store.artifacts.history(art.header.id)), 2)
+
     async def test_inject_memory_preserves_context_contract(self) -> None:
         await self.restart_plugin(open_to="everyone")
         artifact = importlib.import_module(f"{ROOT.name}.core.artifact")

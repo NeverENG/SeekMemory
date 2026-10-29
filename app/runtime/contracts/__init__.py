@@ -22,6 +22,7 @@ from .events import (
 from .ports import (
     Clock,
     MemoryContext,
+    MemoryContextRecorder,
     MemoryContextPort,
     MemoryContextRequest,
     MessageSender,
@@ -44,6 +45,7 @@ __all__ = [
     "Clock",
     "MemoryContext",
     "MemoryContextPort",
+    "MemoryContextRecorder",
     "MemoryContextRequest",
     "MessageSender",
     "ModelGateway",

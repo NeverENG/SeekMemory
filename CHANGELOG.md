@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 内部卫生：明确 recall 的 domain/ports 及纯查询、上下文记录入口，分开筛选、证据回退、披露和组装；预览不写入，宿主及后台在正文进入模型上下文时明确记录指定记忆，旧 build 默认行为保持兼容。
+
 - 修复待处理队列重载失败时的部分视图，以及旧 JSON 保存失败时的输入丢失：先准备和保存再发布，原子替换文件，失败抛错并保留原视图；确认仅消费原行，保留新输入和不可变证据。
 
 - 内部卫生：为 perceive 增加明确 domain/ports，分开话题规则、旧文件读写、消息转换、JSON 解析、去重、证据准备及抽取计划；保留原路径、提示词字节、时间及评分行为，同步双语职责说明。
@@ -23,6 +25,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Internal hygiene: add explicit recall domain/ports, pure queries and context-recording entries; separate selection, evidence fallback, disclosure and assembly. Preview stays read-only; host/background paths explicitly record designated bodies when included in model context, preserving legacy build defaults.
 
 - Preserve the old pending view on failed queue reloads and legacy JSON saves: prepare/persist before publication, replace files atomically and raise on failed mutations; confirmation consumes only original rows while retaining new input and immutable evidence.
 

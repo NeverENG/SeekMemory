@@ -182,3 +182,5 @@ All app modules and public definitions use English followed by equivalent Chines
 Code entries: [domain.py](../../../../app/domain.py), [ports.py](../../../../app/ports.py); delivery contracts are described in [Agent Runtime](runtime.md).
 
 Extraction callbacks may raise `ExtractionFailure` with completed write/topic counts. Dream retains those counts in its failed result and journal; the callback still owns prepared persistence recovery.
+
+Memory context construction uses the pure `RecallService.query()`. Explicit inclusion recording is forwarded through the optional generic `MemoryContextRecorder`; ordinary host hooks call it after request attachment, background dispatch immediately before model invocation. The runtime contains no designated rules. Existing `RecallService.build()` remains a compatibility query-plus-recording entry.

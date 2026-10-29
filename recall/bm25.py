@@ -1,4 +1,7 @@
-"""纯内存 BM25 索引；只对调用方提供的可见候选池计分。"""
+"""Own an in-memory BM25 index and score only the supplied pool; no storage or model calls.
+
+管理内存 BM25 索引，仅对给定池计分，不调用存储或模型。
+"""
 
 from __future__ import annotations
 
@@ -22,12 +25,13 @@ DEFAULT_CALIBRATION_C = 8.0
 
 @dataclass(frozen=True)
 class _Document:
+    """Hold derived text/tag token frequencies / 保存派生的正文及标签词频。"""
     text: Counter[str]
     tags: Counter[str]
 
 
 class BM25Index:
-    """可替换的 BM25 实现，支持全量重建和按 Artifact ID 更新。"""
+    """Own a replaceable in-memory lexical index / 管理可替换的内存字面索引。"""
 
     def __init__(self, calibration_c: float = DEFAULT_CALIBRATION_C) -> None:
         if not math.isfinite(calibration_c) or calibration_c <= 0:
@@ -38,7 +42,7 @@ class BM25Index:
         self._lengths: dict[str, dict[str, int]] = {"text": {}, "tags": {}}
 
     def rebuild(self, artifacts: list[Artifact]) -> None:
-        """从活跃缓存快照重建索引。"""
+        """Rebuild the derived index from the supplied active snapshot / 从给定有效快照重建派生索引。"""
         self._documents.clear()
         for field in self._postings:
             self._postings[field].clear()
@@ -47,7 +51,7 @@ class BM25Index:
             self.put(art)
 
     def put(self, art: Artifact) -> None:
-        """新增或替换一条记忆的索引文档。"""
+        """Index one active memory or remove its inactive document / 索引一条有效记忆，或移除其非有效文档。"""
         self.remove(art.header.id)
         if art.header.state != "active":
             return
@@ -68,7 +72,7 @@ class BM25Index:
                 self._postings[field].setdefault(term, {})[art.header.id] = frequency
 
     def remove(self, artifact_id: str) -> None:
-        """移除一条已索引的记忆。"""
+        """Remove the indexed document and its postings / 移除索引文档及其倒排项。"""
         document = self._documents.pop(artifact_id, None)
         if document is None:
             return
@@ -81,7 +85,7 @@ class BM25Index:
                     del self._postings[field][term]
 
     def search(self, query: str, pool: list[Artifact]) -> dict[str, float]:
-        """返回本次候选池中归一化后的 BM25 分数，范围为 0 到 1。"""
+        """Score only supplied pool IDs with existing normalized BM25 values / 仅对给定池编号计算既有规范化 BM25 值。"""
         terms = tuple(dict.fromkeys(tokenize(query)))
         if not terms or not pool:
             return {}
@@ -104,6 +108,7 @@ class BM25Index:
 
     def _field_scores(self, terms: tuple[str, ...], allowed_ids: set[str],
                       field: str) -> dict[str, float]:
+        """Compute field BM25 using only allowed candidate corpus statistics / 仅以允许候选语料统计计算字段 BM25。"""
         count = len(allowed_ids)
         if not count:
             return {}
@@ -132,4 +137,5 @@ class BM25Index:
         return scores
 
     def _normalize(self, score: float) -> float:
+        """Normalize a positive score using the existing calibration / 按既有校准规范化正分数。"""
         return score / (score + self.calibration_c) if score > 0.0 else 0.0

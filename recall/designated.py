@@ -1,8 +1,6 @@
-"""recall.designated：指定记忆的交付协议（ISSUE-0004）。
+"""Apply private-trigger guards and explicitly record designated context inclusion.
 
-DESIGN §7.1 的三条硬条件：只在私聊、必须命中触发词、命中后才给出正文。
-群里问或私聊未触发时一条都不注入；交付后把 payload["given"] 写成时间戳，
-避免同一条内容被反复归还。
+应用私聊及触发词条件，并明确记录指定记忆进入上下文，资源由调用方管理。
 """
 
 from __future__ import annotations
@@ -11,10 +9,10 @@ import re
 from datetime import datetime
 from typing import Any
 
-try:  # 作为 astrbot 插件包的一部分导入
+try:  # Plugin namespace / 插件命名空间。
     from ..app.ports import ArtifactStore
     from ..core.artifact import Artifact, revise
-except ImportError:  # 作为顶层 recall 包导入（脚本 / 测试）
+except ImportError:  # Top-level package / 顶层包。
     from app.ports import ArtifactStore
     from core.artifact import Artifact, revise
 
@@ -22,7 +20,7 @@ _SPLIT = re.compile(r"[\s,，、/|;；]+")
 
 
 def triggers_of(art: Artifact) -> list[str]:
-    """取触发词：支持字符串（空格/逗号/顿号分隔）与列表两种写法。"""
+    """Read trigger words from supported string/list layouts / 从受支持的字符串或列表布局读取触发词。"""
     raw = art.payload.get("trigger")
     if isinstance(raw, (list, tuple, set)):
         parts = [str(item) for item in raw]
@@ -32,31 +30,31 @@ def triggers_of(art: Artifact) -> list[str]:
 
 
 def _compact(text: Any) -> str:
-    """去掉空白后比较，避免“那个 东西”和“那个东西”匹配不上。"""
+    """Remove whitespace for exact trigger comparison / 移除空白以精确比较触发词。"""
     return "".join(str(text or "").split())
 
 
 def matches(art: Artifact, text: str) -> bool:
-    """当前消息是否命中任一触发词（精确子串，去空白，不做模糊/同义）。"""
+    """Match any whitespace-normalized exact trigger substring / 匹配任一规范空白后的精确触发子串。"""
     message = _compact(text)
     return bool(message) and any(_compact(word) in message for word in triggers_of(art))
 
 
 def already_given(art: Artifact) -> bool:
-    """given 已被写成 bool 或时间字符串，都算交付过。"""
+    """Recognize the existing boolean/timestamp given marker / 识别既有布尔或时间戳给出标记。"""
     return bool(art.payload.get("given"))
 
 
 def is_private(event: Any) -> bool:
-    """AstrBot 事件的私聊判断；取不到时按群聊处理（保守，不交付正文）。"""
+    """Read legacy host privacy; unavailable information fails closed / 读取旧宿主私聊状态，信息不可用时保守拒绝。"""
     try:
         return bool(event.is_private_chat())
-    except Exception:  # noqa: BLE001 - 事件实现差异不能拖垮注入
+    except Exception:  # noqa: BLE001 - Host differences cannot block injection / 宿主差异不能阻塞注入。
         return False
 
 
 def deliverable(art: Artifact, text: str, private: bool) -> bool:
-    """非 designated 不受限；designated 必须私聊 + 命中触发词 + 尚未交付。"""
+    """Allow designated bodies only for private triggered unused memory; other families pass / 指定正文仅允许私聊触发且尚未使用的记忆，其他类型通过。"""
     if art.header.family != "designated":
         return True
     return bool(private) and not already_given(art) and matches(art, text)
@@ -64,11 +62,7 @@ def deliverable(art: Artifact, text: str, private: bool) -> bool:
 
 def mark_given(artifacts: ArtifactStore, cache: Any, arts: list[Artifact], block: str,
                now: str | None = None) -> int:
-    """把本轮确实注入了正文的 designated 标成已给，返回写回条数。
-
-    只处理正文真的出现在 block 里的条目：预算裁剪可能丢掉候选，不能因为
-    进过 picked 就记成已给。单条写回失败只跳过该条（fail-open）。
-    """
+    """Explicitly commit given markers only for included designated bodies; isolate per-item failure / 仅为已包含的指定正文明确提交给出标记，逐条隔离失败。"""
     stamp = now or datetime.now().isoformat(timespec="seconds")
     done = 0
     for art in arts:

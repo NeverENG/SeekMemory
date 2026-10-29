@@ -1,7 +1,6 @@
-"""读路径：一条消息进来，该不该翻记忆、翻哪几条、怎么拼成一段话。
+"""Query candidates, rank, disclose and assemble; only the legacy build wrapper records injection.
 
-原来嵌在插件入口里，抽出来是为了让 main.py 只做事件桥接。
-全部 fail-open：任何异常都由调用方兜住，返回空串也不影响回复。
+查询候选、排序、披露及组装，仅旧 build 包装明确记录注入。
 """
 
 from __future__ import annotations
@@ -10,7 +9,7 @@ import datetime
 from collections.abc import Callable
 from typing import Any
 
-try:  # 作为 astrbot 插件包的一部分导入
+try:  # Plugin namespace / 插件命名空间。
     from ..app.ports import ArtifactCache, ArtifactStore, Retriever, SourceStore
     from ..core.disclosure import (
         DisclosureLevel,
@@ -33,7 +32,7 @@ try:  # 作为 astrbot 插件包的一部分导入
     from ..recall.temporal import filter_valid, in_window, query_window
     from ..recall.score import select
     from ..recall.source_query import query_recent
-except ImportError:  # 作为顶层包导入（脚本 / 测试）
+except ImportError:  # Top-level package / 顶层包。
     from app.ports import ArtifactCache, ArtifactStore, Retriever, SourceStore
     from core.disclosure import (
         DisclosureLevel,
@@ -61,58 +60,13 @@ except ImportError:  # 作为顶层包导入（脚本 / 测试）
 Conf = Callable[[str, Any], Any]
 
 
-def _conf_bool(conf: Conf, key: str, default: bool) -> bool:
-    value = conf(key, default)
-    if isinstance(value, str):
-        return value.strip().lower() not in ("", "0", "false", "no", "off")
-    return bool(value)
+from .selection import _conf_bool, subject_of, recent_context
+from .source_fallback import supplement
+from .disclosure import disclose
+from .context_recording import record_context
 
 
-def subject_of(speaker: str, owner_umo: str) -> str:
-    """这条消息的说话人是谁：主人还是某个 QQ。印象按这个人来调。"""
-    owner_id = str(owner_umo or "").split(":")[-1] if owner_umo else ""
-    talker = str(speaker or "")
-    if not talker:
-        return "owner"
-    return "owner" if owner_id and talker == owner_id else talker
-
-
-def recent_context(pool: list, subject: str, *, profile: bool = False,
-                   limit: int = 2) -> list:
-    """Return recent global memory for an explicit recall question.
-
-    Subject match is a ranking factor rather than a visibility gate; private
-    memory from another conversation can still influence the fallback.
-    """
-    if not subject:
-        return []
-    levels = ("fact", "scene", "detail") if profile else ("scene", "detail", "fact")
-    rows = []
-    for art in pool:
-        try:
-            if art.header.family != "memory":
-                continue
-            if str(art.header.scope or "") not in ("shared", "private"):
-                continue
-            if str(art.payload.get("level") or "") not in levels:
-                continue
-            subject_id = str(art.header.subject_id or "")
-            said_by = str(art.header.said_by or "")
-            if subject_id == subject or said_by == subject:
-                affinity = 2
-            elif subject_id == "owner":
-                affinity = 1
-            else:
-                affinity = 0
-            rows.append((affinity, str(art.header.time.created or ""),
-                         str(art.header.id), art))
-        except Exception:
-            continue
-    rows.sort(key=lambda row: (row[0], row[1], row[2]), reverse=True)
-    return [row[3] for row in rows[:max(0, limit)]]
-
-
-def build_block(
+def query_block(
     cache: ArtifactCache,
     graph: Graph,
     artifacts: ArtifactStore,
@@ -125,28 +79,9 @@ def build_block(
     speaker: str = "",
     log: Callable[[str], None] = lambda _msg: None,
     *,
-    dry_run: bool = False,
     hybrid_retriever: Retriever | None = None,
 ) -> tuple[str, dict]:
-    """按常驻层、检索和偶然浮现组装会话的记忆注入文本。
-
-    Args:
-        cache: 运行中的活跃 Artifact 缓存。
-        graph: 用于激活扩散的关系图。
-        artifacts/sources: repository ports used for ownership and delivery.
-        umo: 完整会话标识。
-        text: 触发召回的输入消息。
-        private: 是否为私聊。
-        conf: 与插件共用的带类型配置查询函数。
-        owner_umo: 配置中的所有者会话。
-        speaker: 实际发送者身份。
-        log: 召回摘要回调。
-        dry_run: 管理预览时跳过交付状态写入。
-        hybrid_retriever: 可选的长生命周期检索器，实现既有 Retriever 协议。
-
-    Returns:
-        注入文本与运行决策计数。
-    """
+    """Read candidates, rank, disclose and assemble context without memory writes / 读取候选、排序、披露并组装上下文，不写入记忆。"""
     lookup = sources.source_umo
     subject = subject_of(speaker, owner_umo)
     owner_id = str(owner_umo or "").split(":")[-1] if owner_umo else ""
@@ -217,7 +152,8 @@ def build_block(
             diagnostics=gate_info,
         )
 
-    # 没有线索时也可能突然想起一件事——这不走 query 打分。
+    # Preserve explicit recent-context fallback and optional spontaneous recall.
+    # 保留明确近期上下文回退及可选偶然浮现。
     fallback = ""
     if not picked:
         fallback_subject = owner_id if subject == "owner" else subject
@@ -238,125 +174,14 @@ def build_block(
     disclosure_info: dict[str, str] = {}
 
     def apply_disclosure(arts: list, relevance: float) -> list:
-        safe_arts = []
-        for art in arts:
-            try:
-                if art.header.family == "persona":
-                    safe = trusted_self_persona(art)
-                    disclosure_info[art.header.id] = "full" if safe else "silence"
-                    if safe:
-                        safe_arts.append(art)
-                    continue
-                source_ids = list(art.header.lineage.sources)
-                origins = (
-                    tuple(sources.source_umos(source_ids).values())
-                )
-                if art.header.family == "designated":
-                    owner_ref = str(
-                        art.payload.get("owner_umo")
-                        or art.payload.get("owner")
-                        or ""
-                    )
-                    if owner_ref in (umo, owner_umo) or umo in origins:
-                        disclosure_info[art.header.id] = "full"
-                        safe_arts.append(art)
-                    else:
-                        disclosure_info[art.header.id] = "silence"
-                    continue
-                decision = decide(art, scene, relevance, origins)
-                disclosure_info[art.header.id] = decision.level.value
-                if decision.level == DisclosureLevel.SILENCE:
-                    continue
-                if decision.level != DisclosureLevel.FULL:
-                    safe = safe_text(art, decision.level)
-                    if not safe:
-                        continue
-                    overrides[art.header.id] = safe
-                safe_arts.append(art)
-            except Exception:
-                continue
-        return safe_arts
+        return disclose(arts, relevance, scene=scene, sources=sources, umo=umo, owner_umo=owner_umo,
+                        overrides=overrides, disclosure_info=disclosure_info)
 
-    source_info = None
-    if source_enabled:
-        source_info = {
-            "enabled": True,
-            "candidates": 0,
-            "artifacts": 0,
-            "picked": 0,
-        }
-        recall_k = max(0, int(conf("recall_k", 8)))
-        threshold = min(2, recall_k)
-        if len(picked) < threshold and mode != "none":
-            try:
-                hours = max(1, int(conf("source_recall_hours", 12)))
-                max_candidates = max(1, int(conf("source_recall_max_candidates", 80)))
-                since = (
-                    datetime.datetime.now() - datetime.timedelta(hours=hours)
-                ).isoformat(timespec="seconds")
-                recent = sources.recent_sources(
-                    since=since, limit=max_candidates
-                )
-                hits = query_recent(
-                    text,
-                    recent,
-                    session_id=umo,
-                    speaker=speaker,
-                    limit=max_candidates,
-                )
-                source_info["candidates"] = len(hits)
-                source_ids = [hit.source_id for hit in hits]
-                if source_ids:
-                    rank_by_source = {
-                        source_id: index
-                        for index, source_id in enumerate(source_ids)
-                    }
-                    source_arts = sorted(
-                        (
-                            art
-                            for art in artifacts.by_source_ids(source_ids)
-                            if art.header.family != "relationship"
-                        ),
-                        key=lambda art: (
-                            min(
-                                (
-                                    rank_by_source[source]
-                                    for source in art.header.lineage.sources
-                                    if source in rank_by_source
-                                ),
-                                default=len(source_ids),
-                            ),
-                            art.header.id,
-                            str(art.header.time.created or ""),
-                        ),
-                    )
-                    source_info["artifacts"] = len(source_arts)
-                    existing = {art.header.id for art in picked}
-                    eligible = []
-                    for art in source_arts:
-                        if art.header.id in existing:
-                            continue
-                        if not visible([art], umo, owner_umo, lookup):
-                            continue
-                        if not deliverable(art, text, private):
-                            continue
-                        if not filter_valid([art]):
-                            continue
-                        if (
-                            window is not None
-                            and art.header.family == "memory"
-                            and not in_window(art, window)
-                        ):
-                            continue
-                        existing.add(art.header.id)
-                        eligible.append(art)
-                    capacity = max(0, recall_k - len(picked))
-                    selected = eligible[:capacity]
-                    picked.extend(selected)
-                    source_info["picked"] = len(selected)
-            except Exception as exc:  # noqa: BLE001 - Source evidence is optional
-                log(f"source recall failed: {type(exc).__name__}")
-                source_info["error"] = type(exc).__name__
+    source_info = supplement(
+        picked, mode=mode, text=text, sources=sources, artifacts=artifacts, conf=conf,
+        umo=umo, owner_umo=owner_umo, speaker=speaker, private=private,
+        lookup=lookup, window=window, log=log,
+    ) if source_enabled else None
 
     safe_pinned = apply_disclosure(pinned_arts, 1.0)
     safe_designated = apply_disclosure(designated, 1.0)
@@ -373,7 +198,7 @@ def build_block(
                 note = trajectory(cache, art)
                 if note:
                     notes[art.header.id] = note
-        except Exception:  # noqa: BLE001 - trajectory is optional
+        except Exception:  # noqa: BLE001 - Optional trajectory / 可选变化说明。
             continue
     block, final_ids, dropped_ids = assemble_text_meta(
         safe_pinned + safe_designated + picked,
@@ -383,9 +208,9 @@ def build_block(
         notes=notes,
         overrides=overrides,
     )
-    if not dry_run:
-        mark_given(artifacts, cache, safe_designated + picked, block)
     info = {
+        "designated_ids": tuple(art.header.id for art in safe_designated + picked
+                                if art.header.family == "designated" and art.header.id in final_ids),
         "mode": mode,
         "picked": len(picked),
         "pinned": len(safe_pinned),
@@ -402,4 +227,21 @@ def build_block(
     }
     if source_info is not None:
         info["source_recall"] = source_info
+    return block, info
+
+
+def build_block(
+    cache: ArtifactCache, graph: Graph, artifacts: ArtifactStore, sources: SourceStore,
+    umo: str, text: str, private: bool, conf: Conf, owner_umo: str, speaker: str = "",
+    log: Callable[[str], None] = lambda _msg: None, *, dry_run: bool = False,
+    hybrid_retriever: Retriever | None = None,
+) -> tuple[str, dict]:
+    """Keep legacy query-plus-injection semantics; dry_run skips recording.
+
+    保留旧查询加注入记录语义，dry_run 跳过记录；成功返回值及原参数保持兼容。
+    """
+    block, info = query_block(cache, graph, artifacts, sources, umo, text, private, conf,
+                              owner_umo, speaker, log, hybrid_retriever=hybrid_retriever)
+    if not dry_run:
+        record_context(artifacts, cache, block, info)
     return block, info

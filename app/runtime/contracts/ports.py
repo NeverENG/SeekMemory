@@ -48,6 +48,20 @@ class MemoryContextPort(Protocol):
         ...
 
 
+class MemoryContextRecorder(Protocol):
+    """Record actual context inclusion; no memory-domain semantics in runtime.
+
+    记录实际的上下文包含情况，运行时不包含记忆领域语义。
+    """
+
+    def record_context_injection(self, context: MemoryContext) -> None:
+        """Record immediately before model invocation, independently of its outcome.
+
+        在模型调用前立即记录，不依赖其结果。
+        """
+        ...
+
+
 class ModelGateway(Protocol):
     """Runtime model-text capability, distinct from usage-aware ChatModel / 运行时模型文本能力，与返回用量的 ChatModel 区分。"""
     async def complete(

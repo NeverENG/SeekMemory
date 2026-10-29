@@ -1,22 +1,21 @@
-"""recall.gate：召回闸门的证据阈值与时钟类问题判定。
+"""Choose pinned memory and existing evidence/clock gates; no persistence.
 
-闸门只看「与这条消息相关」的证据（字面 / 标签 / 激活 / 情绪），
-权重先验、新鲜度、刚用过惩罚参与排序但不能单独让记忆过门；
-时钟类问题（今天几号/现在几点）交给系统时间，不检索长期记忆。
+选择常驻记忆及应用既有证据和时间查询条件，不持久化。
 """
 
 from __future__ import annotations
 
-# 证据闸门：绝对下限 + 相对最高证据的下限，两条都过才注入。
-# 证据量级约 0~4（字面 3 + 标签 2 + 激活 1.5 + 情绪 1.5），标定见 PR-0018。
+# Evidence must meet absolute and relative floors / 证据必须同时满足绝对及相对下限。
+# Keep the existing calibrated evidence scale / 保留既有校准证据量级。
 MIN_EV_ABS = 0.5
 MIN_EV_REL = 0.3
 
-# 常驻层：一条 active persona + 印象层按 weight 取前 N 条（DESIGN 5.3 头部常驻）。
+# Pin one active persona and the top weighted impressions / 常驻一个有效人格及最高权重印象。
 OWNER_SAID_BY = ("owner", "inferred", "")
 MAX_PINNED_IMPRESSION = 2
 
-# 时钟类问题的标志词：命中其一，且去掉填充词后不剩实义词，才算纯问时间。
+# A pure clock query needs a clock term and no remaining meaningful words.
+# 纯时间问题需要时间词且去除填充词后没有剩余实义词。
 CLOCK_MARKERS = ("几号", "几月", "星期", "礼拜", "周几", "几点", "日期",
                  "什么日子", "多少号", "几点了", "几号了")
 CLOCK_FILLERS = tuple(sorted((
@@ -30,14 +29,14 @@ CLOCK_FILLERS = tuple(sorted((
 def evidence_floor(top_evidence: float,
                    min_ev_abs: float | None = None,
                    min_ev_rel: float | None = None) -> float:
-    """过门所需的证据下限：绝对值与「最高证据 × 相对比例」取大。"""
+    """Use the greater of absolute and best-evidence-relative thresholds / 取绝对阈值与最高证据相对阈值中的较大值。"""
     abs_floor = MIN_EV_ABS if min_ev_abs is None else float(min_ev_abs)
     rel = MIN_EV_REL if min_ev_rel is None else float(min_ev_rel)
     return max(abs_floor, float(top_evidence) * rel)
 
 
 def _weight(art) -> float:
-    """取权重用于常驻印象层排序；坏数据按 0 处理（fail-open）。"""
+    """Read and bound the existing weight with a zero invalid-value fallback / 读取并限定既有权重，无效值回退为零。"""
     try:
         return float(art.header.strength.weight)
     except Exception:  # noqa: BLE001
@@ -45,15 +44,10 @@ def _weight(art) -> float:
 
 
 def pinned(cache, subject: str = "") -> list:
-    """常驻层：一条 active persona + 关于「当前说话的人」的印象前 N 条。
-
-    层级顺序是 人格 > 印象 > 记忆 > 事实。人格是全局底色；印象分人：
-    跟谁说话就调出对那个人的印象，不把某人的性格当成对人的总印象。
-    这一层不经过证据闸门（它不是检索结果），重复交给 assemble 去重。
-    """
+    """Read one active persona and bounded speaker impressions / 读取一个有效人格及有数量上限的说话人印象。"""
     try:
         active = list(cache.active())
-    except Exception:  # noqa: BLE001 - 常驻层取不到时不注入，不影响主流程
+    except Exception:  # noqa: BLE001 - Missing pins do not block chat / 常驻项缺失不阻塞聊天。
         return []
     who = str(subject or "")
     allowed = set(OWNER_SAID_BY) if who in ("", "owner") else {who}
@@ -67,13 +61,12 @@ def pinned(cache, subject: str = "") -> list:
             elif (str(art.payload.get("level") or "") == "impression"
                   and str(art.header.said_by or "") in allowed):
                 impressions.append(art)
-        except Exception:  # noqa: BLE001 - 单条坏数据跳过
+        except Exception:  # noqa: BLE001 - Skip a malformed row / 跳过格式错误的行。
             continue
     impressions.sort(key=lambda a: (-_weight(a), a.header.id))
     if personas:
-        # The persona chain is unique. Legacy data may still contain multiple
-        # active rows; select the newest revision deterministically instead of
-        # injecting parallel personas.
+        # Select the newest legacy persona deterministically; the active chain is unique.
+        # 确定性选择最新旧人格，有效版本链保持唯一。
         personas.sort(key=lambda a: (
             int(getattr(a.header, "revision", 0) or 0),
             str(getattr(a.header.time, "updated", "") or ""),
@@ -84,7 +77,7 @@ def pinned(cache, subject: str = "") -> list:
 
 
 def is_clock_query(text: str) -> bool:
-    """判断是否为纯问时间的短问句；取不到文本或异常一律按「不是」处理。"""
+    """Recognize pure short time questions without treating errors as matches / 识别纯短时间问题，不把错误当作匹配。"""
     try:
         raw = "".join(ch for ch in str(text or "") if ch.isalnum())
         if not raw or not any(marker in raw for marker in CLOCK_MARKERS):
@@ -93,7 +86,8 @@ def is_clock_query(text: str) -> bool:
         for word in CLOCK_FILLERS:
             if word in rest:
                 rest = rest.replace(word, "")
-        # 允许剩一个语气/单字残渣；剩下实义词说明问题不只是问时间。
+        # Allow one filler character; meaningful remainder implies a broader query.
+        # 允许一个语气残字，剩余实义词表示更广泛的问题。
         return len(rest) <= 1
-    except Exception:  # noqa: BLE001 - 闸门必须 fail-open
+    except Exception:  # noqa: BLE001 - Failed detection does not block recall / 检测失败不阻塞召回。
         return False

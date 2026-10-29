@@ -1,8 +1,6 @@
-"""recall.seed：从用户消息里找到最可能唤起记忆的种子节点。
+"""Find lexical graph seeds with bounded derived indices invalidated by pool/object identity.
 
-检索分两步：先用倒排索引（bigram → artifact 下标）把候选压到「至少共享
-一个二元组」的范围，再只对候选算精确 Dice 重合度。索引与单条记忆的
-派生数据都做进程内缓存；池子长度、对象身份或元素顺序变化时自动重建。
+以有界派生索引查找字面图种子，按候选池及对象身份失效。
 """
 
 from __future__ import annotations
@@ -10,9 +8,9 @@ from __future__ import annotations
 import re
 from collections import OrderedDict, defaultdict
 
-try:  # 作为 astrbot 插件包的一部分导入
+try:  # Plugin namespace / 插件命名空间。
     from ..core.artifact import Artifact, content_of
-except ImportError:  # 作为顶层 recall 包导入（脚本 / 测试）
+except ImportError:  # Top-level package / 顶层包。
     from core.artifact import Artifact, content_of
 
 MEME_WORDS: tuple[str, ...] = ("咕咕嘎嘎", "原神", "鸣潮", "抽象", "哈基米")
@@ -22,7 +20,7 @@ MEME_BONUS_CAP = 1.5
 INDEX_CACHE_LIMIT = 8
 ART_CACHE_LIMIT = 20_000
 
-# id(pool) 只有在池子对象活着时才唯一，所以索引缓存持有 pool 强引用。
+# Retain pool references so object IDs remain valid / 保留池强引用以保证对象编号有效。
 _INDEX_CACHE: OrderedDict[tuple, tuple[list, dict, dict, list]] = OrderedDict()
 _ART_CACHE: OrderedDict[int, tuple[Artifact, frozenset[str], tuple[str, ...]]] = OrderedDict()
 
@@ -34,9 +32,9 @@ _PUNCT = str.maketrans(
 
 
 def bigrams(text: str) -> set[str]:
-    """把文本归一化成二元组集合：保留字母数字，忽略标点与空白。"""
-    # 无标点时 isalnum() 是 C 级判断，可直接省掉逐字符过滤；
-    # 有标点时先 translate 再判断，仍非纯字母数字才退回逐字符过滤。
+    """Normalize alphanumeric character pairs, preserving one-character input / 规范化字母数字二元组，保留单字符输入。"""
+    # Fast-path alphanumeric text, then translate known punctuation before filtering.
+    # 字母数字文本直接处理，否则先移除已知标点再逐字符筛选。
     chars = str(text).lower()
     if not chars.isalnum():
         chars = chars.translate(_PUNCT)
@@ -48,7 +46,7 @@ def bigrams(text: str) -> set[str]:
 
 
 def overlap(text: str, content: str) -> float:
-    """二元组 Dice 重合度：0 表示无关，1 表示完全重合。"""
+    """Compute existing character-pair Dice overlap / 计算既有字符二元组 Dice 重合度。"""
     a, b = bigrams(text), bigrams(content)
     if not a or not b:
         return 0.0
@@ -57,14 +55,14 @@ def overlap(text: str, content: str) -> float:
 
 def dice(grams: frozenset[str] | set[str], total: int,
          other: frozenset[str] | set[str]) -> float:
-    """用已算好的二元组集合求 Dice，等价于 overlap 的纯计算部分。"""
+    """Compute Dice from precomputed character-pair sets / 从预计算字符二元组集合计算 Dice。"""
     if not grams or not other:
         return 0.0
     return 2.0 * len(grams & other) / (total + len(other))
 
 
 def tags_of(art: Artifact) -> list[str]:
-    """取 artifact 的标签，兼容 list 与逗号/空白分隔的字符串。"""
+    """Read supported normalized tag layouts / 读取受支持的规范标签布局。"""
     raw = art.payload.get("tags") or art.payload.get("tag") or []
     if isinstance(raw, str):
         raw = re.split(r"[\s,，#]+", raw)
@@ -72,7 +70,7 @@ def tags_of(art: Artifact) -> list[str]:
 
 
 def _content(art: Artifact) -> str:
-    """content_of 的 fail-open 包装：坏数据不拖垮整次检索。"""
+    """Read content with the existing malformed-memory fallback / 按既有坏记忆回退读取内容。"""
     try:
         return content_of(art)
     except Exception:
@@ -80,7 +78,7 @@ def _content(art: Artifact) -> str:
 
 
 def _art_info(art: Artifact) -> tuple[frozenset[str], tuple[str, ...]]:
-    """取（并缓存）一条记忆的二元组集合与标签；按对象身份失效。"""
+    """Cache grams and tags by retained Artifact object identity / 按保留的记忆对象身份缓存二元组及标签。"""
     key = id(art)
     cached = _ART_CACHE.get(key)
     if cached is not None:
@@ -98,17 +96,17 @@ def _art_info(art: Artifact) -> tuple[frozenset[str], tuple[str, ...]]:
 
 
 def signals_of(art: Artifact) -> tuple[frozenset[str], tuple[str, ...]]:
-    """供 recall.score 复用的派生信号：二元组集合 + 标签元组。"""
+    """Read shared cached lexical signals for scoring / 读取供评分共用的缓存字面信号。"""
     return _art_info(art)
 
 
 def _pool_fingerprint(pool: list[Artifact]) -> tuple:
-    """池子指纹：长度、对象身份、逐元素对象身份，任一变化都会重建。"""
+    """Invalidate on pool length, list identity or element identity changes / 在池长度、列表身份或元素身份变化时失效。"""
     return (len(pool), id(pool), tuple(id(art) for art in pool))
 
 
 def _build_index(pool: list[Artifact]) -> tuple[list, dict, dict, list]:
-    """为一次池子快照建倒排索引，返回（强引用, bigram 倒排, 标签倒排, 条目）。"""
+    """Build bounded-pool postings and keep strong references for identity validity / 构造候选池倒排项，并保留强引用以确保身份有效。"""
     postings: defaultdict[str, list[int]] = defaultdict(list)
     tag_postings: defaultdict[str, list[int]] = defaultdict(list)
     items: list[tuple[str, frozenset[str], tuple[str, ...]]] = []
@@ -123,7 +121,7 @@ def _build_index(pool: list[Artifact]) -> tuple[list, dict, dict, list]:
 
 
 def _index_for(pool: list[Artifact]) -> tuple[list, dict, dict, list]:
-    """按池子指纹取索引；未命中时重建并做有界淘汰。"""
+    """Reuse the pool fingerprint or rebuild with bounded eviction / 复用池指纹索引，或重建并限量淘汰。"""
     fingerprint = _pool_fingerprint(pool)
     cached = _INDEX_CACHE.get(fingerprint)
     if cached is not None:
@@ -137,13 +135,7 @@ def _index_for(pool: list[Artifact]) -> tuple[list, dict, dict, list]:
 
 
 def seeds(text: str, pool: list[Artifact], limit: int = 5) -> list[str]:
-    """
-    从用户消息里提取种子节点 id。
-
-    先用倒排索引筛出与消息共享至少一个二元组的候选，再对候选算二元组
-    重合度；消息命中梗词时，带对应标签的 artifact 额外加分。只返回有
-    信号的前 limit 条，排序规则与原实现一致（分数降序、id 升序）。
-    """
+    """Read top matching graph seed IDs using existing Dice/tag bonuses / 按既有 Dice 及标签加分读取最高匹配图种子编号。"""
     if not text or limit <= 0 or not pool:
         return []
     wanted = [word for word in MEME_WORDS if word in text]

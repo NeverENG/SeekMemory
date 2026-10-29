@@ -18,11 +18,13 @@ except ImportError:
 
 try:
     from ..recall.designated import deliverable
-    from ..recall.pipeline import build_block
+    from ..recall.pipeline import query_block
+    from ..recall.context_recording import record_context
     from ..recall.scope import visible
 except ImportError:
     from recall.designated import deliverable
-    from recall.pipeline import build_block
+    from recall.pipeline import query_block
+    from recall.context_recording import record_context
     from recall.scope import visible
 
 
@@ -52,7 +54,7 @@ class RecallService:
         self.hybrid_retriever = hybrid_retriever
         self.log = log or (lambda _msg: None)
 
-    def build(
+    def query(
         self,
         text: str,
         session_id: str = "",
@@ -60,9 +62,8 @@ class RecallService:
         speaker: str = "",
         *,
         degraded: bool = False,
-        dry_run: bool = False,
     ) -> tuple[str, dict]:
-        """Build recall context; the legacy default also marks injected designated memories given / 构建召回上下文，兼容默认行为也将已注入的指定记忆标为已给出。"""
+        """Query disclosed context without any memory writes / 查询已披露上下文，不写入任何记忆。"""
         budget_chars = int(self.budget.injection_chars)
         recall_k = int(self.config("recall_k", 8))
         if degraded:
@@ -85,7 +86,7 @@ class RecallService:
                 return self.config(key, default) if value is None else value
             return self.config(key, default)
 
-        return build_block(
+        return query_block(
             self.cache,
             self.graph,
             self.artifacts,
@@ -97,16 +98,33 @@ class RecallService:
             self.owner_umo(),
             speaker,
             log=self.log,
-            dry_run=dry_run,
             hybrid_retriever=self.hybrid_retriever,
         )
+
+    def build(
+        self, text: str, session_id: str = "", private: bool = False, speaker: str = "",
+        *, degraded: bool = False, dry_run: bool = False,
+    ) -> tuple[str, dict]:
+        """Keep compatible query-plus-recording behavior; dry_run is read-only.
+
+        保留兼容的查询加记录行为，dry_run 只读；新调用方应明确选择 query 与注入记录。
+        """
+        block, info = self.query(text, session_id, private, speaker, degraded=degraded)
+        if not dry_run:
+            self.record_context_injection(block, info)
+        return block, info
+
+    def record_context_injection(self, block: str, info: dict) -> int:
+        """Record actual model-context inclusion, before any model/send outcome.
+
+        在模型或发送产生结果之前记录实际进入模型上下文的内容；预览不调用本入口。
+        """
+        return record_context(self.artifacts, self.cache, block, info)
 
     def preview(self, text: str, session_id: str, private: bool,
                 speaker: str = "") -> dict:
         """Preview recall without writing designated delivery state / 预览召回，不写入指定记忆的交付状态。"""
-        block, info = self.build(
-            text, session_id, private, speaker, dry_run=True
-        )
+        block, info = self.query(text, session_id, private, speaker)
         owner = self.owner_umo()
         pool = self.cache.active() if self.cache is not None else []
         eligible = visible(pool, session_id, owner, self.sources.source_umo)

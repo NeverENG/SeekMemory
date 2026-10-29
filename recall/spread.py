@@ -1,11 +1,14 @@
-"""recall.spread：从种子出发沿关系边做激活扩散。"""
+"""Read graph/cache neighbors and compute bounded activation without changing the graph.
+
+读取图及缓存邻居，计算有上限的激活，不改变图。
+"""
 
 from __future__ import annotations
 
-try:  # 作为 astrbot 插件包的一部分导入
+try:  # Plugin namespace / 插件命名空间。
     from ..app.ports import ArtifactCache
     from ..core.graph import Graph
-except ImportError:  # 作为顶层 recall 包导入（脚本 / 测试）
+except ImportError:  # Top-level package / 顶层包。
     from app.ports import ArtifactCache
     from core.graph import Graph
 
@@ -15,7 +18,7 @@ MAX_ACTIVATION = 1.0
 
 
 def _neighbours(graph: Graph, node_id: str) -> list[tuple[str, float]]:
-    """读取邻居，图损坏时返回空列表（fail-open）。"""
+    """Read graph neighbors; unavailable edges yield no expansion / 读取图邻居，连接不可用时不扩展。"""
     try:
         return list(graph.neighbours(node_id))
     except Exception:
@@ -23,7 +26,7 @@ def _neighbours(graph: Graph, node_id: str) -> list[tuple[str, float]]:
 
 
 def _alive(cache: ArtifactCache, node_id: str) -> bool:
-    """缓存明确标记非 active 才跳过；未命中或异常时放行（fail-open）。"""
+    """Reject explicitly inactive cached memory; preserve the existing miss fallback / 拒绝明确非有效的缓存记忆，保留既有未命中回退。"""
     try:
         art = cache.get(node_id)
     except Exception:
@@ -34,7 +37,7 @@ def _alive(cache: ArtifactCache, node_id: str) -> bool:
 
 
 def _weight(value: float) -> float:
-    """把边权夹到 0~1，非法值按 0 处理。"""
+    """Read and bound the existing weight with a zero invalid-value fallback / 读取并限定既有权重，无效值回退为零。"""
     try:
         return max(0.0, min(1.0, float(value)))
     except (TypeError, ValueError):
@@ -47,12 +50,7 @@ def activate(
     cache: ArtifactCache,
     rounds: int = 2,
 ) -> dict[str, float]:
-    """
-    从种子出发沿 edges 扩散，返回 {node_id: 激活值}。
-
-    种子激活 1.0；每跳乘 0.5 与边权，同一节点取最大路径；
-    每轮只保留新激活的 top 20，避免大图指数膨胀。
-    """
+    """Compute bounded max-path activation from supplied seeds without graph mutation / 从给定种子计算有上限的最大路径激活，不修改图。"""
     scores: dict[str, float] = {sid: MAX_ACTIVATION for sid in seed_ids if sid}
     frontier = dict(scores)
     for _ in range(max(0, rounds)):
