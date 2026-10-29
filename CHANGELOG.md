@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 纠正离线跑分口径：分开候选/最终命中、无答案误召回、含无答案题的噪声和字数；样本权重不再称为强化，旧人格综合分不作验收。固定语料、时钟、编号和基线，完整管线验证隐私，退化命令返回非零，普通输出不覆盖历史报告。
+
 - 测试卫生：分开纯领域规则、数据库及抽取维护场景，图规则使用存储端口替身；core 契约固定认可的导出及原对象身份，不再要求内部新增名称自动对外公开。
 
 - 测试入口逐文件独立进程发现，包含 `__main__` 后的测试，失败返回非零且继续收集结果；层级后缀优先，冒烟场景纳入发现并及时关闭临时存储。
@@ -41,6 +43,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Correct offline evaluation: separate candidate/final hits, negative-query false positives, noise including negatives and character counts. Fixture weights are not reinforcement and the legacy personality composite is not an acceptance gate. Fix corpus/clock/IDs/baseline, exercise full-pipeline privacy, fail on regressions and preserve historical reports.
 
 - Test hygiene: separate pure domain rules from database/extraction/maintenance flows and test graph rules with a storage-port fake. Core contracts protect an explicit approved export/identity surface instead of automatically publishing new internal names.
 

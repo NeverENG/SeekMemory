@@ -49,7 +49,7 @@ All files can also be discovered in one process; host fakes may affect optional 
 
 For capability-specific core checks, see [core verification entry points and evidence limits](../architecture/modules/core.md#core-verification): it lists current tests and focused commands, distinguishing pure rules from complete flows. Export checks do not establish complete behavioral coverage of all exported operations.
 
-Tests cannot establish real-model extraction quality by themselves. Host behavior also needs an AstrBot environment. Benchmarks measure different things from tests: successful legacy aggregate execution means a report was generated, not that quality passed a regression gate; BM25 has separate frozen acceptance checks. Character counts are not tokens or cost. Definitions and limits are in [benchmarks/README.md](../../../benchmarks/README.md).
+Tests cannot establish real-model extraction quality by themselves. Host behavior also needs an AstrBot environment. Benchmarks measure different things from tests: fixed memory regression uses one evaluator and a frozen baseline to reject per-query regressions with nonzero status; the historical composite is not a gate, and BM25 has separate frozen acceptance checks. Character counts are not tokens or cost. Definitions and limits are in [benchmarks/README.md](../../../benchmarks/README.md).
 
 ## Dashboard
 

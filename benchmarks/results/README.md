@@ -1,8 +1,15 @@
 # Generated benchmark results
 
-This directory contains generated, content-free snapshots for the Dream triage
-tradeoff evaluation. They are reproducibility artifacts, not production
-telemetry.
+This directory preserves historical generated reports and content-free Dream triage
+tradeoff snapshots. They are reproducibility artifacts, not production telemetry.
+The old `latest.md` contains legacy fixture-weight/composite/character labels and
+is historical, not the current regression gate. Corrected memory evaluation
+writes a new ignored `.tmp/benchmarks/<run>/` directory; its fixed baseline is
+`../data/memory_baseline.json`. Do not overwrite historical snapshots.
+
+本目录保留历史生成报告及无正文的 Dream 分诊快照，不是生产遥测。
+旧 latest.md 的样本权重、综合分和字数标签属于历史，不能作为当前回归门槛。
+修正后的记忆评测写入新的忽略运行目录，固定基线位于上述 data 路径；不覆盖历史快照。
 
 ## Canonical files
 

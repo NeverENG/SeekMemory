@@ -110,11 +110,8 @@ These commands are not a fixed minimum for every core change and do not replace 
 
 ## Using benchmarks to verify core
 
-There is currently no standalone aggregate benchmark covering every core capability. Existing [benchmark entry points](../../../../benchmarks/README.md) mainly combine core, recall and storage; interpret results according to what they measure:
+[Fixed memory regression](../../../../benchmarks/README.md) combines core, recall and storage rather than covering every core capability independently. `benchmarks/run.py` fixes fixtures, dates, IDs and configuration and compares pre-cleanup and target code per query. JSON records pass/fail and regressions return nonzero. Ordinary output uses a new run directory without overwriting historical reports.
 
-- `benchmarks/dataset.py` calls the actual `retention` function for synthetic samples. The reinforcement number in `run.py` instead compares weights preassigned from mention counts and does not execute the actual `reinforce` function. It cannot verify reinforcement correctness.
-- The legacy “human-like index” in `run.py` is a custom weighted score. No-answer queries do not enter hit scoring, and report generation has no quality-regression failure threshold. Neither a high score nor successful execution establishes improved memory.
-- The claimed token-compression ratio uses character counts, not model tokens or cost. Timing depends on the machine, while dates and identities still depend on the system clock.
-- `benchmarks/bm25.py` has separate frozen acceptance checks for retrieval on its specified data and parameters; it does not cover every core rule or replace full disclosure/privacy checks.
+Candidate/final-context hits, no-answer false positives, candidate noise including negatives and character counts are separate. The full pipeline checks privacy and positive disclosure controls. Retention samples call actual retention without executing nightly maintenance; fixture-weight ratios do not call reinforce or establish reinforcement correctness. Characters are not tokenizer tokens or cost, and the old personality composite remains historical only.
 
-For before/after comparisons, record revisions, dataset, configuration, commands and specific metrics. Separate algorithm behavior, retrieval quality and performance. Neither test nor benchmark entry points replace real-model or real-host acceptance.
+`benchmarks/bm25.py` retains independent frozen data and gates. Reports record code, evaluator, corpus and environment; timing is environment-dependent description. A pass means no regression relative to the fixed baseline, not absence of existing false positives, and does not replace real-model or host acceptance.
