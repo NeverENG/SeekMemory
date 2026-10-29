@@ -1,10 +1,11 @@
-"""Observe-only AgentRuntime orchestration."""
+"""Runtime facade for input, state, execution and write-back.
+
+输入、状态、执行与写回的运行时入口；资源由组装方管理。
+"""
 
 from __future__ import annotations
 
-import asyncio
 import datetime
-from dataclasses import replace
 from typing import Callable
 
 from .contracts import (
@@ -32,7 +33,9 @@ from .recorder import RecordedReply, RunRecorder
 from .attention import DefaultAttentionPolicy
 from .topics import TopicCandidate
 
-MAX_FOLLOWUP_SPEAKERS = 64
+from . import transitions
+from .transitions import MAX_FOLLOWUP_SPEAKERS
+from .dispatch import Dispatch, StateOperations, build_context, save_state
 
 
 class AgentRuntime:
@@ -62,116 +65,40 @@ class AgentRuntime:
         self.message_sender = message_sender
         self.recorder = recorder
 
-    def build_context(
-        self,
-        event: RuntimeInput,
-        *,
-        now: float | None = None,
-        reason: str = "inbound",
-    ) -> MemoryContext:
-        if self.memory_context is None:
-            return MemoryContext()
+    def build_context(self, event: RuntimeInput, *, now: float | None = None,
+                      reason: str = "inbound") -> MemoryContext:
+        """Build read-only memory context / 构建只读记忆上下文。"""
         moment = self.clock() if now is None else float(now)
-        request = MemoryContextRequest(
-            session_id=event.session_id,
-            query=event.text,
-            speaker_id=event.speaker_id,
-            private=event.private,
-            event_time=event.event_time,
-            received_at=event.received_at,
-            now=moment,
-            reason=reason,
-        )
-        return self.memory_context.build_context(request)
+        return build_context(self.memory_context, event, moment, reason)
 
     def _save(self, state: SessionState) -> None:
-        state.revision = max(0, int(state.revision or 0)) + 1
-        self.store.put(state)
+        save_state(self.store, state)
 
-    async def _send_text(
-        self, session_id: str, text: str, *, run_id: str, callback_key: str
-    ) -> bool:
-        if self.action_executor is not None:
-            result = await self.action_executor.execute(
-                ActionRequest(
-                    session_id=session_id,
-                    kind=ActionKind.SEND_TEXT,
-                    text=text,
-                ),
-                run_id=run_id,
-                callback_key=callback_key,
-                at=self.clock(),
-            )
-            if not result.ok:
-                raise RuntimeError(result.reason or "send_failed")
-            return True
-        if self.message_sender is not None:
-            return bool(await self.message_sender.send(session_id, text))
-        raise RuntimeError("runtime_port_missing")
+    async def _send_text(self, session_id: str, text: str, *, run_id: str, callback_key: str) -> bool:
+        return await self._dispatcher()._send_text(session_id, text, run_id=run_id, callback_key=callback_key)
 
-    def observe(
-        self, event: RuntimeInput, *, now: float | None = None
-    ) -> RunDecision:
+    def observe(self, event: RuntimeInput, *, now: float | None = None) -> RunDecision:
+        """Evaluate a non-stale event and persist the decision / 判断非过期事件并保存决策。"""
         moment = self.clock() if now is None else float(now)
         state = self.store.get(event.session_id)
         event_time = float(event.event_time or 0.0)
         if event_time > 0 and state.last_event_at > event_time:
             if self.trace is not None:
-                self.trace.record(
-                    "runtime",
-                    "stale_event",
-                    {
-                        "event_time": event_time,
-                        "last_event_at": state.last_event_at,
-                    },
-                )
+                self.trace.record("runtime", "stale_event", {
+                    "event_time": event_time, "last_event_at": state.last_event_at,
+                })
             return RunDecision(WakeAction.IGNORE, "stale_event")
-        if event_time > 0:
-            state.last_event_at = max(state.last_event_at, event_time)
-        state.last_seen_at = moment
-        observed_seq = max(0, int(event.unread_seq))
-        if observed_seq <= int(state.last_unread_seq):
-            observed_seq = int(state.last_unread_seq) + 1
-        state.last_unread_seq = observed_seq
-        state.unread_count = max(
-            int(event.unread_count), observed_seq - int(state.read_through_seq), 1
-        )
-        policy_decision = self.policy.evaluate(event, state, moment)
-        speaker_id = str(policy_decision.followup_speaker_id or "")
-        if speaker_id and policy_decision.followup_remaining is not None:
-            remaining = max(0, int(policy_decision.followup_remaining))
-            if remaining:
-                state.followup_by_speaker[speaker_id] = remaining
-                while len(state.followup_by_speaker) > MAX_FOLLOWUP_SPEAKERS:
-                    state.followup_by_speaker.pop(next(iter(state.followup_by_speaker)))
-            else:
-                state.followup_by_speaker.pop(speaker_id, None)
-        decision = policy_decision.runtime_decision()
-        state.last_action = decision.action.value
-        state.last_reason = decision.reason
-        if decision.action is WakeAction.REPLY:
-            state.ignored_streak = 0
-        elif decision.action is WakeAction.IGNORE:
-            state.ignored_streak += 1
-        if self.wait_seconds > 0 and decision.action in (
-            WakeAction.OBSERVE,
-            WakeAction.WAIT,
-        ):
-            # Debounce new ambient traffic: every ambient event extends the
-            # pending wait instead of letting an earlier deadline fire.
-            state.wait_until = max(state.wait_until, moment + self.wait_seconds)
+        state = transitions.observe_event(state, event, moment)
+        decision = self.policy.evaluate(event, state, moment)
+        state = transitions.apply_attention(state, decision, moment, self.wait_seconds)
         self._save(state)
+        result = decision.runtime_decision()
         if self.trace is not None:
-            self.trace.record(
-                "runtime",
-                decision.action.value,
-                {
-                    "reason": decision.reason,
-                    "unread": state.unread_count,
-                    "ignored_streak": state.ignored_streak,
-                },
-            )
-        return decision
+            self.trace.record("runtime", result.action.value, {
+                "reason": result.reason, "unread": state.unread_count,
+                "ignored_streak": state.ignored_streak,
+            })
+        return result
 
     def accept_user(
         self,
@@ -300,362 +227,56 @@ class AgentRuntime:
             assistant_source_id=assistant_source_id,
         )
 
-    async def dispatch_deferred(
-        self,
-        context: RunContext,
-        *,
-        now: float | None = None,
-        max_attempts: int = 3,
-        base_seconds: float = 2.0,
-    ) -> RunResult:
-        """Claim, generate, send and record one deferred run.
+    async def dispatch_deferred(self, context: RunContext, *, now: float | None = None,
+                                max_attempts: int = 3, base_seconds: float = 2.0) -> RunResult:
+        """Execute one deferred run through injected ports / 通过注入端口执行一次延迟回复。"""
+        return await self._dispatcher().dispatch_deferred(context, now=now, max_attempts=max_attempts,
+                                                           base_seconds=base_seconds)
 
-        Host adapters provide the model and sender ports. The runtime owns the
-        lifecycle and bounded retry; callers only map the latest Source into a
-        RunContext.
-        """
-        session_id = str(context.session_id or "")
-        source_id = str(context.source_id or "")
-        text = str(context.text or "").strip()
+    async def dispatch_proactive(self, context: RunContext, decision: ProactiveDecision, *,
+                                 topic: TopicCandidate | None = None, now: float | None = None) -> RunResult:
+        """Execute one proactive run with its own policy / 按主动策略执行一次主动发言。"""
+        return await self._dispatcher().dispatch_proactive(context, decision, topic=topic, now=now)
+
+    def schedule_proactive(self, session_id: str, delay_seconds: float, *, now: float | None = None) -> SessionState:
+        """Persist an explicit proactive due time / 保存明确的主动发言时间。"""
         moment = self.clock() if now is None else float(now)
-        run_id = str(context.run_id or "")
-        state = self.store.get(session_id)
-        wait_due = state.wait_until > 0 and state.wait_until <= moment
-        retry_due = state.next_retry_at > 0 and state.next_retry_at <= moment
-        if not (wait_due or retry_due):
-            return RunResult(run_id, session_id, False, error="not_due")
-        if state.wait_until > moment or (
-            state.next_retry_at and state.next_retry_at > moment
-        ):
-            return RunResult(run_id, session_id, False, error="not_due")
-        if not text:
-            self.clear_wait(session_id, now)
-            return RunResult(run_id, session_id, False, error="empty_source")
-        if self.model_gateway is None or (
-            self.action_executor is None and self.message_sender is None
-        ):
-            return RunResult(run_id, session_id, False, error="runtime_port_missing")
-        if self.recorder is None:
-            return RunResult(run_id, session_id, False, error="recorder_missing")
-        if not run_id:
-            run_id = self.recorder.new_run_id()
-
-        if (state.last_dispatched_source_id == source_id
-                and state.dispatch_attempts >= max(1, int(max_attempts))):
-            self.schedule_retry(session_id, moment, state.dispatch_attempts,
-                                max_attempts=max_attempts)
-            return RunResult(run_id, session_id, False, error="dispatch_dead")
-        attempts = self.claim_dispatch(session_id, source_id, moment)
-        # Stores may return a live object. Keep a stable, run-local snapshot so
-        # old pending markers can be distinguished from newer scheduled work.
-        claimed = replace(self.store.get(session_id))
-        runtime_input = RuntimeInput(
-            session_id=session_id,
-            text=text,
-            private=False,
-            event_time=context.event_time,
-            received_at=context.received_at,
-        )
-        try:
-            memory = self.build_context(
-                runtime_input, now=moment, reason="deferred"
-            )
-            reply = await self.model_gateway.complete(
-                session_id, text, memory.text or None
-            )
-            if not str(reply or "").strip():
-                raise RuntimeError("empty_response")
-            await self._send_text(
-                session_id,
-                reply,
-                run_id=run_id,
-                callback_key=f"deferred:{run_id}",
-            )
-        except (Exception, asyncio.CancelledError) as exc:
-            try:
-                # Refresh after awaited model/send work; explicit start time
-                # remains a lower bound without an advancing injected clock.
-                moment = max(moment, float(self.clock()))
-                self.schedule_retry(
-                    session_id,
-                    moment,
-                    attempts,
-                    max_attempts=max_attempts,
-                    base_seconds=base_seconds,
-                    claimed=claimed,
-                )
-                self.recorder.record_deferred_error(
-                    run_id=run_id,
-                    session_id=session_id,
-                    user_source_id=source_id,
-                    error=exc,
-                    at=datetime.datetime.fromtimestamp(
-                        moment, datetime.timezone.utc
-                    ).isoformat(timespec="seconds"),
-                )
-                if self.trace is not None:
-                    self.trace.record(
-                        "runtime",
-                        "deferred_failed",
-                        {"error": type(exc).__name__, "attempt": attempts},
-                    )
-            finally:
-                if isinstance(exc, asyncio.CancelledError):
-                    raise exc
-            return RunResult(
-                run_id,
-                session_id,
-                False,
-                error=type(exc).__name__,
-            )
-
-        moment = max(moment, float(self.clock()))
-        at = datetime.datetime.fromtimestamp(
-            moment, datetime.timezone.utc
-        ).isoformat(timespec="seconds")
-        recorded = self.recorder.record_deferred_reply(
-            run_id=run_id,
-            session_id=session_id,
-            text=reply,
-            speaker_id=str(context.bot_id or "bot"),
-            user_source_id=source_id,
-            at=at,
-        )
-        self.mark_delivered(
-            session_id, moment, claimed=claimed,
-            read_through_seq=claimed.last_unread_seq,
-        )
-        if self.trace is not None:
-            self.trace.record(
-                "runtime",
-                "deferred_delivered",
-                {"chars": recorded.response_chars, "attempt": attempts},
-            )
-        return RunResult(
-            run_id,
-            session_id,
-            True,
-            assistant_source_id=recorded.assistant_source_id,
-            response_chars=recorded.response_chars,
-        )
-
-    async def dispatch_proactive(
-        self,
-        context: RunContext,
-        decision: ProactiveDecision,
-        *,
-        topic: TopicCandidate | None = None,
-        now: float | None = None,
-    ) -> RunResult:
-        """Generate, send and record one due proactive turn."""
-        moment = self.clock() if now is None else float(now)
-        session_id = str(context.session_id or "")
-        run_id = str(context.run_id or "")
-        if not decision.should_speak:
-            return RunResult(run_id, session_id, False, error="not_due")
-        if self.model_gateway is None or (
-            self.action_executor is None and self.message_sender is None
-        ):
-            return RunResult(run_id, session_id, False, error="runtime_port_missing")
-        if self.recorder is None:
-            return RunResult(run_id, session_id, False, error="recorder_missing")
-        if not run_id:
-            run_id = self.recorder.new_run_id()
-        topic_text = str(topic.text if topic is not None else "").strip()
-        runtime_input = RuntimeInput(
-            session_id=session_id,
-            text=topic_text or context.text,
-            event_time=context.event_time,
-            received_at=context.received_at,
-        )
-        try:
-            memory = self.build_context(runtime_input, now=moment, reason="proactive")
-            prompt = (memory.text or "").strip()
-            if topic_text:
-                prompt = (
-                    f"{prompt}\n\n主动由头（来自记忆）：{topic_text}"
-                ).strip()
-            reply = await self.model_gateway.complete(
-                session_id, prompt or context.text, None
-            )
-            if not str(reply or "").strip():
-                raise RuntimeError("empty_response")
-            await self._send_text(
-                session_id,
-                reply,
-                run_id=run_id,
-                callback_key=f"proactive:{run_id}",
-            )
-        except (Exception, asyncio.CancelledError) as exc:
-            state = self.store.get(session_id)
-            state.last_proactive_at = moment
-            state.proactive_attempts = int(state.proactive_attempts or 0) + 1
-            state.last_action = "wait"
-            state.last_reason = decision.reason
-            self._save(state)
-            at = datetime.datetime.fromtimestamp(
-                moment, datetime.timezone.utc
-            ).isoformat(timespec="seconds")
-            try:
-                self.recorder.record_deferred_error(
-                    run_id=run_id,
-                    session_id=session_id,
-                    user_source_id=context.source_id,
-                    error=exc,
-                    decision="proactive",
-                    reason=decision.reason,
-                    at=at,
-                )
-            finally:
-                if isinstance(exc, asyncio.CancelledError):
-                    raise exc
-            return RunResult(run_id, session_id, False, error=type(exc).__name__)
-
-        at = datetime.datetime.fromtimestamp(
-            moment, datetime.timezone.utc
-        ).isoformat(timespec="seconds")
-        recorded = self.recorder.record_deferred_reply(
-            run_id=run_id,
-            session_id=session_id,
-            text=reply,
-            speaker_id=str(context.bot_id or "bot"),
-            user_source_id=context.source_id,
-            decision="proactive",
-            reason=decision.reason,
-            at=at,
-        )
-        state = self.store.get(session_id)
-        state.last_proactive_at = moment
-        state.proactive_attempts = int(state.proactive_attempts or 0) + 1
-        state.proactive_due_at = 0.0
-        state.last_action = "reply"
-        state.last_reason = decision.reason
-        self._save(state)
-        return RunResult(
-            run_id,
-            session_id,
-            True,
-            assistant_source_id=recorded.assistant_source_id,
-            response_chars=recorded.response_chars,
-        )
-
-    def schedule_proactive(
-        self,
-        session_id: str,
-        delay_seconds: float,
-        *,
-        now: float | None = None,
-    ) -> SessionState:
-        """Arm the next proactive opportunity after user activity.
-
-        Hosts own the decision to schedule; the runtime only persists the
-        explicit due time consumed by ProactivePolicy and RuntimeWorker.
-        """
-        moment = self.clock() if now is None else float(now)
-        delay = max(0.0, float(delay_seconds))
-        state = self.store.get(session_id)
-        state.proactive_due_at = moment + delay
-        state.proactive_attempts = 0
-        state.last_seen_at = moment
-        self._save(state)
-        return state
+        return StateOperations(self.store).apply(session_id, transitions.schedule_proactive, delay_seconds, moment)
 
     def clear_proactive(self, session_id: str) -> SessionState:
-        """Cancel a due proactive opportunity without touching user state."""
-        state = self.store.get(session_id)
-        state.proactive_due_at = 0.0
-        self._save(state)
-        return state
+        """Cancel the proactive marker / 取消主动发言标记。"""
+        return StateOperations(self.store).apply(session_id, transitions.clear_proactive)
 
     def clear_wait(self, session_id: str, now: float | None = None) -> SessionState:
-        state = self.store.get(session_id)
-        state.wait_until = 0.0
-        state.next_retry_at = 0.0
-        state.last_seen_at = self.clock() if now is None else now
-        self._save(state)
-        return state
-
-    def claim_dispatch(self, session_id: str, source_id: str,
-                       now: float | None = None) -> int:
-        """Claim one deferred dispatch before any await and count attempts."""
+        """Clear wait/retry deadlines / 清理等待和重试期限。"""
         moment = self.clock() if now is None else now
-        state = self.store.get(session_id)
-        sid = str(source_id or "")
-        if state.last_dispatched_source_id != sid:
-            state.dispatch_attempts = 0
-        state.last_dispatched_source_id = sid
-        state.dispatch_attempts += 1
-        # Retain the durable pending marker while model/send is in flight. The
-        # worker owns in-process dedupe; a restarted worker can recover this run.
-        state.last_seen_at = moment
-        self._save(state)
-        return state.dispatch_attempts
+        return StateOperations(self.store).apply(session_id, transitions.clear_wait, moment)
+
+    def claim_dispatch(self, session_id: str, source_id: str, now: float | None = None) -> int:
+        """Persist the attempt before any await / 在异步执行之前保存尝试次数。"""
+        moment = self.clock() if now is None else now
+        return StateOperations(self.store).apply(session_id, transitions.claim_dispatch, source_id, moment).dispatch_attempts
 
     def schedule_retry(self, session_id: str, now: float, attempts: int,
                        max_attempts: int = 3, base_seconds: float = 2.0,
-                       cap_seconds: float = 60.0,
-                       claimed: SessionState | None = None) -> SessionState:
-        """Schedule bounded retry for a failed deferred dispatch."""
-        state = self.store.get(session_id)
-        if claimed is not None:
-            # Do not resurrect input already acknowledged by another delivery,
-            # or overwrite work/deadlines installed after this claim. Unchanged
-            # retained markers still belong to this failed attempt.
-            if (self._pending_changed(state, claimed)
-                    or (state.read_through_seq > claimed.read_through_seq
-                        and state.read_through_seq >= claimed.last_unread_seq)):
-                return state
-        tries = max(1, int(attempts))
-        if (claimed is not None and state.last_unread_seq > claimed.last_unread_seq
-                and tries >= max(1, int(max_attempts))):
-            # Exhaustion belongs to the old Source. The retained marker lets
-            # the worker pick up the newer Source with its own attempt budget.
-            return state
-        if tries >= max(1, int(max_attempts)):
-            state.wait_until = 0.0
-            state.next_retry_at = 0.0
-            state.last_reason = "dispatch_dead"
-        else:
-            delay = min(max(0.0, float(cap_seconds)),
-                        max(0.1, float(base_seconds)) * (2 ** (tries - 1)))
-            state.wait_until = float(now) + delay
-            state.next_retry_at = state.wait_until
-            state.last_reason = "dispatch_retry"
-        state.last_action = "wait"
-        self._save(state)
-        return state
+                       cap_seconds: float = 60.0, claimed: SessionState | None = None) -> SessionState:
+        """Retry old work without replacing newer deadlines / 重试旧任务，不替换新期限。"""
+        return StateOperations(self.store).apply(session_id, transitions.schedule_retry, now, attempts,
+            max_attempts=max_attempts, base_seconds=base_seconds, cap_seconds=cap_seconds, claimed=claimed)
 
     @staticmethod
     def _pending_changed(state: SessionState, claimed: SessionState) -> bool:
-        """Whether the pending work belongs to a transition after this claim."""
-        return (
-            state.last_dispatched_source_id != claimed.last_dispatched_source_id
-            or state.wait_until != claimed.wait_until
-            or state.next_retry_at != claimed.next_retry_at
-        )
+        return transitions.pending_changed(state, claimed)
 
-    def mark_delivered(
-        self,
-        session_id: str,
-        now: float | None = None,
-        *,
-        claimed: SessionState | None = None,
-        read_through_seq: int | None = None,
-    ) -> SessionState:
+    def mark_delivered(self, session_id: str, now: float | None = None, *,
+                       claimed: SessionState | None = None, read_through_seq: int | None = None) -> SessionState:
+        """Acknowledge delivered input without clearing newer work / 确认已交付输入，不清除新任务。"""
         moment = self.clock() if now is None else now
-        state = self.store.get(session_id)
-        state.last_spoke_at = max(state.last_spoke_at, moment)
-        if read_through_seq is not None:
-            cursor = min(state.last_unread_seq, max(0, int(read_through_seq)))
-            advanced = cursor > state.read_through_seq
-            state.read_through_seq = max(state.read_through_seq, cursor)
-            state.unread_count = max(0, state.last_unread_seq - state.read_through_seq)
-            current_claim = claimed is not None and not self._pending_changed(state, claimed)
-            if cursor >= state.last_unread_seq and (
-                current_claim or (claimed is None and advanced)
-            ):
-                state.wait_until = 0.0
-                state.next_retry_at = 0.0
-                state.dispatch_attempts = 0
-        self._save(state)
-        return state
+        return StateOperations(self.store).apply(session_id, transitions.mark_delivered, moment,
+                                                 claimed=claimed, read_through_seq=read_through_seq)
+
+    def _dispatcher(self) -> Dispatch:
+        """Bind current ports without exposing this facade / 绑定当前端口，不传递整个入口对象。"""
+        return Dispatch(store=self.store, clock=self.clock, memory_context=self.memory_context,
+                        model_gateway=self.model_gateway, action_executor=self.action_executor,
+                        message_sender=self.message_sender, recorder=self.recorder, trace=self.trace)

@@ -154,3 +154,7 @@ Checkpoint separates uncommitted hits from cache repairs. `flush()` returns only
 ## Daily policy and journal outcomes
 
 Internal `dream_policy.py` computes time/budget rules only; `DreamCycle` orders extraction, maintenance and journal writes. A failed journal finish returns `failed / journal_finish_failed` while preserving completed counts. Errors retain only stages and exception types; diagnostic callback failure does not change the business outcome. The daily journal is not a cross-process lock and resuming does not guarantee exactly-once maintenance.
+
+## Runtime internal dependencies
+
+`AgentRuntime` retains its existing caller-facing methods. Internal `transitions.py` copies state and computes changes without I/O; `dispatch.py` coordinates deferred/proactive work through explicit model, delivery, context, state and recorder dependencies. Dispatch never holds the whole runtime, and transitions do not import the facade. Path-specific prompts and failure rules remain separate.
