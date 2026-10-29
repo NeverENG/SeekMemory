@@ -4,7 +4,7 @@ import { mockClient } from "../src/dev/mock-client.ts"
 import { apiOperations, validateApi } from "./contract-schema.ts"
 
 void test("Mock 返回值及修订后的数据满足 OpenAPI 契约", async () => {
-  assert.equal(apiOperations.length, 16)
+  assert.equal(apiOperations.length, 18)
   const consoleClient = mockClient.console
   assert.ok(consoleClient)
   validateApi("graph", 200, await consoleClient.graph())

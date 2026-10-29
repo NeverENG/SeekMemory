@@ -285,7 +285,7 @@ class ExtractionStore(Protocol):
 from .console_ports import (
     DreamRunStore, # get/begin/finish/recent: daily run lifecycle / 每日整理生命周期。
     DreamJournal,  # recent: read recent daily runs / 读取近期夜间整理记录。
-    PersonaPacks,  # catalog/read/save/remove: manage seed packs / 列出、读取、保存及删除人格包。
+    PersonaPacks,  # Manage seed packs, bundles and artwork / 管理设定、完整人格包及插画。
 )
 
 # Runtime dependencies / 运行时所需能力；implementations are injected / 实现由外部注入。

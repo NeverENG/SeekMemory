@@ -494,7 +494,10 @@
   background: var(--muted);
 }
 .console-upload {
-  display: flex;
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  white-space: nowrap;
   align-items: center;
   gap: 8px;
   border: 1px solid var(--input);
@@ -504,8 +507,20 @@
   cursor: pointer;
 }
 .console-upload input {
-  max-width: 185px;
-  font-size: 11px;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.console-upload:focus-within {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.console-upload:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .map-layout {
   display: grid;

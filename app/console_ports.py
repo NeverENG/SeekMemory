@@ -10,6 +10,14 @@ class PersonaPacks(Protocol):
     def read(self, reference: str) -> dict:
         """Read one referenced pack / 读取指定人格包。"""
         ...
+    def bundle(self, reference: str) -> dict:
+        """Read the complete persona bundle with assets / 读取包含资源的完整人格包。"""
+        ...
+
+    def artwork(self, reference: str) -> dict:
+        """Read protected artwork data for the referenced pack / 读取指定人格包受保护的插画数据。"""
+        ...
+
     def save(self, seed: dict, expected_version: str | None = None) -> str:
         """Save with an optional expected version and return its reference / 可指定预期版本保存，并返回引用。"""
         ...

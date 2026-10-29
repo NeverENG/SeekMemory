@@ -154,6 +154,21 @@ class PackageTests(unittest.TestCase):
         (self.root / "persona_seeds/index.json").write_text('["../escape"]')
         with self.assertRaises(ValueError): package_plugin(self.root, self.output)
 
+    def test_packaged_artwork_is_validated_and_reproducible(self):
+        from persona_pack_fixture import png
+        target = self.root / "persona_seeds/big_fish/artwork.png"
+        target.write_bytes(png())
+        subprocess.run(["git", "-C", str(self.root), "add", str(target)], check=True)
+        archive = package_plugin(self.root, self.output)
+        with ZipFile(archive) as bundle:
+            self.assertEqual(bundle.read("persona_seeds/big_fish/artwork.png"), png())
+        for contents in [b"", b"fake png", png()[:-1], b"x" * (2 * 1024 * 1024 + 1)]:
+            target.write_bytes(contents)
+            with self.assertRaises(ValueError): package_plugin(self.root, self.output)
+        target.unlink()
+        target.symlink_to(ROOT / "LICENSE-MIT")
+        with self.assertRaises(ValueError): package_plugin(self.root, self.output)
+
     def test_missing_runtime_resource_fails(self) -> None:
         """SQL 表结构缺失时不生成 ZIP。"""
         (self.root / "store/schema.sql").unlink()

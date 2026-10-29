@@ -83,7 +83,7 @@ app 提供用例间共享的数据、外部能力声明和应用策略。目前�
 | `MetricsStore`、`LedgerStore` | `capacity_usage`；`entries/verify` | 容量统计、业务账本读取和校验 |
 | `DreamRunStore` | `get/begin/finish/recent` | 完整夜间台账生命周期，失败可被编排识别 |
 | `StateRepository`、`EpisodeRepository`、`ActionRepository` | `get/put`；`append`；`append_action` | 运行时转接使用的原始仓储能力，不包含 SQL |
-| `PersonaPacks`、`DreamJournal` | `catalog/read/save/remove`；`recent` | 人格包管理、近期整理记录读取 |
+| `PersonaPacks`、`DreamJournal` | `catalog/read/bundle/artwork/save/remove`；`recent` | 人格包管理、近期整理记录读取 |
 | `Clock`、`SessionStateStore` | `__call__`；`get/put` | UTC 时间戳秒数、可变会话状态读写 |
 | `MemoryContextPort`、`ModelGateway` | `build_context`；`complete` | 只读记忆上下文、运行时模型文本调用 |
 | `MessageSender`、`ActionPort`、`ActionSink` | `send`；`execute`；`append` | 兼容文本发送、宿主动作执行、无正文动作审计 |

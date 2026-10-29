@@ -69,6 +69,9 @@ from .persona import (
     compose_seed_evolution,    # Combine base and behavior text / 组合基础人格和行为描述。
     seed_evolution_matches,    # Check the deterministic combination / 检查组合结果是否符合约定。
 )
+# Existing pack validation from upstream / 上游已有的人格包校验能力。
+from .persona_artwork import MAX_ARTWORK_BYTES, PNG_SIGNATURE, validate_artwork
+from .persona_pack import PACK_FORMAT, MAX_PACK_BYTES, MAX_SEED_BYTES, normalize_pack
 from .bot_behavior import (
     SELF_SUBJECT, MIN_EVIDENCE, MIN_CONFIDENCE, BEHAVIOR_TEXT, BEHAVIORS,
     confident,                # Check bounded confidence / 检查置信度是否达到要求。
@@ -110,6 +113,8 @@ from .trace import (
 
 
 __all__ = [
+    "MAX_ARTWORK_BYTES", "PNG_SIGNATURE", "validate_artwork",
+    "PACK_FORMAT", "MAX_PACK_BYTES", "MAX_SEED_BYTES", "normalize_pack",
     "FAMILIES", "Artifact", "Header", "Lineage", "Strength", "TimeSpan",
     "make", "revise", "validate", "content_of",
     "ROLES", "Source", "content_hash", "make_source_id",

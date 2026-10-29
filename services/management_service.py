@@ -80,8 +80,19 @@ class ManagementService:
     def pack_detail(self, reference: str) -> dict:
         if self.packs is None:
             raise RuntimeError("人格包目录不可用")
-        seed = self.packs.read(reference)
-        return {"seed": seed, "digest": self._pack_digest(seed)}
+        bundle = self.packs.bundle(reference)
+        return {"seed": bundle["seed"], "digest": self._pack_digest(bundle),
+                "licenseText": bundle["licenseText"]}
+
+    def pack_export(self, reference: str) -> dict:
+        if self.packs is None:
+            raise RuntimeError("人格包目录不可用")
+        return self.packs.bundle(reference)
+
+    def pack_artwork(self, reference: str) -> dict:
+        if self.packs is None:
+            raise RuntimeError("人格包目录不可用")
+        return self.packs.artwork(reference)
 
     @staticmethod
     def _pack_digest(seed: dict) -> str:
@@ -96,20 +107,21 @@ class ManagementService:
         operation = body.get("operation")
         fields = {
             "import": {"operation", "seed", "confirmed"},
+            "importPack": {"operation", "pack", "confirmed"},
             "remove": {"operation", "reference", "confirmed"},
             "install": {"operation", "reference", "expectedId", "expectedRevision", "expectedDigest", "confirmed"},
         }
-        if not isinstance(operation, str) or operation not in fields or set(body) - ({"expectedVersion"} if operation == "import" else set()) != fields[operation]:
+        if not isinstance(operation, str) or operation not in fields or set(body) - ({"expectedVersion"} if operation in {"import", "importPack"} else set()) != fields[operation]:
             raise ValueError("人格操作字段无效")
 
         reference = body.get("reference", "")
         if not isinstance(reference, str):
             raise ValueError("人格包标识无效")
-        if operation == "import":
+        if operation in {"import", "importPack"}:
             expected = body.get("expectedVersion")
             if "expectedVersion" in body and not isinstance(expected, str):
                 raise ValueError("人格包版本无效")
-            return {"reference": self.packs.save(body.get("seed"), expected)}
+            return {"reference": self.packs.save(body.get("seed" if operation == "import" else "pack"), expected)}
         if operation == "remove":
             self.packs.remove(reference)
             return {"reference": reference}
@@ -122,10 +134,10 @@ class ManagementService:
                 or type(body.get("expectedRevision")) is not int
                 or body["expectedRevision"] != (base.header.revision if base else 0)):
             raise ValueError("revision_conflict")
-        seed = self.packs.read(reference)
-        if body.get("expectedDigest") != self._pack_digest(seed):
+        bundle = self.packs.bundle(reference)
+        if body.get("expectedDigest") != self._pack_digest(bundle):
             raise ValueError("pack_changed")
-        return self.bootstrap_persona(seed)
+        return self.bootstrap_persona(bundle["seed"])
 
     def catalog(self) -> list[dict]:
         """将所有 Artifact 家族转换为统一的记忆库契约。

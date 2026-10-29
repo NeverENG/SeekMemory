@@ -83,7 +83,7 @@ Named protocols are listed by their existing roles, not as interchangeable contr
 | `MetricsStore`, `LedgerStore` | `capacity_usage`; `entries/verify` | Capacity measurements and business-ledger reads/verification |
 | `DreamRunStore` | `get/begin/finish/recent` | Complete daily journal lifecycle with observable failures |
 | `StateRepository`, `EpisodeRepository`, `ActionRepository` | `get/put`; `append`; `append_action` | Raw repository slots for runtime adapters, without SQL |
-| `PersonaPacks`, `DreamJournal` | `catalog/read/save/remove`; `recent` | Persona pack management and recent daily-cycle reads |
+| `PersonaPacks`, `DreamJournal` | `catalog/read/bundle/artwork/save/remove`; `recent` | Persona pack management and recent daily-cycle reads |
 | `Clock`, `SessionStateStore` | `__call__`; `get/put` | UTC epoch seconds and mutable session-state storage |
 | `MemoryContextPort`, `ModelGateway` | `build_context`; `complete` | Read-only memory context and runtime model text calls |
 | `MessageSender`, `ActionPort`, `ActionSink` | `send`; `execute`; `append` | Legacy text delivery, host action execution, content-free action audit |

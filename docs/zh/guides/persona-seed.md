@@ -47,3 +47,26 @@ seed 初始头部被标记为 subject_id=bot:self、scope=shared、shareable=pub
 周期维护只用当前 persona、合格的共享自我印象和有界共享记忆摘要作为综合输入。原始私密 Source 不作为模型输入；一次 Dream 至多进行一项有界 Persona 综合。新内容在相同 Persona ID 上形成追加 revision，并附上证据来源；文本无变化或调用失败时保留现有版本。
 
 管理页可按修订历史回滚。回滚是以历史内容创建的新版本，旧版本不会被覆盖或删除。不要通过编辑另建 Persona Artifact 来形成并行人格链。
+
+## 带封面的人格包
+
+旧版纯设定 JSON 继续可用，不需要迁移。可移植完整包使用 `.seekmemory.json`，外层格式如下；`seed` 沿用上面的规范，不向 Persona Artifact 添加图片字段。
+
+```json
+{
+  "format": "seekmemory.persona-pack/v1",
+  "seed": {"id": "my-persona", "version": "1", "name": "示例", "persona": "作者编写的设定", "license": "CC0-1.0", "source": "original"},
+  "licenseText": "覆盖设定与封面的完整许可证正文",
+  "artwork": null
+}
+```
+
+有封面时，`artwork` 为 `{"mediaType":"image/png","dataBase64":"…"}`，不接受文件路径或远程地址。完整包不超过 3 MiB，设定不超过 64 KiB，许可证 UTF-8 不超过 64 KiB。封面不超过 2 MiB、单边 2048 像素且总像素不超过 400 万；仅支持静态、8 位、非交错 PNG。校验签名、数据块校验和、像素解压长度及行过滤器，去掉附属元数据；其他图片请先导出为此格式。
+
+带封面时，seed 中的 license/source 和 licenseText 都必须非空。许可证必须覆盖包中图片。校验不会替代作者对权利和内容的审核。
+
+在“我的包”导入旧 JSON 或完整包后，可以添加/替换封面、填写许可证，再确认保存蓝图。导入不会自动安装；安装另需明确确认。预览可分别导出纯设定和完整包。完整包不包含原始 Source、证据或运行状态；人格正文仍需分享者自行检查。
+
+本地文件继续保存在 `persona_packs/<id>.json`；内容可以是旧 seed，也可以是新外层格式。更新须带旧版本号和不同的新版本号，先保存旧文件到 `.trash`，再原子发布完整新文件；移除也只移入 `.trash`，当前人格不变。恢复可重新导入备份。回退旧代码前先导出纯设定 JSON；旧代码无法读取新外层格式，但数据库及已安装人格不受影响。
+
+内置包仍采用 `persona_seeds/<id>/persona.json`、`LICENSE`，可选 `artwork.png`。将资源加入 Git 后，打包脚本会校验并包含它们。不支持的资源、损坏/空/超大图片及符号链接会阻止打包。没有封面或读取失败时，界面显示名称首字占位。

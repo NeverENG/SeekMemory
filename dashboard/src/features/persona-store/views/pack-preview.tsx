@@ -1,8 +1,13 @@
+import { PackArtwork } from "./pack-artwork"
+import type { ConsoleClient } from "@/features/shell/model"
 import { Download } from "lucide-react"
 import { Badge, Button, DetailDrawer } from "@/ui"
 import type { PersonaPack, PersonaSeed } from "@/features/shell/model"
 import type { RuntimeStatus } from "@/features/control/model"
 export function PackPreview({
+  client,
+  licenseText,
+  onExport,
   selected,
   seed,
   error,
@@ -16,6 +21,9 @@ export function PackPreview({
   onInstall,
   onRemove,
 }: {
+  client: ConsoleClient
+  licenseText: string
+  onExport: () => void
   selected: PersonaPack | null
   seed: PersonaSeed | null
   error: string
@@ -42,13 +50,30 @@ export function PackPreview({
         {!seed && !error && <p role="status">正在读取人格…</p>}
         {seed && (
           <>
+            {selected && (
+              <div className="seed-art seed-art-neutral">
+                <PackArtwork pack={selected} client={client} />
+              </div>
+            )}
             <div className="flex gap-2">
               <Badge>{seed.license || "许可未声明"}</Badge>
-              <Badge variant="outline">{seed.content_rating || "未分级"}</Badge>
+              <Badge variant="outline">
+                {seed.content_rating === "general"
+                  ? "全年龄"
+                  : seed.content_rating || "未分级"}
+              </Badge>
             </div>
             <p className="text-xs text-muted-foreground">
               来源：{seed.source || "未声明"} · 版本 {seed.version}
             </p>
+            {!!licenseText && (
+              <details className="rounded-xl border p-4 text-sm">
+                <summary>许可证正文</summary>
+                <pre className="mt-3 font-sans whitespace-pre-wrap">
+                  {licenseText}
+                </pre>
+              </details>
+            )}
             <p className="leading-8 whitespace-pre-wrap">{seed.persona}</p>
             {!!seed.boundaries?.length && (
               <section>
@@ -95,6 +120,7 @@ export function PackPreview({
             <Button
               variant="outline"
               className="ml-2"
+              disabled={busy}
               onClick={() => {
                 const blob = new Blob([JSON.stringify(seed, null, 2)], {
                   type: "application/json",
@@ -109,6 +135,14 @@ export function PackPreview({
             >
               <Download size={14} />
               导出设定
+            </Button>
+            <Button
+              variant="outline"
+              className="ml-2"
+              disabled={busy}
+              onClick={onExport}
+            >
+              导出完整包
             </Button>
             {selected?.reference.startsWith("mine/") && (
               <div className="space-y-3">

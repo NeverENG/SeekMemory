@@ -4,6 +4,8 @@
 
 core defines the stable vocabulary and I/O-free decisions of the memory domain. It does not own SQL, cache, model calls, networking, or AstrBot events.
 
+The central entry also exports upstream persona-pack/artwork validation, format identifiers and size limits (`normalize_pack`, `validate_artwork`, and related values) without changing those pure implementations.
+
 ## Provided domain and required-port entries
 
 The module separates the capabilities it provides from those callers must supply. Both entries contain explicit exports or protocol declarations with mixed English/Chinese behavior notes and no business implementation:

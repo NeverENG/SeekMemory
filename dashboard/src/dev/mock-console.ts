@@ -3,6 +3,8 @@ import type { MemoryRecord } from "../features/memory/model.ts"
 import { recentGraph } from "../features/memory-graph/model.ts"
 import {
   seedSchema,
+  bundleSchema,
+  type PersonaBundle,
   type ConsoleClient,
   type PersonaSeed,
 } from "../features/shell/model.ts"
@@ -16,7 +18,20 @@ export function mockConsole(
     ["official/big_fish", fish],
     ["official/tsundere_ojou", ojou],
   ])
-  const digest = async (seed: PersonaSeed) => {
+  const bundles = new Map<string, PersonaBundle>()
+  const bundleFor = (reference: string): PersonaBundle => {
+    const seed = packs.get(reference)
+    if (!seed) throw new Error("人格包不存在")
+    return structuredClone(
+      bundles.get(reference) ?? {
+        format: "seekmemory.persona-pack/v1",
+        seed,
+        licenseText: seed.license ?? "",
+        artwork: null,
+      }
+    )
+  }
+  const digest = async (seed: PersonaSeed | PersonaBundle) => {
     const bytes = await crypto.subtle.digest(
       "SHA-256",
       new TextEncoder().encode(JSON.stringify(seed))
@@ -152,19 +167,24 @@ export function mockConsole(
       }
     },
     async packs(collection, offset = 0) {
-      const items = [...packs]
-        .filter(([ref]) => ref.startsWith(collection + "/"))
-        .map(([reference, seed]) => ({
-          reference,
-          id: seed.id,
-          name: seed.name,
-          version: seed.version,
-          description: seed.persona.slice(0, 120),
-          license: seed.license ?? "",
-          source: seed.source ?? "",
-          contentRating: seed.content_rating ?? "general",
-          locale: seed.locale ?? "zh-CN",
-        }))
+      const items = await Promise.all(
+        [...packs]
+          .filter(([ref]) => ref.startsWith(collection + "/"))
+          .map(async ([reference, seed]) => ({
+            reference,
+            artworkRef: bundles.get(reference)?.artwork
+              ? reference + "@" + (await digest(bundleFor(reference)))
+              : null,
+            id: seed.id,
+            name: seed.name,
+            version: seed.version,
+            description: seed.persona.slice(0, 120),
+            license: seed.license ?? "",
+            source: seed.source ?? "",
+            contentRating: seed.content_rating ?? "general",
+            locale: seed.locale ?? "zh-CN",
+          }))
+      )
       return {
         items: items.slice(offset, offset + 24),
         offset,
@@ -175,9 +195,44 @@ export function mockConsole(
     async pack(reference) {
       const seed = packs.get(reference)
       if (!seed) throw new Error("人格包不存在")
-      return { seed: structuredClone(seed), digest: await digest(seed) }
+      return {
+        seed: structuredClone(seed),
+        digest: await digest(bundleFor(reference)),
+        licenseText: bundleFor(reference).licenseText,
+      }
+    },
+    async packArtwork(reference) {
+      const art = bundleFor(reference).artwork
+      if (!art) throw new Error("人格包没有封面")
+      return art
+    },
+    async packExport(reference) {
+      return bundleFor(reference)
     },
     async persona(command) {
+      if (command.operation === "importPack") {
+        const bundle = bundleSchema.parse(command.pack)
+        const reference = "mine/" + bundle.seed.id
+        const previous = packs.get(reference)
+        if (
+          command.expectedVersion
+            ? !previous ||
+              previous.version !== command.expectedVersion ||
+              bundle.seed.version === command.expectedVersion
+            : !!previous
+        )
+          throw new Error("同名人格包已存在或版本冲突")
+        if (
+          bundle.artwork &&
+          (!bundle.licenseText.trim() ||
+            !bundle.seed.license?.trim() ||
+            !bundle.seed.source?.trim())
+        )
+          throw new Error("带封面的人格包必须声明许可证和来源")
+        bundles.set(reference, structuredClone(bundle))
+        packs.set(reference, structuredClone(bundle.seed))
+        return { reference }
+      }
       if (command.operation === "import") {
         const reference = "mine/" + command.seed.id
         if (
@@ -188,12 +243,14 @@ export function mockConsole(
         )
           throw new Error("同名人格包已存在或版本冲突")
         packs.set(reference, seedSchema.parse(command.seed))
+        bundles.delete(reference)
         return { reference }
       }
       if (command.operation === "remove") {
         if (!command.reference.startsWith("mine/"))
           throw new Error("内置包不可移除")
         packs.delete(command.reference)
+        bundles.delete(command.reference)
         return { reference: command.reference }
       }
       const seed = packs.get(command.reference),
@@ -204,7 +261,9 @@ export function mockConsole(
         command.expectedRevision !== current.artifact.header.revision
       )
         throw new Error("人格版本已改变，请刷新")
-      if (command.expectedDigest !== (await digest(seed)))
+      if (
+        command.expectedDigest !== (await digest(bundleFor(command.reference)))
+      )
         throw new Error("人格包内容已更新，请重新预览")
       current.artifact.header.revision++
       current.artifact.payload = {

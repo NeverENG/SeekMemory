@@ -1,4 +1,6 @@
 import {
+  artworkSchema,
+  bundleSchema,
   rollbackResultSchema,
   graphSchema,
   impressionsSchema,
@@ -42,6 +44,16 @@ export function consoleClient(bridge: () => Promise<Bridge>): ConsoleClient {
     async pack(reference) {
       return packDetailSchema.parse(
         await (await bridge()).apiGet("manage/pack", { reference })
+      )
+    },
+    async packArtwork(reference) {
+      return artworkSchema.parse(
+        await (await bridge()).apiGet("manage/packArtwork", { reference })
+      )
+    },
+    async packExport(reference) {
+      return bundleSchema.parse(
+        await (await bridge()).apiGet("manage/packExport", { reference })
       )
     },
     async persona(command) {

@@ -44,6 +44,9 @@ Jobs 将手动与定时任务限制为单个活动任务。Journal 保存有界�
 
 Dream 明确显示 budget.stopped 和 dream_enabled，避免把预算耗尽当作完整完成，或把关闭调度显示为运行中。
 
+
+人格包图片经 `GET manage/packArtwork?reference=…` 的管理员鉴权返回有界 PNG base64；完整导出使用 `GET manage/packExport?reference=…`，不暴露数据目录。目录仅返回可选、无正文的 artworkRef，图片不塞进目录响应。`POST manage/persona` 新增 importPack 命令，沿用确认、维护任务互斥及 expectedVersion 更新保护；请求体上限为 3 MiB，其他管理写入仍为 64 KiB。设定、图片和许可证共同参与预览 digest，安装只把规范 seed 交给 bootstrap。新包外层格式见[人格种子指南](../../guides/persona-seed.md)。
+
 ## 星图快照与操作
 
 `manage/graph` 固定读取最近更新的最多 120 个节点和 240 条关联，不接受 `limit` 查询参数。仓储在 SQL 内排序并限制节点数，再读取该快照内的关联；不再将全部 Artifact 解码或逐节点查询边。`total` 通过计数查询取得。当前未增加数据库索引：超大库仍有排序扫描成本，应使用实际数据规模测量。

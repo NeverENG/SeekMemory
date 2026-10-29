@@ -47,3 +47,26 @@ The seed header uses subject_id=bot:self, scope=shared, shareable=public, and sa
 Periodic maintenance uses the current persona, qualified shared self-impressions, and bounded shared-memory summaries as synthesis input. Private raw Sources are not sent to the synthesis model; one Dream cycle performs at most one bounded persona synthesis. New content becomes an appended revision on the same Persona ID with evidence lineage. Unchanged output or a failed call keeps the current revision.
 
 The management UI can roll back to historical content by creating a new version. Existing revisions are never overwritten or deleted. Do not create parallel Persona Artifacts by editing a second persona record.
+
+## Portable packs with artwork
+
+Legacy seed JSON remains readable without migration. A complete `.seekmemory.json` file wraps the canonical seed; artwork is never added to the Persona Artifact:
+
+```json
+{
+  "format": "seekmemory.persona-pack/v1",
+  "seed": {"id": "my-persona", "version": "1", "name": "Example", "persona": "Authored persona", "license": "CC0-1.0", "source": "original"},
+  "licenseText": "Full license covering both the persona and artwork",
+  "artwork": null
+}
+```
+
+Artwork uses `{"mediaType":"image/png","dataBase64":"…"}`, never filesystem paths or remote URLs. Limits: 3 MiB per complete pack, 64 KiB per seed, 64 KiB UTF-8 license text, and 2 MiB per image. Images must be static, 8-bit, non-interlaced PNG, at most 2048 pixels per dimension and 4 million pixels total. Validation checks signatures, chunk CRCs, bounded pixel decompression and row filters, and strips ancillary metadata. Convert other formats before importing.
+
+A pack containing artwork requires nonempty seed license/source and licenseText. The license must cover the artwork. Structural checks do not replace author review of rights and content.
+
+In My Packs, import either legacy JSON or a complete pack, optionally add/replace artwork and fill the license, then confirm saving. Import never installs automatically; installation requires separate confirmation. Preview offers seed-only and complete-pack exports. Packs exclude raw Sources, evidence and runtime state; users must still inspect persona prose before sharing.
+
+Personal files remain at `persona_packs/<id>.json`, containing either a legacy seed or the new envelope. Updates require the previous version and a different new version, back up the old file in `.trash`, and publish the complete replacement atomically. Removal moves the file to `.trash` without changing the active persona. Reimport a backup to restore it. Before rolling back code, export seed-only JSON: older code cannot read the new envelope, while the database and installed persona remain unaffected.
+
+Built-in packs still contain `persona_seeds/<id>/persona.json` and `LICENSE`, with optional `artwork.png`. Track these assets in Git; packaging validates and includes them. Unsupported files, damaged/empty/oversized images and symlinks block packaging. Missing or unreadable artwork falls back to the first character of the pack name.
