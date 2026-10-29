@@ -1,4 +1,7 @@
-"""Cross-domain read-only store metrics."""
+"""Read content-free capacity measurements through a borrowed connection.
+
+通过借用连接读取不含正文的容量用量。
+"""
 
 from __future__ import annotations
 
@@ -6,20 +9,21 @@ import datetime
 
 try:
     from .extraction import ExtractionRepository
-    from .sqlite import SqliteRepository, age_seconds, load_json_object, parse_time
+    from .sqlite import SqliteDatabase, SqliteRepository, age_seconds, load_json_object, parse_time
 except ImportError:
     from extraction import ExtractionRepository
-    from sqlite import SqliteRepository, age_seconds, load_json_object, parse_time
+    from sqlite import SqliteDatabase, SqliteRepository, age_seconds, load_json_object, parse_time
 
 
 class StoreMetricsRepository(SqliteRepository):
-    """Return content-free counters for capacity admission."""
+    """Read content-free pressure counts without changing business state / 读取无正文的压力计数，不改变业务状态。"""
 
-    def __init__(self, db, extraction: ExtractionRepository) -> None:
+    def __init__(self, db: SqliteDatabase, extraction: ExtractionRepository) -> None:
         super().__init__(db)
         self.extraction = extraction
 
     def capacity_usage(self, now: str = "") -> dict[str, int | float]:
+        """Read current capacity measurements; keep existing time semantics / 读取当前容量用量，沿用既有时间语义。"""
         source = self.conn.execute(
             "SELECT COUNT(*) AS rows, "
             "COALESCE(SUM(LENGTH(CAST(b.content AS BLOB))), 0) AS bytes "

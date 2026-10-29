@@ -56,10 +56,13 @@ for name in sys.argv[2:]:
         for order in (
             ("services.ports", "services.domain", "app.ports", "store"),
             ("app.ports", "store", "services.domain", "services.ports"),
+            ("store.ports", "store.domain", "services.domain", "app.ports"),
             ("seekmemory_contract.services.ports", "seekmemory_contract.services.domain",
              "seekmemory_contract.app.ports", "seekmemory_contract.store"),
             ("seekmemory_contract.app.ports", "seekmemory_contract.store",
              "seekmemory_contract.services.domain"),
+            ("seekmemory_contract.store.domain", "seekmemory_contract.services.domain",
+             "seekmemory_contract.app.ports"),
         ):
             with self.subTest(order=order):
                 result = subprocess.run(

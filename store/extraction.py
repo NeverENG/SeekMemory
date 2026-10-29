@@ -1,4 +1,7 @@
-"""Extraction queue repository."""
+"""Own evidence admission and extraction queue transitions over a shared connection.
+
+通过共享连接管理证据接纳及抽取队列状态变化。
+"""
 
 from __future__ import annotations
 
@@ -23,6 +26,7 @@ _EXTRACTION_BACKOFF_CAP_SECONDS = 3600
 
 
 def _backoff_at(now: str, attempt: int) -> str:
+    """Compute bounded exponential retry time without changing stored timestamps / 计算有上限的指数重试时间，不改变已存时间戳。"""
     base = parse_time(now) or datetime.datetime.now()
     delay = min(
         _EXTRACTION_BACKOFF_CAP_SECONDS,
@@ -32,7 +36,7 @@ def _backoff_at(now: str, attempt: int) -> str:
 
 
 class ExtractionRepository(SqliteRepository):
-    """Own Source admission into the rebuildable extraction projection."""
+    """Own rebuildable queue state and atomic Source admission / 管理可重建的队列状态及原始消息原子入队。"""
 
     def enqueue_extraction(
         self,
@@ -42,6 +46,7 @@ class ExtractionRepository(SqliteRepository):
         *,
         deferred: bool = False,
     ) -> bool:
+        """Append immutable evidence and its queue reference in one transaction / 在同一事务中追加不可变证据及队列引用。"""
         moment = source.at or created_at or now_iso()
         state = "deferred" if deferred else "pending"
         with self.conn:
@@ -56,6 +61,7 @@ class ExtractionRepository(SqliteRepository):
         return bool(cur.rowcount)
 
     def release_deferred(self, limit: int = 50) -> int:
+        """Admit a bounded set of deferred rows in one transaction / 在一个事务中限量接纳延后处理行。"""
         limit = max(0, int(limit))
         if not limit:
             return 0
@@ -70,6 +76,7 @@ class ExtractionRepository(SqliteRepository):
         return int(cur.rowcount or 0)
 
     def pending_extractions(self, now: str = "") -> list[dict[str, Any]]:
+        """Read queued Source projections with optional retry-time filtering / 读取队列中的原始消息视图，可按重试时间筛选。"""
         rows = self.conn.execute(
             "SELECT e.source_id, e.turn_id, e.session_id, e.topic_id, e.state, "
             "e.attempts, e.next_attempt_at, e.last_error, e.created_at, "
@@ -106,6 +113,7 @@ class ExtractionRepository(SqliteRepository):
         return out
 
     def queue_counts(self) -> dict[str, int]:
+        """Count rows by extraction state / 按抽取状态统计行数。"""
         counts = {
             "pending": 0,
             "retrying": 0,
@@ -120,6 +128,7 @@ class ExtractionRepository(SqliteRepository):
         return counts
 
     def mark_extraction_succeeded(self, source_ids: list[str]) -> int:
+        """Confirm only supplied IDs; keep immutable evidence and other input / 仅确认给定编号，保留不可变证据及其他输入。"""
         ids = [str(value) for value in source_ids if value]
         if not ids:
             return 0
@@ -141,6 +150,7 @@ class ExtractionRepository(SqliteRepository):
         max_attempts: int = EXTRACTION_MAX_ATTEMPTS,
         now: str = "",
     ) -> int:
+        """Retain unfinished rows with bounded attempts and retry times / 保留未完成行并记录有上限的尝试次数和重试时间。"""
         ids = [str(value) for value in source_ids if value]
         if not ids:
             return 0
@@ -172,6 +182,7 @@ class ExtractionRepository(SqliteRepository):
         return changed
 
     def ready_extraction_ids(self, now: str = "") -> set[str]:
+        """Read queued IDs whose retry delay has elapsed / 读取已到重试时间的队列编号。"""
         current = now or now_iso()
         rows = self.conn.execute(
             "SELECT source_id FROM extraction_state "

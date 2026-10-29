@@ -1,48 +1,31 @@
-"""SQLite connection, schema and migration owner."""
+"""Own the SQLite connection and delegate unchanged migrations; retain existing time helpers.
+
+管理 SQLite 连接并委托既有迁移，保留现有时间帮助函数。
+"""
 
 from __future__ import annotations
 
-import dataclasses
 import datetime
-import json
 import sqlite3
 from pathlib import Path
-from typing import Any
+
+try:
+    from .serialization import dump_json, load_json_any, load_json_object, pick_dataclass_fields
+    from .migrations import migrate
+except ImportError:  # Existing standalone mode / 保留已有的独立导入方式。
+    from serialization import dump_json, load_json_any, load_json_object, pick_dataclass_fields
+    from migrations import migrate
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
 
 def now_iso() -> str:
+    """Read the existing local ISO timestamp / 读取既有的本地 ISO 时间戳。"""
     return datetime.datetime.now().isoformat(timespec="seconds")
 
 
-def dump_json(value: Any) -> str:
-    if dataclasses.is_dataclass(value) and not isinstance(value, type):
-        value = dataclasses.asdict(value)
-    return json.dumps(value, ensure_ascii=False, sort_keys=True)
-
-
-def load_json_any(raw: Any, default: Any) -> Any:
-    try:
-        return json.loads(raw if raw not in (None, "") else dump_json(default))
-    except (TypeError, ValueError):
-        return default
-
-
-def load_json_object(raw: Any) -> dict[str, Any]:
-    try:
-        data = json.loads(raw or "{}")
-    except (TypeError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def pick_dataclass_fields(cls: type, data: dict[str, Any]) -> dict[str, Any]:
-    names = {field.name for field in dataclasses.fields(cls)}
-    return {key: value for key, value in data.items() if key in names}
-
-
 def parse_time(value: str) -> datetime.datetime | None:
+    """Parse the stored ISO value without timezone conversion; invalid values return None / 解析已存 ISO 值，不转换时区，无效值返回空。"""
     try:
         return datetime.datetime.fromisoformat(str(value or "").strip())
     except (TypeError, ValueError):
@@ -50,6 +33,7 @@ def parse_time(value: str) -> datetime.datetime | None:
 
 
 def age_seconds(value: datetime.datetime | None, now: datetime.datetime) -> float:
+    """Read elapsed seconds with existing timestamp semantics and a zero fallback / 按既有时间戳语义计算经过秒数，失败回退为零。"""
     if value is None:
         return 0.0
     try:
@@ -59,7 +43,7 @@ def age_seconds(value: datetime.datetime | None, now: datetime.datetime) -> floa
 
 
 class SqliteDatabase:
-    """Own one SQLite connection and every schema migration."""
+    """Own connection setup, compatible schema initialization and shutdown / 管理连接建立、兼容的结构初始化及关闭。"""
 
     def __init__(self, path: str) -> None:
         self.path = path
@@ -70,104 +54,21 @@ class SqliteDatabase:
         self._migrate()
 
     def _migrate(self) -> None:
-        cols = {row[1] for row in self.conn.execute("PRAGMA table_info(nodes)")}
-        state_cols = {
-            row[1] for row in self.conn.execute("PRAGMA table_info(extraction_state)")
-        }
-        version_cols = {
-            row[1] for row in self.conn.execute("PRAGMA table_info(versions)")
-        }
-        episode_cols = {
-            row[1] for row in self.conn.execute("PRAGMA table_info(runtime_episodes)")
-        }
-        with self.conn:
-            for name, definition in (
-                ("subject_id", "TEXT NOT NULL DEFAULT ''"),
-                ("revision", "INTEGER NOT NULL DEFAULT 1"),
-                ("lineage", "TEXT NOT NULL DEFAULT '{}'"),
-            ):
-                if name not in cols:
-                    self.conn.execute(
-                        f"ALTER TABLE nodes ADD COLUMN {name} {definition}"
-                    )
-            if state_cols and "next_attempt_at" not in state_cols:
-                self.conn.execute(
-                    "ALTER TABLE extraction_state ADD COLUMN "
-                    "next_attempt_at TEXT NOT NULL DEFAULT ''"
-                )
-            if version_cols:
-                header = "header" if "header" in version_cols else "'{}'"
-                self.conn.execute(
-                    "INSERT OR IGNORE INTO artifact_versions("
-                    "entity, revision, op, blob, header, at) "
-                    "SELECT entity, revision, 'migrate', blob, "
-                    f"{header}, at FROM versions"
-                )
-            if episode_cols and "run_id" not in episode_cols:
-                self.conn.execute(
-                    "ALTER TABLE runtime_episodes "
-                    "ADD COLUMN run_id TEXT NOT NULL DEFAULT ''"
-                )
-            for name, definition in (
-                ("action_id", "TEXT"),
-                ("action_kind", "TEXT NOT NULL DEFAULT ''"),
-                ("action_status", "TEXT NOT NULL DEFAULT ''"),
-                ("attempt", "INTEGER NOT NULL DEFAULT 1"),
-            ):
-                if episode_cols and name not in episode_cols:
-                    self.conn.execute(
-                        f"ALTER TABLE runtime_episodes ADD COLUMN {name} {definition}"
-                    )
-            self.conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_nodes_subject ON nodes(subject_id)"
-            )
-            # Action events can share the run link with their episode; normal
-            # episode rows retain their existing one-row-per-run guarantee.
-            run_index = self.conn.execute(
-                "SELECT sql FROM sqlite_master WHERE type = 'index' "
-                "AND name = 'idx_runtime_episodes_run'"
-            ).fetchone()
-            if (
-                run_index is not None
-                and "action_id is null" not in str(run_index[0]).lower()
-            ):
-                self.conn.execute("DROP INDEX idx_runtime_episodes_run")
-            self.conn.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_runtime_episodes_run "
-                "ON runtime_episodes(run_id) "
-                "WHERE run_id <> '' AND action_id IS NULL"
-            )
-            self.conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_runtime_episodes_action "
-                "ON runtime_episodes(action_id, attempt) WHERE action_id IS NOT NULL"
-            )
-            self.conn.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_runtime_episodes_action_terminal "
-                "ON runtime_episodes(action_id) "
-                "WHERE action_id IS NOT NULL AND action_status IN "
-                "('succeeded', 'failed', 'cancelled')"
-            )
-            self.conn.execute(
-                "CREATE TRIGGER IF NOT EXISTS trg_runtime_action_no_attempt_after_terminal "
-                "BEFORE INSERT ON runtime_episodes "
-                "WHEN NEW.action_id IS NOT NULL "
-                "AND NEW.action_status = 'attempted' "
-                "AND EXISTS (SELECT 1 FROM runtime_episodes "
-                "WHERE action_id = NEW.action_id AND action_status IN "
-                "('succeeded', 'failed', 'cancelled')) "
-                "BEGIN SELECT RAISE(IGNORE); END"
-            )
+        """Delegate the existing ordered migration steps / 委托执行既有的有序迁移步骤。"""
+        migrate(self.conn)
 
     def close(self) -> None:
+        """Close the owned SQLite connection / 关闭自有 SQLite 连接。"""
         self.conn.close()
 
 
 class SqliteRepository:
-    """Base for repositories sharing one SqliteDatabase."""
+    """Borrow a database connection; public write operations own their transactions / 借用数据库连接，由公开写入操作负责事务。"""
 
     def __init__(self, db: SqliteDatabase) -> None:
         self.db = db
 
     @property
-    def conn(self):
+    def conn(self) -> sqlite3.Connection:
+        """Borrow the shared SQLite connection; do not close it from a repository / 借用共享 SQLite 连接，仓储不能将其关闭。"""
         return self.db.conn

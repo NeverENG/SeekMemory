@@ -2,7 +2,7 @@
 
 ## Responsibility
 
-store is the only SQL boundary. [store/__init__.py](../../../../store/__init__.py) composes one SqliteDatabase connection with domain repositories; sharing the connection gives cross-table writes explicit transaction boundaries.
+store is the only SQL boundary. [store/composition.py](../../../../store/composition.py) composes one SqliteDatabase connection with domain repositories; sharing the connection gives cross-table writes explicit transaction boundaries.
 
 ## Repository ownership
 
@@ -35,3 +35,26 @@ Cache holds active Artifacts only and indexes them by family, level, and subject
 ## Recovery and diagnostics
 
 Artifact version snapshots and evidence are audit facts; the ledger hash chain checks ledger continuity. Runtime episodes, Dream state, and Run Trace have separate purposes. A diagnostic timeline is not a substitute for the Artifact change ledger. Legacy row parsing, schema evolution, and repository implementation stay inside store.
+
+## Interface and file ownership
+
+`store/domain.py` explicitly exports the repository bundle, repositories, cache, trace and supported ledger helpers. Existing package and implementation import paths remain compatible. `store/ports.py` declares only the cache reader and trace clock; SQLite and filesystem types remain concrete at this external edge. No store file depends on app, services or host adapters.
+
+| File | Responsibility / resource ownership | Logical complexity and coupling |
+|---|---|---|
+| `composition.py` | Construct repository objects borrowing one owned SQLite connection; `close()` closes it | Low: composition, no SQL |
+| `sqlite.py` | Open/close the connection, initialize the existing schema and delegate migrations; keep existing time helpers | Low/medium: SQLite and filesystem edge |
+| `migrations.py` | Ordered compatible column, legacy-version, index and trigger steps | Medium: shared migration transaction, unchanged statement ordering |
+| `serialization.py` | Existing JSON encoding/legacy decoding; no SQL or clocks | Low: pure conversion, stable persisted bytes |
+| `artifact_codec.py` | Artifact row/header conversion; old SQL imports are compatibility aliases | Low/medium: pure conversion |
+| `artifact_sql.py` | Existing Artifact SQL templates, without execution | Low: statements only |
+| `artifacts.py` | Revision reads and CAS single/group commits, evidence, events, ledger and explicit graph/parent writes | High: multi-table transaction owner; no cache writes |
+| `sources.py`, `extraction.py` | Immutable evidence and queue admission/outcomes; admission shares one transaction | Medium: one queue/evidence owner, no model calls |
+| `ledger.py` | Single chain encoding/hash and caller-owned transaction append helper | Medium: stable byte contract, no independent commit inside helper |
+| `runtime_state.py`, `runtime_episodes.py`, `dreams.py` | Distinct scheduling state, audit and daily-run transactions | Medium: no memory-policy ownership |
+| `metrics.py` | Capacity measurements through the borrowed connection | Low: read-only queries |
+| `cache.py`, `run_trace.py` | Derived active-memory indices and independent diagnostic JSONL | Medium: process state/file lock, separate from business truth |
+
+Repositories borrow the connection and never close it. Public writes own their transaction; `_commit_conn`, `write_source_conn` and `append_ledger_conn` join their callers transaction and must not commit independently. `set_parent` is an existing separate compatibility column write, not an Artifact revision/edge transaction.
+
+`tests/test_store_interface_contract.py` covers explicit identities, helper compatibility and connection sharing. Existing migration, kernel, extraction, runtime action and import-order scenarios cover behavior; these checks do not execute a live host or model.

@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 内部卫生：增加 store 的 domain/ports 明确入口，分开连接组装、既有迁移步骤、纯序列化及记忆 SQL 模板；保留导入、迁移顺序、账本字节和所有持久化格式，明确共享连接与事务归属。
+
 - 修复抽取部分提交、缓存及队列确认失败后的重复模型调用和记忆创建：保留进程内计划，分阶段补写并读取最新缓存版本；关闭抽取时仍可补写，停止前再次尝试。夜间整理失败也保留已完成的数量，无数据格式或配置变更。
 
 - 内部卫生：增加 services 的 domain/ports 明确入口及实际依赖类型；分开管理查询与修改，抽出纯人格证据和版本规则，保留原导入及返回值，同步双语职责说明。
@@ -13,6 +15,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Internal hygiene: add explicit store domain/ports entries and separate connection composition, existing migration steps, pure serialization and Artifact SQL templates, preserving imports, migration order, ledger bytes and persisted formats while clarifying shared-connection/transaction ownership.
 
 - Fix repeated model calls and memory creation after partial extraction commits, cache failures or queue-confirmation failures: retain process-local plans, resume unfinished writes and refresh the latest cached head, including with extraction disabled and before shutdown. Failed dream runs retain completed counts; persisted formats and configuration are unchanged.
 

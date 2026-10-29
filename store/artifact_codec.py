@@ -1,4 +1,7 @@
-"""Artifact row serialization and reconstruction."""
+"""Convert Artifact rows and persisted values; SQL templates remain compatible aliases.
+
+转换记忆数据行和持久化值，SQL 模板保留兼容别名。
+"""
 
 from __future__ import annotations
 
@@ -17,32 +20,21 @@ try:
 except ImportError:
     from core.artifact import Artifact, Header, Lineage, Strength, TimeSpan
 
-SELECT_SQL = (
-    "SELECT n.*, b.content AS blob_content FROM nodes n "
-    "LEFT JOIN blobs b ON b.hash = n.blob"
-)
-UPSERT_SQL = (
-    "INSERT INTO nodes(id, family, level, parent, blob, state, scope, strength, time, "
-    "said_by, shareable, created_at, updated_at, revision, lineage, subject_id) "
-    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
-    "family=excluded.family, level=excluded.level, "
-    "parent=COALESCE(excluded.parent, nodes.parent), blob=excluded.blob, "
-    "state=excluded.state, scope=excluded.scope, strength=excluded.strength, "
-    "time=excluded.time, said_by=excluded.said_by, shareable=excluded.shareable, "
-    "revision=excluded.revision, lineage=excluded.lineage, subject_id=excluded.subject_id, "
-    "updated_at=excluded.updated_at, "
-    "created_at=CASE WHEN nodes.created_at = '' THEN excluded.created_at "
-    "ELSE nodes.created_at END"
-)
+try:
+    from .artifact_sql import SELECT_SQL, UPSERT_SQL
+except ImportError:  # Existing standalone mode / 保留已有的独立导入方式。
+    from artifact_sql import SELECT_SQL, UPSERT_SQL
 
 
 def payload_blob(payload: dict[str, Any]) -> tuple[str, str]:
+    """Encode a payload and its content hash without writes / 计算内容的编码及哈希，不执行写入。"""
     content = dump_json(payload)
     return content, hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
 def node_values(header: Header, payload: dict[str, Any], now: str,
                 blob: str | None = None) -> tuple:
+    """Prepare positional node values using the existing persisted layout / 按既有持久化布局准备位置参数。"""
     level, parent = payload.get("level"), payload.get("parent")
     return (
         header.id,
@@ -65,6 +57,7 @@ def node_values(header: Header, payload: dict[str, Any], now: str,
 
 
 def stored_header(header: Header) -> str:
+    """Encode the existing version header without format changes / 编码既有版本头部，不改变格式。"""
     return dump_json(
         {
             "state": header.state,
@@ -80,6 +73,7 @@ def stored_header(header: Header) -> str:
 
 
 def row_to_artifact(row: sqlite3.Row | None) -> Artifact | None:
+    """Decode one row; absent or malformed content returns None / 解析一行，不存在或内容格式错误时返回空。"""
     if row is None or not row["blob_content"]:
         return None
     try:

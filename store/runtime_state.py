@@ -1,4 +1,7 @@
-"""Mutable runtime-session state repository."""
+"""Persist mutable scheduler state through a borrowed connection, independently of memory versions.
+
+通过借用连接保存可变调度状态，与记忆版本分开。
+"""
 
 from __future__ import annotations
 
@@ -12,9 +15,10 @@ except ImportError:
 
 
 class RuntimeStateRepository(SqliteRepository):
-    """Persist scheduler/session state separately from memory validity."""
+    """Own mutable scheduler state separately from versioned memory / 管理可变调度状态，与版本化记忆分开。"""
 
     def get(self, session_id: str) -> dict[str, Any]:
+        """Read session state; absent or malformed legacy payload returns an empty object / 读取会话状态，不存在或旧内容格式错误时返回空对象。"""
         row = self.conn.execute(
             "SELECT payload FROM runtime_state WHERE session_id = ?",
             (str(session_id or ""),),
@@ -33,6 +37,7 @@ class RuntimeStateRepository(SqliteRepository):
         payload: dict[str, Any],
         updated_at: str = "",
     ) -> None:
+        """Persist one session state in its own transaction / 在独立事务中保存一个会话状态。"""
         stamp = updated_at or now_iso()
         with self.conn:
             self.conn.execute(
@@ -43,6 +48,7 @@ class RuntimeStateRepository(SqliteRepository):
             )
 
     def sessions(self, limit: int = 1000) -> list[str]:
+        """Read a bounded set of recently updated state session IDs / 限量读取近期更新的状态会话编号。"""
         rows = self.conn.execute(
             "SELECT session_id FROM runtime_state ORDER BY updated_at DESC LIMIT ?",
             (max(1, min(10000, int(limit))),),

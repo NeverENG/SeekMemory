@@ -1,4 +1,7 @@
-"""Dream-cycle run ledger repository."""
+"""Persist daily cycle state using a borrowed connection; do not run extraction or maintenance.
+
+使用借用连接保存每日整理状态，不执行抽取或维护。
+"""
 
 from __future__ import annotations
 
@@ -11,9 +14,10 @@ except ImportError:
 
 
 class DreamRepository(SqliteRepository):
-    """Own the daily dream_runs idempotency ledger."""
+    """Own daily run state, distinct from memory evidence or business version ledger / 管理每日运行状态，与记忆证据及业务版本账本分开。"""
 
     def get(self, dream_date: str) -> dict[str, Any] | None:
+        """Read one daily run or None / 读取一个每日运行，不存在时返回空。"""
         row = self.conn.execute(
             "SELECT * FROM dream_runs WHERE dream_date = ?", (str(dream_date),)
         ).fetchone()
@@ -31,6 +35,7 @@ class DreamRepository(SqliteRepository):
         }
 
     def begin(self, dream_date: str, now: str = "") -> bool:
+        """Start or resume a daily run; completed dates return False / 开始或恢复每日运行，已完成日期返回否。"""
         existing = self.get(dream_date)
         if existing is not None and existing["status"] == "done":
             return False
@@ -56,6 +61,7 @@ class DreamRepository(SqliteRepository):
         summary: dict[str, Any] | None = None,
         now: str = "",
     ) -> None:
+        """Update an existing daily run with completed counts and outcome; failures raise / 以已完成数量及结果更新已有每日运行，失败抛错。"""
         with self.conn:
             self.conn.execute(
                 "UPDATE dream_runs SET status = ?, finished_at = ?, batches = ?, "
@@ -72,6 +78,7 @@ class DreamRepository(SqliteRepository):
             )
 
     def recent(self, limit: int = 7) -> list[dict[str, Any]]:
+        """Read a bounded set of recent daily runs / 限量读取近期每日运行。"""
         rows = self.conn.execute(
             "SELECT dream_date FROM dream_runs ORDER BY dream_date DESC LIMIT ?",
             (max(1, int(limit)),),

@@ -2,7 +2,7 @@
 
 ## 职责
 
-store 是唯一 SQL 边界。Store 在 [store/__init__.py](../../../../store/__init__.py) 组合一个 SqliteDatabase 连接和各领域仓储；连接共用使跨表写入可在同一事务内完成。
+store 是唯一 SQL 边界。Store 在 [store/composition.py](../../../../store/composition.py) 组合一个 SqliteDatabase 连接和各领域仓储；连接共用使跨表写入可在同一事务内完成。
 
 ## 仓储分工
 
@@ -35,3 +35,26 @@ Cache 仅持有 active Artifact，并维护 family、level、subject 索引。�
 ## 恢复与诊断
 
 Artifact 版本快照和证据是审计事实；ledger 的哈希链用于检查账本连续性。Runtime episodes、Dream 状态和 Run Trace 分属不同用途，不能拿诊断轨迹代替 Artifact 变更账本。旧行解析、schema 演进和仓储实现都留在 store。
+
+## 接口与文件归属
+
+`store/domain.py` 明确导出仓储集合、仓储、缓存、追踪及受支持的账本帮助函数，原包入口和实现路径保持兼容。`store/ports.py` 仅声明缓存读取接口与追踪时钟；SQLite 和文件系统类型在这个外部适配层保留为具体类型。store 文件不依赖 app、services 或宿主适配器。
+
+| 文件 | 职责与资源归属 | 逻辑复杂度及耦合 |
+|---|---|---|
+| `composition.py` | 创建仓储对象，共同借用一个自有 SQLite 连接，`close()` 关闭连接 | 低：仅组装，不包含 SQL |
+| `sqlite.py` | 打开和关闭连接，初始化既有结构并委托迁移，保留现有时间帮助函数 | 低至中：SQLite 和文件系统适配 |
+| `migrations.py` | 有序执行兼容字段、旧版本、索引和触发器步骤 | 中：共享迁移事务，语句顺序不变 |
+| `serialization.py` | 既有 JSON 编码与旧值解析，无 SQL 或时钟 | 低：纯转换，持久化字节稳定 |
+| `artifact_codec.py` | 记忆数据行及头部转换，原 SQL 导入保留兼容别名 | 低至中：纯转换 |
+| `artifact_sql.py` | 既有记忆 SQL 模板，不执行语句 | 低：仅语句 |
+| `artifacts.py` | 版本读取及预期版本单次和分组提交、证据、事件、账本，以及明确的图和父字段写入 | 高：多表事务所有者，不写缓存 |
+| `sources.py`、`extraction.py` | 不可变证据、队列接纳及结果；入队共用一个事务 | 中：证据和队列职责明确，不调用模型 |
+| `ledger.py` | 唯一链条编码与哈希，以及加入调用方事务的追加函数 | 中：稳定字节契约，帮助函数不独立提交 |
+| `runtime_state.py`、`runtime_episodes.py`、`dreams.py` | 分别负责调度状态、审计及每日运行事务 | 中：不拥有记忆规则 |
+| `metrics.py` | 通过借用连接读取容量用量 | 低：只读查询 |
+| `cache.py`、`run_trace.py` | 派生有效记忆索引及独立诊断 JSONL | 中：进程状态和文件锁，与业务事实分开 |
+
+仓储借用连接，不关闭连接；公开写入操作负责事务。`_commit_conn`、`write_source_conn`、`append_ledger_conn` 加入调用方事务，不能独立提交。`set_parent` 是既有的独立兼容字段写入，不是记忆版本与连接的整体事务。
+
+`tests/test_store_interface_contract.py` 验证明确接口的对象身份、帮助函数兼容及共享连接；原有迁移、内核、抽取、运行动作及导入顺序场景验证行为，不能据此声称真实宿主或模型已经运行。
