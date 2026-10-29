@@ -163,7 +163,9 @@ class PendingFileRecoveryTest(unittest.TestCase):
         with open(parent, "w", encoding="utf-8") as handle:
             handle.write("x")
         buf = Buffer(os.path.join(parent, "pending.json"))
-        buf.add("umo:a", "hello")
+        with self.assertRaises(OSError):
+            buf.add("umo:a", "hello")
+        self.assertEqual(buf.items, [])
         self.assertTrue(buf.save_error)
 
 class ChunkPairingTest(unittest.TestCase):

@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 修复待处理队列重载失败时的部分视图，以及旧 JSON 保存失败时的输入丢失：先准备和保存再发布，原子替换文件，失败抛错并保留原视图；确认仅消费原行，保留新输入和不可变证据。
+
 - 内部卫生：为 perceive 增加明确 domain/ports，分开话题规则、旧文件读写、消息转换、JSON 解析、去重、证据准备及抽取计划；保留原路径、提示词字节、时间及评分行为，同步双语职责说明。
 
 - 保留诊断包装后的业务代码来源定位，避免日志指向包装帮助函数；位置回归检查验证真实文件、行及函数归属，继续检查正文隐私。
@@ -21,6 +23,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Preserve the old pending view on failed queue reloads and legacy JSON saves: prepare/persist before publication, replace files atomically and raise on failed mutations; confirmation consumes only original rows while retaining new input and immutable evidence.
 
 - Internal hygiene: add explicit perceive domain/ports and separate topic rules, legacy files, row conversion, JSON parsing, deduplication, evidence preparation and extraction planning, preserving import paths, prompt bytes, time and scoring behavior with mirrored responsibility docs.
 

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 
 
@@ -51,13 +52,27 @@ class PendingFile:
 
 
     def save(self, data: dict) -> bool:
-        """Save the existing JSON layout and expose failures / 保存既有 JSON 布局并暴露失败。"""
+        """Prepare a complete file, then replace it; failed writes preserve old input.
+
+        准备完整文件后再替换，写入失败时保留旧输入；返回值明确表示保存是否完成。
+        """
+        temporary = None
         try:
-            os.makedirs(os.path.dirname(self.path), exist_ok=True)
-            with open(self.path, "w", encoding="utf-8") as stream:
-                json.dump(data, stream, ensure_ascii=False)
+            content = json.dumps(data, ensure_ascii=False)
+            target = Path(self.path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            descriptor, temporary = tempfile.mkstemp(dir=target.parent, prefix=".pending-")
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                stream.write(content)
+            os.replace(temporary, target)
             self.save_error = ""
             return True
         except Exception as exc:
             self.save_error = type(exc).__name__
             return False
+        finally:
+            if temporary is not None:
+                try:
+                    Path(temporary).unlink(missing_ok=True)
+                except OSError:
+                    pass

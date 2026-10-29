@@ -118,12 +118,12 @@ class Buffer:
         turn = replace(turn, topic_id=self._topic_for(turn, previous, parent))
         if self._extraction is not None:
             turn = self._enqueue(turn, source=source, turn_id=turn_id, deferred=deferred)
+        prepared = list(self.items)
         if not deferred:
-            self.items.append(turn)
+            prepared.append(turn)
             if self._extraction is not None:
-                self.items = self._unique_by_source(self.items)
-        self.last_ts = time.time()
-        self.save()
+                prepared = self._unique_by_source(prepared)
+        self._publish(prepared, last_ts=time.time())
         return turn
 
     def reload(self) -> int:
@@ -201,43 +201,54 @@ class Buffer:
         return len(self.items) >= max(1, min_items) and self.idle_seconds() >= idle_seconds
 
     def take(self) -> list[DialogueTurn]:
-        """Consume and save the legacy pending view, returning its previous rows / 消费并保存旧待处理视图，返回原有行。"""
+        """Save a consumed view before publishing; failure preserves all rows / 消费后的视图保存成功才发布，失败保留所有行。"""
         items = self.items
-        self.items = []
-        self.save()
+        self._publish([])
         return items
 
     def take_topics(self, topic_ids: set[str]) -> list[DialogueTurn]:
-        """Consume selected legacy topics and save the remaining view / 消费选定的旧话题并保存剩余视图。"""
+        """Save remaining topics before publishing; failure keeps the old view / 剩余话题保存成功才发布，失败保留旧视图。"""
         wanted = {str(x) for x in topic_ids}
         taken = [turn for turn in self.items if turn.topic_id in wanted]
-        self.items = [turn for turn in self.items if turn.topic_id not in wanted]
-        self.save()
+        self._publish([turn for turn in self.items if turn.topic_id not in wanted])
         return taken
 
     def restore(self, rows: list[DialogueTurn]) -> None:
-        """Restore distinct rows and save the pending view / 恢复不同的行并保存待处理视图。"""
+        """Save distinct restored rows before publishing the pending view / 不同的恢复行保存成功后才发布待处理视图。"""
         if not rows:
             return
         existing = set(self.items)
         restored = [row for row in rows if row not in existing]
-        self.items = restored + self.items
-        self.save()
+        self._publish(restored + self.items)
 
-    def save(self) -> bool:
-        """Persist legacy-only input; Source-backed rows already live in the queue.
+    def _save_rows(self, rows: list[DialogueTurn], last_ts: float) -> bool:
+        """Save a proposed legacy view; Source-backed rows are already durable.
 
-        保存仅由旧文件持有的输入，带原始消息编号的行已保存在队列中。
+        保存拟发布的旧视图，带原始消息编号的行已持久保存。
         """
-        if not self.path or (self._extraction is not None and all(t.source_id for t in self.items)):
+        if not self.path or (self._extraction is not None and all(turn.source_id for turn in rows)):
             self.save_error = ""
             return True
         try:
-            data = {"last": self.last_ts, "items": [asdict(turn) for turn in self.items]}
+            data = {"last": last_ts, "items": [asdict(turn) for turn in rows]}
         except Exception as exc:
             self.save_error = type(exc).__name__
             return False
         return self._legacy.save(data)
+
+    def _publish(self, rows: list[DialogueTurn], *, last_ts: float | None = None) -> None:
+        """Publish only after successful persistence; expose failure to orchestration.
+
+        仅在持久化成功后发布，并向编排方暴露失败；重试不会消费原有待处理视图。
+        """
+        stamp = self.last_ts if last_ts is None else last_ts
+        if not self._save_rows(rows, stamp):
+            raise OSError("pending_save_failed")
+        self.items, self.last_ts = rows, stamp
+
+    def save(self) -> bool:
+        """Persist the current view, returning explicit success / 保存当前视图，明确返回是否成功。"""
+        return self._save_rows(self.items, self.last_ts)
 
     def load(self) -> None:
         """Read Source-backed projection or legacy pending input / 读取原始消息支持的视图或旧待处理输入。"""
@@ -247,6 +258,8 @@ class Buffer:
         if not self.path:
             return
         data = self._read_file()
+        if self.load_error:
+            return
         kept: list[DialogueTurn] = []
         for row in data.get("items") or []:
             turn = self._from_row(row)
@@ -259,10 +272,10 @@ class Buffer:
             self.last_ts = 0.0
 
     def _load_projection(self) -> None:
-        """Read pending Source rows into the in-memory projection / 将待处理原始消息行读入内存视图。"""
-        self.items = []
+        """Prepare the complete Source projection before replacing it / 准备完整原始消息视图后再替换。"""
+        prepared: list[DialogueTurn] = []
         for row in self._extraction.pending_extractions():
-            self.items.append(
+            prepared.append(
                 DialogueTurn(
                     str(row["session_id"]),
                     str(row["speaker_id"]),
@@ -275,9 +288,9 @@ class Buffer:
                     str(row.get("reply_to") or "") or None,
                 )
             )
-        stamps = [_parse_at(turn.at) for turn in self.items]
+        stamps = [_parse_at(turn.at) for turn in prepared]
         valid = [stamp.timestamp() for stamp in stamps if stamp is not None]
-        self.last_ts = max(valid, default=0.0)
+        self.items, self.last_ts = prepared, max(valid, default=0.0)
 
     def _read_file(self) -> dict:
         """Read legacy input through its single file owner / 通过唯一文件所有者读取旧输入。"""
@@ -296,8 +309,9 @@ class Buffer:
             else 0
         )
         wanted = set(source_ids)
-        self.items = [item for item in self.items if item.source_id not in wanted]
-        self.save()
+        legacy_rows = {id(row) for row in rows if not row.source_id}
+        self._publish([item for item in self.items
+                       if item.source_id not in wanted and id(item) not in legacy_rows])
         return changed
 
     def mark_failed(
