@@ -1,4 +1,7 @@
-"""media family：媒体摘要与引用的校验（只存摘要，不存内容）。"""
+"""Validate media payloads without I/O or disclosure decisions.
+
+校验 media 内容，不执行读写或披露决策。
+"""
 
 from __future__ import annotations
 
@@ -15,7 +18,10 @@ def _need(payload: dict[str, Any], key: str) -> str:
 
 
 def validate(payload: dict[str, Any]) -> None:
-    """校验一条 media：type/title/url 必填，summary/shared_by 可选。"""
+    """Validate media type, title and URL with optional summary and sharer.
+
+    校验媒体类型、标题和网址，概述及分享者可选。
+    """
     _need(payload, "type")
     _need(payload, "title")
     _need(payload, "url")

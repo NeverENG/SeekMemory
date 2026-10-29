@@ -1,4 +1,7 @@
-"""Pure relationship-driven interaction policy."""
+"""Compute relationship-driven interaction permissions without execution or I/O.
+
+计算关系驱动的互动权限，不执行动作或读写。
+"""
 
 from __future__ import annotations
 
@@ -17,6 +20,10 @@ CLOSE_PROACTIVE_KINDS = ("daily_checkin", "meal_reminder", "goodnight")
 
 
 class ReplyStyle(str, Enum):
+    """Define the fixed interaction tone vocabulary.
+
+    定义固定互动语气词表。
+    """
     CUTE = "cute"
     WARM = "warm"
     NEUTRAL = "neutral"
@@ -25,6 +32,10 @@ class ReplyStyle(str, Enum):
 
 
 class AffectionScope(str, Enum):
+    """Describe where affectionate expression is permitted.
+
+    描述允许亲昵表达的范围。
+    """
     NONE = "none"
     PRIVATE_ONLY = "private_only"
     PUBLIC_ALLOWED = "public_allowed"
@@ -32,6 +43,10 @@ class AffectionScope(str, Enum):
 
 @dataclass(frozen=True)
 class InteractionRule:
+    """Describe fixed permissions for one relationship band.
+
+    描述一个关系档位的固定权限。
+    """
     style: ReplyStyle
     private_reply_probability: float = 1.0
     group_ambient_probability: float = 1.0
@@ -47,6 +62,10 @@ class InteractionRule:
 
 @dataclass(frozen=True)
 class InteractionContext:
+    """Supply stable Source identity and current reply requirements.
+
+    提供稳定 Source 编号及当前回复要求。
+    """
     source_id: str = ""
     attention: str = "ambient"
     private: bool = False
@@ -55,6 +74,10 @@ class InteractionContext:
 
 @dataclass(frozen=True)
 class InteractionGate:
+    """Return interaction permissions and a reason; does not enforce host actions.
+
+    返回互动权限及原因，不执行宿主动作。
+    """
     enforced: bool = False
     allow_reply: bool = True
     reply_probability: float = 1.0
@@ -72,7 +95,10 @@ class InteractionGate:
 
 @dataclass(frozen=True)
 class InteractionPolicySettings:
-    """Resolved interaction settings and their canonical core defaults."""
+    """Define resolved settings and canonical defaults; configuration parsing stays outside core.
+
+    定义已解析设置及唯一默认值，配置解析留在 core 外。
+    """
 
     mode: str = "observe"
     low_private_reply_probability: float = 0.8
@@ -134,7 +160,10 @@ def stable_sample(
     probability: float,
     policy_version: str = INTERACTION_POLICY_VERSION,
 ) -> bool:
-    """Make a stable Bernoulli decision from one immutable Source id."""
+    """Return a stable Bernoulli decision based on an immutable Source identity.
+
+    根据不可变 Source 编号返回稳定伯努利决策。
+    """
     chance = _probability(probability)
     if chance <= 0.0:
         return False
@@ -155,7 +184,10 @@ def decide_interaction(
     context: InteractionContext,
     settings: InteractionPolicySettings = _DEFAULT_SETTINGS,
 ) -> InteractionGate:
-    """Return a candidate or enforced interaction gate for one WakePolicy result."""
+    """Derive candidate or enforced permissions for one supplied wake decision.
+
+    为给定开口决策推导候选或强制权限。
+    """
     if settings.mode == "off":
         return InteractionGate(reason="relationship_off")
     band = (

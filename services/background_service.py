@@ -119,6 +119,10 @@ class BackgroundService:
         max_tokens: int = 0,
         triage: bool = False,
     ) -> tuple[int, int]:
+        """Observe current capacity and delegate bounded extraction to IngestService.
+
+        观察当前容量并将有界抽取委托 IngestService。
+        """
         decision = self.capacity.observe()
         return await self.ingest.flush(
             reason,

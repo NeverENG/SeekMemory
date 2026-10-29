@@ -51,6 +51,10 @@ def persona_evidence(candidates: Iterable[Artifact], pool: Iterable[Artifact],
     seen: set[str] = set()
 
     def add(art: Artifact, kind: str) -> None:
+        """Add evidence once within the existing collection limit.
+
+        在既有收集上限内加入不重复证据。
+        """
         if len(out) >= limit or art.header.id in seen:
             return
         try:

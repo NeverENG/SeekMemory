@@ -1,4 +1,7 @@
-"""Forget active Relationship Artifacts before rolling back to an older binary."""
+"""Forget active relationship heads before binary rollback; own the store and preserve evidence/history.
+
+在回滚程序前遗忘有效关系头部，拥有存储并保留证据及历史。
+"""
 
 from __future__ import annotations
 
@@ -15,7 +18,10 @@ from store import open_store  # noqa: E402
 
 
 def deactivate_relationships(db_path: str) -> tuple[int, int, int]:
-    """Forget active relationship heads through CAS without deleting evidence."""
+    """Commit each active relationship as forgotten with CAS; report counts and close storage.
+
+    以预期版本提交将每个有效关系设为遗忘，报告计数并关闭存储。
+    """
     store = open_store(str(db_path))
     try:
         active = store.artifacts.list(family="relationship", state="active")
@@ -41,6 +47,10 @@ def deactivate_relationships(db_path: str) -> tuple[int, int, int]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Require explicit confirmation, run offline deactivation and fail if any commit failed.
+
+    要求明确确认，执行离线停用，任一提交失败则返回失败。
+    """
     parser = argparse.ArgumentParser(
         description="Forget active Relationship Artifacts before binary rollback."
     )

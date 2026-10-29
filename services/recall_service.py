@@ -81,6 +81,10 @@ class RecallService:
         }
 
         def conf(key: str, default):
+            """Override the current budget and delegate other configuration reads.
+
+            覆盖本次预算并委托其他配置读取。
+            """
             if key == "budget_chars":
                 return budget_chars
             if key == "recall_k":

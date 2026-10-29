@@ -174,6 +174,10 @@ def query_block(
     disclosure_info: dict[str, str] = {}
 
     def apply_disclosure(arts: list, relevance: float) -> list:
+        """Apply the shared disclosure rules and collect text overrides.
+
+        应用共用披露规则并收集文本替换。
+        """
         return disclose(arts, relevance, scene=scene, sources=sources, umo=umo, owner_umo=owner_umo,
                         overrides=overrides, disclosure_info=disclosure_info)
 

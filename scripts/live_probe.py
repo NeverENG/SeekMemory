@@ -1,4 +1,7 @@
-"""Read-only database probe for staging and live comparison."""
+"""Read a supplied database through a read-only connection; close it before returning aggregate diagnostics.
+
+通过只读连接读取给定数据库，返回聚合诊断前关闭连接。
+"""
 
 from __future__ import annotations
 
@@ -44,6 +47,10 @@ def _ledger_ok(conn):
 
 
 def probe(db_path, label=""):
+    """Read counts, persona revision and ledger integrity without exporting message bodies.
+
+    读取计数、人格版本及账本完整性，不导出消息正文。
+    """
     path = Path(db_path).expanduser()
     if not path.exists():
         raise FileNotFoundError(str(path))
@@ -78,6 +85,10 @@ def probe(db_path, label=""):
 
 
 def main():
+    """Print a read-only probe as JSON or key/value lines.
+
+    以 JSON 或键值行输出只读检查。
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", required=True, help="database path")
     parser.add_argument("--label", default="")

@@ -1,4 +1,7 @@
-"""Minimal runtime service."""
+"""Compose a loopback runtime service with local state/audit files; own and close the HTTP listener.
+
+组装使用本地状态及审计文件的回环运行服务，拥有并关闭 HTTP 监听端口。
+"""
 
 from __future__ import annotations
 
@@ -23,6 +26,10 @@ from app.runtime import (
 
 
 def jsonable(value: Any) -> Any:
+    """Project enums and data values into JSON-compatible structures.
+
+    将枚举及数据值转换为 JSON 兼容结构。
+    """
     if isinstance(value, Enum):
         return value.value
     if is_dataclass(value):
@@ -35,6 +42,10 @@ def jsonable(value: Any) -> Any:
 
 
 class RuntimeService:
+    """Own a local runtime and delegate protocol requests without another memory implementation.
+
+    拥有本地运行时并委托协议请求，不另行实现记忆。
+    """
     def __init__(self, data_dir: Path) -> None:
         data_dir.mkdir(parents=True, exist_ok=True)
         episodes = EpisodeRecorder(JsonlEpisodeStore(str(data_dir / "episodes.jsonl")))
@@ -48,6 +59,10 @@ class RuntimeService:
         )
 
     def event(self, body: dict) -> tuple[int, dict]:
+        """Map a supported event request to runtime recording; return status and JSON values.
+
+        将受支持事件请求映射到运行时记录，返回状态及 JSON 值。
+        """
         kind = str(body.get("kind") or "")
         if kind == "accept_user":
             try:
@@ -99,6 +114,10 @@ class RuntimeService:
         return 400, {"error": "unsupported_event"}
 
     def context(self, body: dict) -> tuple[int, dict]:
+        """Map a context request to the runtime context port.
+
+        将上下文请求映射到运行时上下文端口。
+        """
         request = MemoryContextRequest(
             session_id=str(body.get("session_id") or ""),
             query=str(body.get("query") or body.get("value") or ""),
@@ -115,13 +134,25 @@ class RuntimeService:
 
 
 class Handler(BaseHTTPRequestHandler):
+    """Adapt authenticated loopback HTTP requests to the injected runtime service.
+
+    将已认证回环 HTTP 请求适配到注入的运行服务。
+    """
     service: RuntimeService
     token: str
 
     def log_message(self, *_args) -> None:
+        """Suppress default access logging to avoid recording request details.
+
+        关闭默认访问日志，避免记录请求细节。
+        """
         return
 
     def send_json(self, status: int, payload: dict) -> None:
+        """Write one JSON response with explicit length and content type.
+
+        写入带明确长度及内容类型的一次 JSON 响应。
+        """
         data = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()
         self.send_response(status)
         self.send_header("content-type", "application/json")
@@ -130,6 +161,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self) -> None:
+        """Expose health metadata and return not-found for other paths.
+
+        提供健康元数据，其他路径返回未找到。
+        """
         if self.path == "/healthz":
             self.send_json(200, {
                 "ok": True,
@@ -142,6 +177,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(404, {"error": "not_found"})
 
     def do_POST(self) -> None:
+        """Authenticate, parse and delegate the existing event/context protocol.
+
+        认证、解析并委托既有事件及上下文协议。
+        """
         if self.headers.get("authorization") != f"Bearer {self.token}":
             self.send_json(401, {"error": "unauthorized"})
             return
@@ -161,6 +200,10 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> int:
+    """Create service/listener metadata, serve locally and close the listener even on startup-write failure.
+
+    创建服务及监听元数据、本地服务，并在启动写入失败时仍关闭监听。
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--port", type=int, default=0)

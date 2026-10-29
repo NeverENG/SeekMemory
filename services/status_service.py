@@ -34,6 +34,10 @@ class StatusService:
         lineage = cls.json_object(header.get("lineage"))
 
         def ids(*names: str) -> list[str]:
+            """Normalize supplied evidence references for the management view.
+
+            为管理视图整理给定证据引用。
+            """
             for name in names:
                 value = lineage.get(name)
                 if isinstance(value, str):

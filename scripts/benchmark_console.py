@@ -1,4 +1,7 @@
-"""Measure the real graph projection against an isolated synthetic SQLite library."""
+"""Measure graph projection with isolated synthetic SQLite data and no host/model calls.
+
+使用隔离合成 SQLite 数据测量图投影，不调用宿主或模型。
+"""
 from __future__ import annotations
 
 import argparse
@@ -19,6 +22,10 @@ graph = importlib.import_module(f"{ROOT.name}.services.console_projection").grap
 
 
 def measure(count: int, samples: int, limit: int = 120) -> dict:
+    """Own temporary storage for the measurement and return aggregate latency/allocation counts.
+
+    在测量期间拥有临时存储，返回聚合耗时及分配计数。
+    """
     with tempfile.TemporaryDirectory(prefix="seekmemory-graph-bench-") as folder:
         store = open_store(str(Path(folder) / "memory.db"))
         try:

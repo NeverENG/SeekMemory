@@ -36,6 +36,10 @@ def snapshot(source: str, destination: str) -> None:
 
 
 def main() -> int:
+    """Snapshot the supplied database and report the destination after success.
+
+    为给定数据库创建快照，成功后报告目标。
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", required=True)
     parser.add_argument("--destination", required=True)

@@ -1,8 +1,6 @@
-"""强度算法：艾宾浩斯留存率、衰减权重、强化与命中冷却。
+"""Compute retention, decay, reinforcement and hit cooldown without I/O. Explicit hits take priority; legacy weights supply a fallback hit estimate.
 
-DESIGN 4.3 的公式为 R = e^(-t / S)，
-S = 基础 × (1 + 0.5 × 有效命中) × 形状系数 × 情绪系数。
-Strength 不单独存 hits，这里用 weight 编码命中：每 +0.1 约等于一次有效命中。
+计算留存、衰减、强化及命中冷却，不读写资源。显式命中优先，旧权重提供命中估算回退。
 """
 
 from __future__ import annotations
@@ -51,7 +49,10 @@ def _shape_factor(shape: str) -> float:
 
 
 def _emotion_factor(s: Strength) -> float:
-    """情绪系数：高唤醒记得牢，低唤醒忘得快；负效价再叠加创伤/普通不快。"""
+    """Compute the existing arousal/negative-valence stability factor.
+
+    计算既有唤醒度及负效价稳定系数。
+    """
     if s.arousal > _HIGH_AROUSAL:
         factor = _HIGH_AROUSAL_FACTOR
     elif s.arousal < _LOW_AROUSAL:
@@ -68,19 +69,28 @@ def _emotion_factor(s: Strength) -> float:
 
 
 def _hits(s: Strength) -> float:
-    """有效命中次数。优先用显式 hits；旧数据没有 hits 时用 weight 折算。"""
+    """Prefer explicit hits and estimate legacy hits from weight when absent.
+
+    优先使用显式命中，缺少时由旧权重估算。
+    """
     if getattr(s, "hits", 0):
         return float(s.hits)
     return max(0.0, (s.weight - 1.0) / HIT_STEP)
 
 
 def _salience(s: Strength) -> float:
-    """显著度：越重要的事基础寿命越长。限制在 [0.3, 3.0] 防止极端值。"""
+    """Bound weight-based salience to the existing stability range.
+
+    将基于权重的显著度限制在既有稳定范围。
+    """
     return min(_MAX_SALIENCE, max(_MIN_SALIENCE, float(s.weight)))
 
 
 def retention(s: Strength, shape: str, days: float) -> float:
-    """返回留存率 R，取值 [0, 1]；days 为已过去的天数。"""
+    """Return retention in [0, 1] for elapsed days and the supplied shape.
+
+    根据已过天数及给定形状返回 [0, 1] 内留存率。
+    """
     elapsed = max(0.0, float(days))
     stability = (
         BASE_DAYS
@@ -95,12 +105,18 @@ def retention(s: Strength, shape: str, days: float) -> float:
 
 
 def decayed_weight(s: Strength, shape: str, days: float) -> float:
-    """衰减后的权重：原 weight × 留存率（负权重同样按比例淡化）。"""
+    """Multiply the original weight by retention, including negative weights.
+
+    将原权重乘以留存率，负权重同样适用。
+    """
     return s.weight * retention(s, shape, days)
 
 
 def reinforce(s: Strength, source: str) -> Strength:
-    """按来源强化权重：recall +0.1 / spoken +0.3 / confirmed +0.2。"""
+    """Return new strength with recall +0.1, spoken +0.3 or confirmed +0.2; no persistence.
+
+    返回新强度，recall 增加 0.1、spoken 增加 0.3、confirmed 增加 0.2，不执行保存。
+    """
     if source not in REINFORCE_DELTAS:
         allowed = "|".join(REINFORCE_DELTAS)
         raise ValueError(f"未知强化来源：{source!r}，可选：{allowed}")
@@ -125,7 +141,10 @@ def _parse(value: str | None) -> datetime | None:
 
 
 def hit_cooldown_ok(last_window: str | None, now: str) -> bool:
-    """30 分钟冷却：返回 True 表示这次命中可以单独计数。"""
+    """Allow a separately counted hit outside the existing thirty-minute cooldown.
+
+    在既有三十分钟冷却外允许单独计数命中。
+    """
     last, current = _parse(last_window), _parse(now)
     if last is None or current is None:
         return True

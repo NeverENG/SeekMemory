@@ -1,4 +1,7 @@
-"""机器人自我描述的有限词表；共享文本只从这里生成。"""
+"""Define fixed self-behavior text and trust checks without I/O.
+
+定义固定自我行为文本及信任检查，不执行读写。
+"""
 from __future__ import annotations
 
 import math
@@ -24,6 +27,10 @@ BEHAVIORS = tuple(BEHAVIOR_TEXT)
 
 
 def confident(value: object) -> bool:
+    """Accept finite confidence within the existing trust range.
+
+    接受处于既有可信范围的有限置信度。
+    """
     try:
         number = float(value)
     except (ValueError, TypeError):
@@ -32,11 +39,18 @@ def confident(value: object) -> bool:
 
 
 def compose_behaviors(behaviors: list[str]) -> str:
-    """拼装固定的第二人称自述，绝不接受自由文本。"""
+    """Compose fixed second-person behavior sentences; unknown keys raise KeyError.
+
+    组合固定第二人称行为句子，未知名称抛出 KeyError。
+    """
     return "".join("你" + BEHAVIOR_TEXT[key][1:] for key in behaviors)
 
 
 def trusted_self_impression(art: Artifact) -> bool:
+    """Check active self-impression metadata, fixed text and evidence references without loading Sources.
+
+    检查有效自我印象的元数据、固定文本及证据引用，不加载 Source。
+    """
     p, h = art.payload, art.header
     kind = p.get("bot_behavior")
     return (
@@ -73,12 +87,9 @@ def _trusted_behavior_kinds(payload: dict) -> list[str] | None:
 
 
 def trusted_self_persona(art: Artifact) -> bool:
-    """Trust the active persona chain, including its one-time seed bootstrap.
+    """Validate seed, synthesized Dream and legacy behavior persona provenance. Seed configuration needs no fabricated Sources; derived revisions retain their existing evidence and text-shape requirements.
 
-    Seed content is explicitly installed configuration, not chat evidence.  It
-    therefore has no fabricated lineage.  Dream revisions over a seed must keep
-    the deterministic ``base_text + behavior sentence`` shape and the existing
-    evidence/confidence requirements.
+    校验初始设定、综合 Dream 及旧行为人格的来源。初始配置不需伪造 Source，派生修订保留既有证据及文本形状要求。
     """
     if not _trusted_persona_header(art):
         return False

@@ -1,7 +1,6 @@
-"""Artifact 原语：统一头 + 按 family 区分的 payload。
+"""Define Artifact data and construction, revision, validation and text access; no storage I/O.
 
-本文件只定义数据结构，并提供构造（make）、修订（revise）、
-校验（validate）与可读文本（content_of），不接触存储。
+定义 Artifact 数据及构造、修订、校验和文本读取，不进行存储读写。
 """
 
 from __future__ import annotations
@@ -40,6 +39,10 @@ _SEQ = 0
 
 @dataclass(frozen=True)
 class Strength:
+    """Immutable strength values, including explicit hits and emotion inputs.
+
+    不可变强度数据，包括显式命中和情绪输入。
+    """
     weight: float = 1.0
     confidence: float = 1.0
     arousal: float = 0.3
@@ -50,6 +53,10 @@ class Strength:
 
 @dataclass(frozen=True)
 class TimeSpan:
+    """Stored creation, update and validity dates; does not parse or convert time.
+
+    保存创建、更新及有效日期，不解析或转换时间。
+    """
     created: str = ""
     updated: str = ""
     valid_from: str | None = None
@@ -59,12 +66,20 @@ class TimeSpan:
 
 @dataclass(frozen=True)
 class Lineage:
+    """Reference immutable Sources and upstream Artifacts as separate evidence links.
+
+    分别引用不可变 Source 和上游 Artifact 作为证据链接。
+    """
     sources: tuple[str, ...] = ()
     derived_from: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class Header:
+    """Immutable identity, revision, visibility and provenance for one Artifact.
+
+    一个 Artifact 的不可变编号、版本、可见性及来源信息。
+    """
     id: str
     family: str
     revision: int = 1
@@ -80,6 +95,10 @@ class Header:
 
 @dataclass(frozen=True)
 class Artifact:
+    """Pair an immutable header with a copied mutable payload.
+
+    将不可变头部与复制后的可变内容配对。
+    """
     header: Header
     payload: dict[str, Any]
 
@@ -95,7 +114,10 @@ def _new_id() -> str:
 
 
 def _coerce(kw: dict[str, Any]) -> dict[str, Any]:
-    """把 dict 形式的嵌套头字段转成 dataclass，方便调用方。"""
+    """Convert nested header dictionaries to their declared data types.
+
+    将嵌套头部字典转换为声明的数据类型。
+    """
     for key, cls in (("lineage", Lineage), ("strength", Strength), ("time", TimeSpan)):
         if isinstance(kw.get(key), dict):
             kw[key] = cls(**kw[key])
@@ -108,7 +130,10 @@ def _stamp(time: TimeSpan) -> TimeSpan:
 
 
 def make(family: str, payload: dict[str, Any], **header_kw: Any) -> Artifact:
-    """构造一条新 Artifact；family 必须合法，payload 原样保存。"""
+    """Construct a valid-family Artifact without validating its payload; fill missing identity/time from the clock.
+
+    构造类别合法的 Artifact，不校验内容；缺少的编号及时间由时钟补齐。
+    """
     if family not in FAMILIES:
         raise ValueError(f"未知 family：{family!r}，可选：{', '.join(FAMILIES)}")
     kw = _coerce(dict(header_kw))
@@ -119,7 +144,10 @@ def make(family: str, payload: dict[str, Any], **header_kw: Any) -> Artifact:
 
 
 def revise(art: Artifact, payload: dict[str, Any] | None = None, **header_kw: Any) -> Artifact:
-    """在保持 id 不变的前提下生成新版本，revision +1、updated 刷新。"""
+    """Keep identity/family, increment revision and update time; return a copy without persistence.
+
+    保持编号和类别、递增版本并更新时间；返回副本，不执行保存。
+    """
     kw = _coerce(dict(header_kw))
     kw.pop("family", None)
     kw.pop("id", None)
@@ -131,7 +159,10 @@ def revise(art: Artifact, payload: dict[str, Any] | None = None, **header_kw: An
 
 
 def validate(art: Artifact) -> None:
-    """按 family 校验 payload 必填字段；不合法时抛中文 ValueError。"""
+    """Validate required family payload fields; invalid data raises ValueError.
+
+    按类别校验必需内容字段，无效数据抛出 ValueError。
+    """
     family = art.header.family
     if family not in FAMILIES:
         raise ValueError(f"未知 family：{family!r}，可选：{', '.join(FAMILIES)}")
@@ -148,7 +179,10 @@ def _field(payload: dict[str, Any], key: str, family: str) -> str:
 
 
 def content_of(art: Artifact) -> str:
-    """返回该 Artifact 的可读文本，供注入与去重使用。"""
+    """Read display text without authorizing disclosure or writing state.
+
+    读取显示文本，不授予披露权限或写入状态。
+    """
     family, payload = art.header.family, art.payload
     if family == "example":
         user = _field(payload, "user", family)

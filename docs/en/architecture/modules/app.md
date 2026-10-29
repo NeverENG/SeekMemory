@@ -7,7 +7,7 @@ app provides shared application values, external capability declarations, and po
 ## Two interface entry points
 
 - [app/domain.py](../../../../app/domain.py): what the application provides. It explicitly exports 79 types, functions, and execution classes, with descriptions only; implementations remain in their owning files.
-- [app/ports.py](../../../../app/ports.py): what callers must supply. It explicitly lists 33 protocols and five callback type aliases, with declarations or exports only and no I/O implementation.
+- [app/ports.py](../../../../app/ports.py): what callers must supply. It explicitly lists required protocols and callback type aliases, with declarations or exports only and no I/O implementation.
 
 This step centralizes interface entry points, covering top-level app capabilities, the existing runtime `__all__`, and other actual cross-module calls. Existing import paths remain available and callers have not all migrated; original runtime value/protocol definitions also remain in place. Constants stay with their owning policies rather than all becoming application interfaces.
 
@@ -92,7 +92,7 @@ Named protocols are listed by their existing roles, not as interchangeable contr
 | `EpisodeWriter`, `EpisodeSink` | `record`; `append` | Episode intake and persistence, at distinct stages |
 | `TraceSink`, `TraceWriter` | `record`; `append` | Diagnostic event intake and row writes, not business audit |
 
-The daily cycle uses six named callbacks: `FlushFn` (bounded extraction), `PendingFn` (pending count), `MaintainFn` (maintenance), `UsageFn` (cumulative model usage), `Log` (status output), and `DreamClock` (datetime). FlushFn is a callable protocol included in the 33 protocols above; the other five are type aliases. `DreamClock` aliases the existing `app.dream.Clock`; it differs from the runtime `Clock`, which returns floating-point seconds.
+The daily cycle uses six named callbacks: `FlushFn` (bounded extraction), `PendingFn` (pending count), `MaintainFn` (maintenance), `UsageFn` (cumulative model usage), `Log` (status output), and `DreamClock` (datetime). FlushFn is a callable protocol included among the protocols above; the other five are type aliases. `DreamClock` aliases the existing `app.dream.Clock`; it differs from the runtime `Clock`, which returns floating-point seconds.
 
 ### Similar interfaces do not necessarily duplicate implementation
 
@@ -174,7 +174,7 @@ All app modules and public definitions use English followed by equivalent Chines
 
 ## Remaining work
 
-- Inventory services/store/adapters before moving orchestration or adapters across modules; retain the shallow EpisodeRecorder compatibility adapter.
+- After the services/store/adapters inventory, retain current app storage adapters, EpisodeRecorder and perceive ProviderChatModel: relocation would change compatible paths or introduce reverse dependencies. Composition owns their resources; no additional migration is included.
 - Deduplication results, completed compensation results and hit cooldown entries still live for the instance without defined retention; pending compensation may retain text in memory.
 - `RecallRequest/RecallResult` remain outside production recall; `ChatModel/ModelGateway` still have distinct contracts.
 - Worker configuration callbacks remain Callable; tracing and tool filtering retain host-shaped objects pending later movement.

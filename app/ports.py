@@ -2,8 +2,8 @@
 
 Declarations and explicit exports only; no I/O implementation.
 仅声明与集中导出，不实现读写；资源由组装方创建、管理和关闭。
-Runtime and callback definitions retain their existing import paths.
-运行时与回调沿用原定义；集中入口不表示内部职责已经整理完成。
+Runtime and callback definitions retain compatible paths; composition owns injected resources.
+运行时和回调定义保留兼容路径，组装方拥有注入资源。
 """
 
 from __future__ import annotations

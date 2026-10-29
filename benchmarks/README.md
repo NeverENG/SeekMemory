@@ -123,3 +123,9 @@ pending 0→17（其中 9 个标注为重要），3 晚模拟每晚线性增长 
 - **平台元数据**：`environment.platform=win32` 是生成已提交快照的机器来源，不是跨平台断言；
   harness 使用内存 SQLite、固定时钟和确定性 provider，CI 在 Linux 上应复现相同计数。
 - 详细政策见 [`results/README.md`](results/README.md)。
+
+## 文件职责及既有质量限制
+
+`dream_eval.py` 是同一冻结语料的执行与计数工具，`dream_tradeoff.py` 负责版本比较和较长的双语报告模板；两者各自承担连贯职责，本轮不为减少行数再拆报告模板。新的固定记忆回归不替代 Dream 质量门槛。
+
+同一 Dream 评测器对卫生前 `4e14e98` 和卫生后代码的结果一致，但两者均未达到全部既有 Dream 质量门槛：重要事实召回 15/23、自我印象覆盖为 0。报告的 `verdict.acceptable=false` 必须如实保留；本轮卫生不能据此宣称这些能力已达标，也不会降低门槛或改算法来换取通过。

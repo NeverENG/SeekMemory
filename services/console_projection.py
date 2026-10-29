@@ -40,6 +40,10 @@ def graph(artifacts: ArtifactStore, *, limit: int = 120) -> dict:
     edges = {}
 
     def add(source: str, target: str, relation: str) -> None:
+        """Add a bounded unique node to the projection.
+
+        向投影加入有数量上限的唯一节点。
+        """
         if source != target and source in visible and target in visible and len(edges) < edge_limit:
             key = (min(source, target), max(source, target), relation)
             edges[key] = {"source": source, "target": target, "kind": relation}
@@ -87,6 +91,10 @@ def impressions(artifacts: ArtifactStore, *, offset: int, limit: int) -> dict:
 def dreams(rows: list[dict]) -> dict:
     """Project recent run counts without prompts or responses / 转换近期运行计数，不包含提示词或回复。"""
     def count(value: object) -> int:
+        """Normalize a nonnegative numeric run count.
+
+        整理非负数值运行计数。
+        """
         return max(0, int(value)) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
     entries = []
     for row in rows[:100]:

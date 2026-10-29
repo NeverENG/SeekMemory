@@ -1,4 +1,7 @@
-"""打包 Git 跟踪的 Python 运行文件和已构建的生产界面。"""
+"""Build a local deterministic plugin ZIP from tracked runtime files and built assets; no release or deployment.
+
+从已跟踪运行文件及已构建资源生成确定本地插件 ZIP，不发布或部署。
+"""
 
 from __future__ import annotations
 
@@ -45,20 +48,9 @@ ASSET_EXTENSIONS = {
 
 
 def package_plugin(root: Path, output: Path, tag: str = "") -> Path:
-    """按显式白名单构建仅含运行所需文件的 ZIP。
+    """Validate tracked runtime/seed assets and an optional matching tag, then write ZIP and checksum. Reject unsafe or missing files before creating output; file and Git errors propagate.
 
-    Args:
-        root: 插件源码目录，pages/memory 中需有生产构建产物。
-        output: ZIP 与校验文件的输出目录。
-        tag: 可选的发布标签，必须与元数据版本一致。
-
-    Returns:
-        可安装 ZIP 的路径，插件文件直接位于包根目录。
-
-    Raises:
-        ValueError: 元数据、构建资源或发布标签无效。
-        OSError: 无法读取必要文件或写入安装包。
-        subprocess.CalledProcessError: Git 无法列出跟踪的文件。
+    校验已跟踪运行及设定资源和可选匹配标签，再写 ZIP 及校验和。创建产物前拒绝不安全或缺少的文件，文件及 Git 错误向上传递。
     """
     root = root.resolve()
     metadata = (root / "metadata.yaml").read_text(encoding="utf-8")

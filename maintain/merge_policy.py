@@ -89,6 +89,10 @@ def _cluster_indices(texts: list[str], threshold: float) -> list[list[int]]:
     parent = list(range(len(texts)))
 
     def find(index: int) -> int:
+        """Resolve and compress the existing cluster-parent path.
+
+        解析并压缩既有聚类父节点路径。
+        """
         while parent[index] != index:
             parent[index] = parent[parent[index]]
             index = parent[index]

@@ -1,4 +1,7 @@
-"""Pure persistent relationship snapshots and band transitions."""
+"""Define relationship snapshots and hysteresis rules without storage I/O.
+
+定义关系快照及迟滞规则，不读写存储。
+"""
 
 from __future__ import annotations
 
@@ -24,7 +27,10 @@ _WARM_EXIT = 0.10
 
 
 class RelationshipBand(str, Enum):
-    """Persisted band vocabulary shared by decisions and payload validation."""
+    """Define persisted bands shared by decisions and payload validation.
+
+    定义决策及内容校验共用的持久化档位词表。
+    """
 
     CLOSE = "close"
     WARM = "warm"
@@ -36,6 +42,10 @@ class RelationshipBand(str, Enum):
 
 @dataclass(frozen=True)
 class RelationshipSnapshot:
+    """Carry a validated relationship view with affinity, confidence and band.
+
+    携带包含亲近度、置信度及档位的已校验关系视图。
+    """
     subject_id: str = ""
     affinity: float = 0.0
     confidence: float = 0.0
@@ -48,7 +58,10 @@ class RelationshipSnapshot:
 
 
 def relationship_id(subject_id: str) -> str:
-    """Return a stable opaque Artifact id for one global person relationship."""
+    """Generate an opaque stable Artifact identity for one global person relationship.
+
+    为一个全局人物关系生成不透明稳定 Artifact 编号。
+    """
     subject = str(subject_id or "").strip()
     if not subject:
         raise ValueError("relationship subject_id is required")
@@ -57,6 +70,10 @@ def relationship_id(subject_id: str) -> str:
 
 
 def summary_for(band: RelationshipBand) -> str:
+    """Read the fixed summary text for the supplied band.
+
+    读取给定档位的固定概述文本。
+    """
     return {
         RelationshipBand.CLOSE: "关系状态：亲近",
         RelationshipBand.WARM: "关系状态：温暖",
@@ -73,7 +90,10 @@ def band_for(
     previous: RelationshipBand = RelationshipBand.NEUTRAL,
     positive_evidence: bool = False,
 ) -> RelationshipBand:
-    """Classify a bounded affinity using hysteresis around stable bands."""
+    """Classify bounded affinity with hysteresis around stable bands.
+
+    以稳定档位周围的迟滞规则划分有界亲近度。
+    """
     value = float(affinity)
     certainty = float(confidence)
     if not math.isfinite(value) or not math.isfinite(certainty):
@@ -108,7 +128,10 @@ def snapshot_from_payload(
     artifact_id: str,
     revision: int,
 ) -> RelationshipSnapshot:
-    """Build a validated runtime snapshot from an Artifact payload."""
+    """Validate an Artifact payload and construct a runtime relationship snapshot.
+
+    校验 Artifact 内容并构造运行时关系快照。
+    """
     if not isinstance(payload, Mapping):
         raise ValueError("relationship payload must be a mapping")
     affinity = _finite(payload.get("affinity"), -1.0, 1.0, "affinity")

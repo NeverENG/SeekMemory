@@ -1,17 +1,6 @@
-"""把可信的人格文件写入唯一的人格链（一次性 bootstrap）。
+"""Read authored persona JSON and initialize the single persona chain; dry-run validates without storage. Own and close the opened Store; never create Sources. Exit 0 on success, 1 on invalid input/write failure and 2 on invalid arguments.
 
-用法（在插件根目录或容器内执行）：
-
-    python scripts/bootstrap_persona.py --db <memory.db> --file <persona.json>
-
-它只做管理侧的一次写入：不创建 Source、不触发抽取、不写第二份人格存储。
-人格内容由 persona seed 文件提供；格式、校验和演化方式见 `docs/zh/guides/persona-seed.md`；写入后由召回
-常驻层每轮注入，Dream 之后在同一人格链上做增量修订。
-
-退出码：
-    0  写入成功（或 --dry-run 校验通过）
-    1  文件无效或写入失败
-    2  参数错误
+读取人工人格 JSON 并初始化唯一人格链，试运行只校验不访问存储。拥有并关闭打开的 Store，不创建 Source。成功退出 0，输入或写入失败退出 1，参数错误退出 2。
 """
 
 from __future__ import annotations
@@ -45,7 +34,10 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """读取人格文件并写入当前人格链，返回进程退出码。"""
+    """Read persona input, optionally commit through ManagementService and always close owned storage.
+
+    读取人格输入，可通过 ManagementService 提交，并始终关闭自有存储。
+    """
     args = _parser().parse_args(argv)
     seed_path = Path(args.file)
     if not seed_path.is_file():

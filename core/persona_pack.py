@@ -1,4 +1,7 @@
-"""Portable pack envelope; only its canonical seed enters persona bootstrap."""
+"""Normalize portable persona envelopes in memory; only the canonical seed becomes persona configuration.
+
+在内存中整理可移植人格包，只有标准设定成为人格配置。
+"""
 from __future__ import annotations
 
 import base64
@@ -14,7 +17,10 @@ MAX_SEED_BYTES = 65536
 
 
 def normalize_pack(raw: object) -> dict:
-    """Accept a legacy seed or a versioned pack without expanding seed fields."""
+    """Accept a legacy seed or a versioned pack without expanding seed fields; invalid input raises ValueError.
+
+    接受旧设定或带版本人格包，不扩展设定字段，无效输入抛出 ValueError。
+    """
     if not isinstance(raw, dict):
         raise ValueError("人格包必须是 JSON 对象")
     is_pack = "format" in raw

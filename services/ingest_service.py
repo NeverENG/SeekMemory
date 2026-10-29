@@ -129,6 +129,10 @@ class IngestService:
     def _response_usage(response: Any) -> tuple[int, int, int]:
         """Normalize either supported provider usage shape / 规范化两种受支持的供应商用量结构。"""
         def number(value: Any) -> int:
+            """Normalize the existing nonnegative provider usage value.
+
+            整理既有非负提供方用量值。
+            """
             try:
                 return max(0, int(value or 0))
             except (TypeError, ValueError):

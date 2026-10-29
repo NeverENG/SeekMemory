@@ -1,4 +1,7 @@
-"""persona family：人格沉淀文本的校验。"""
+"""Validate persona payloads without I/O or disclosure decisions.
+
+校验 persona 内容，不执行读写或披露决策。
+"""
 
 from __future__ import annotations
 
@@ -6,7 +9,10 @@ from typing import Any
 
 
 def validate(payload: dict[str, Any]) -> None:
-    """校验一条 persona：只要有非空 text。"""
+    """Require nonempty persona text.
+
+    要求非空人格文本。
+    """
     if "text" not in payload:
         raise ValueError("persona 缺少必填字段：text")
     text = payload["text"]

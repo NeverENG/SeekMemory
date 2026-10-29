@@ -1,4 +1,7 @@
-"""example family：对话语料样本的校验。"""
+"""Validate example payloads without I/O or disclosure decisions.
+
+校验 example 内容，不执行读写或披露决策。
+"""
 
 from __future__ import annotations
 
@@ -15,7 +18,10 @@ def _need(payload: dict[str, Any], key: str) -> str:
 
 
 def validate(payload: dict[str, Any]) -> None:
-    """校验一条 example：一轮 user/assistant 对话，可选 tags。"""
+    """Validate one user/assistant style example with optional tags.
+
+    校验一组用户及助手风格样例，标签可选。
+    """
     _need(payload, "user")
     _need(payload, "assistant")
     tags = payload.get("tags")

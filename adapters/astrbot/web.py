@@ -1,4 +1,7 @@
-"""将经过认证的管理请求适配到 AstrBot 桥接接口。"""
+"""Adapt authenticated management requests to AstrBot; this instance owns its routes.
+
+将经过认证的管理请求适配到 AstrBot，当前实例拥有其注册路由。
+"""
 
 from __future__ import annotations
 
@@ -11,13 +14,16 @@ if TYPE_CHECKING:
 
 
 class WebRoutes:
-    """管理当前插件实例注册的路由。"""
+    """Own routes registered for one plugin instance; preserve replacement routes.
+
+    管理一个插件实例注册的路由，保留后续替代路由。
+    """
 
     def __init__(self, plugin: Main) -> None:
         self.plugin = plugin
 
     def register(self) -> None:
-        """宿主支持插件 Web API 时，注册原生接口处理器。"""
+        """Register native routes when the host supports plugin Web APIs / 宿主支持插件 Web API 时注册原生路由。"""
         try:
             import astrbot.api.web  # noqa: F401
         except ImportError:
@@ -31,15 +37,17 @@ class WebRoutes:
         )
 
     def close(self) -> None:
-        """仅移除仍由当前实例持有的路由，保留后续实例的替代路由。"""
+        """Remove only routes still owned by this instance, preserving later replacements.
+
+        仅移除仍归当前实例所有的路由，保留后续替代。
+        """
         routes = self.plugin.context.registered_web_apis
         routes[:] = [route for route in routes if route[1] != self.handle]
 
     async def _status(self) -> dict:
-        """汇总引擎、模型、任务与配置状态，不发送模型请求。
+        """Summarize engine, provider, task and configuration state without model calls; provider lookup failures affect only their checks.
 
-        Returns:
-            状态接口的数据；模型查询失败仅影响对应检查项。
+        汇总引擎、提供方、任务及配置状态，不调用模型，提供方查询失败仅影响对应检查项。
         """
         plugin = self.plugin
 
@@ -151,13 +159,9 @@ class WebRoutes:
         }
 
     async def handle(self, action: str):
-        """分发经过认证的管理操作。
+        """Dispatch an explicitly supported authenticated operation and return native JSON with bounded diagnostics or an error.
 
-        Args:
-            action: 明确支持的管理接口操作。
-
-        Returns:
-            宿主原生 JSON 响应，包含有界诊断信息或错误。
+        分发明确支持的已认证操作，返回包含有界诊断或错误的宿主原生 JSON。
         """
         from astrbot.api.web import error_response, json_response, request
 

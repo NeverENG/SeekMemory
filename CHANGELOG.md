@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 完成后端及脚本英文在前的等义中文职责说明，修正命中、人格副本及秘密披露旧注释；同步最终模块能力、资源归属、恢复边界和验证入口，并说明保留较长编排文件的理由。纯注释修改校验非说明语法树一致。
+
 - 离线脚本明确资源归属：人格写入总会关闭数据库，快照在完整备份并关闭连接后原子替换且失败保留旧文件，运行服务启动信息保存失败也关闭端口。规模及消融普通报告改用独立忽略目录，不覆盖历史。
 
 - 纠正离线跑分口径：分开候选/最终命中、无答案误召回、含无答案题的噪声和字数；样本权重不再称为强化，旧人格综合分不作验收。固定语料、时钟、编号和基线，完整管线验证隐私，退化命令返回非零，普通输出不覆盖历史报告。
@@ -45,6 +47,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Complete English-first equivalent Chinese responsibility notes for backend and script entries; correct old hit/persona-copy/secret-disclosure descriptions. Align module capabilities, resource ownership, recovery limits and verification maps, documenting coherent long orchestrators. Comment-only edits preserve the non-docstring AST.
 
 - Clarify offline-script resource ownership: persona writes always close storage; snapshots close connections before atomic publication and preserve old backups on failure; endpoint-metadata failures close the listener. Ordinary scale/ablation reports use independent ignored directories without replacing history.
 

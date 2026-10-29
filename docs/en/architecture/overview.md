@@ -12,14 +12,18 @@ These fields are not interchangeable: subject_id identifies who a conclusion is 
 
 ## Runtime layers
 
-    AstrBot events and plugin lifecycle
-      → adapters/: translate host events and provide host capabilities
-      → services/: orchestrate access, extraction, recall, maintenance, capacity, and management use cases
-      → app/: shared DTOs, ports, budgets, and runtime policies
-      → core/: domain objects and policies for sources, artifacts, versions, disclosure, relations, and capacity
-      ↔ perceive/, recall/, maintain/: extraction, read, and maintenance policies
-      ↔ store/: SQLite repositories, cache, and persistence boundary
-      → webui/ + dashboard/: management API, host bridge, and frontend
+| Module | Provided capabilities | Required capabilities and resource ownership |
+|---|---|---|
+| adapters | Host events, sending, models and time conversion | Construct services/Store and close owned resources; host SDK stays at the edge |
+| services | Access, ingestion, recall, maintenance, management and background use cases | Borrow app ports and combine business modules without SQL; each use case owns its unfinished plan |
+| app | Shared data, protocols, nightly/runtime orchestration | Borrow injected capabilities; one shared owner repairs committed-ID cache work |
+| core | Source, Artifact, versions and pure policy | No app/database/SDK imports; Graph borrows a store port, with existing clock/threshold reads preserved |
+| perceive | Message views, response parsing and extraction plans | Borrow Source/queue ports; legacy file adapters own paths, plans do not commit memory |
+| recall | Query, disclosure, assembly and explicit context recording | Queries do not write memory; recording owns pending progress, legacy build retains compatible side effects |
+| maintain | Evidence analysis, revision plans and maintenance writes | Separate pure rules from I/O; resume prepared plans without recreating committed interpretations |
+| store | SQLite repositories, cache and persistence | Store owns one connection and repositories borrow it; SQL/transactions remain here |
+
+Each module exposes provided capabilities through domain.py and required capabilities through ports.py; supported legacy implementation entries remain. Python management services are included; webui/dashboard/DSH structure retains its existing owners.
 
 The dependency direction is enforced by code boundaries: core does not depend on the host or storage; SQL belongs in store; AstrBot types stay in adapters and the host route layer; services compose business modules without issuing SQL.
 
@@ -38,7 +42,7 @@ The dependency direction is enforced by code boundaries: core does not depend on
 3. Pure time questions and non-memory intents do not start normal retrieval. Other queries are ranked by GraphRetriever or HybridRetriever, then pass an evidence gate and a bounded assembly budget. HybridRetriever combines graph activation with local BM25 lexical signals and makes no model or network call.
 4. When recall is sparse and the query has memory intent, a bounded recent Source query may run. Source IDs are used to find active Artifacts with evidence on their current revision. Source text is never copied into the prompt, diagnostic summary, log, or assembled block.
 5. Candidates pass a shared disclosure decision before assembly. Disclosure combines session context, subject fit, scope, sensitivity, and query relevance; it yields full text, a fixed paraphrase, a fixed hint, or silence. Designated delivery separately requires a private chat, a trigger match, and an unused delivery state.
-6. The assembler orders persona, impressions, scenes/details/facts, and other content within a character budget. It returns the Artifact IDs that actually reached the final block. Reinforcement is queued only after a successful response.
+6. The assembler orders persona, impressions, scenes/details/facts, and other content within a character budget. It returns the Artifact IDs that actually reached the final block. Designated recording happens explicitly when its body enters model context; ordinary host response callbacks queue reinforcement from actually referenced IDs. Querying alone performs neither write.
 
 ## Data and side-effect boundaries
 
@@ -52,3 +56,14 @@ The dependency direction is enforced by code boundaries: core does not depend on
 ## Current implementation boundaries
 
 This overview describes current code, not unimplemented proposals. Retrieval uses graph activation and optional BM25; there is no local vector search. maintain/reflect.py provides pure rule signals but has no production caller. The Agent Runtime gate is disabled by default; when enabled, the deferred ambient reply path does not run the full AstrBot tool loop. See the [module design pages](modules/core.md).
+
+## Why coherent long files remain
+
+| File | Coherent responsibility and verification |
+|---|---|
+| `services/ingest_service.py` | One use case owns model calls, exact plans and stage recovery; pure batching/budget and state are separate. Ingestion/recovery integration scenarios protect ordering. |
+| `adapters/astrbot/plugin.py`, `hooks.py` | Resource composition/lifecycle and finite host callbacks; registration and mapping are separate. Independent host lifecycle/hook contracts protect them. |
+| `app/runtime/recorder.py`, `dispatch.py` | Source/projection/reinforcement/audit stages and two background delivery paths; retain one progress owner and path-specific retries. Runtime writeback/recovery scenarios protect them. |
+| `store/artifacts.py`, `perceive/buffer.py` | One transaction aggregate and one pending-view owner; serialization/SQL/files/rules are separate while complete commit/publication ordering remains local. Storage/queue failure tests protect it. |
+
+Do not split these into forwarding layers merely to reduce line counts. Interfaces, rules, state and effects have explicit owners; split further only when another independently describable responsibility appears.

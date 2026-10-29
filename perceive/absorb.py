@@ -165,6 +165,10 @@ def build_plan(
     )
 
     def boundary_of(item: dict) -> str:
+        """Resolve the existing deduplication boundary for one prepared item.
+
+        解析一条准备内容的既有去重范围。
+        """
         base = _boundary(scope, _subject_id(item, owner, default_subject, owner_id))
         if is_behavior(item):
             return behavior_boundary(base, behavior_of(item), evidence_ids(item))

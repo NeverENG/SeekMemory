@@ -1,3 +1,7 @@
+"""Compute disclosure from supplied context and fixed policy; no storage or authorization side effects.
+
+根据给定上下文及固定策略计算披露，不读写存储或产生授权副作用。
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -32,6 +36,10 @@ _OTHER_SUBJECT_FIT = 0.35
 
 
 class DisclosureLevel(str, Enum):
+    """Define full text, paraphrase, hint and silence vocabulary.
+
+    定义全文、改述、提示及静默词表。
+    """
     FULL = "full"
     PARAPHRASE = "paraphrase"
     HINT = "hint"
@@ -40,6 +48,10 @@ class DisclosureLevel(str, Enum):
 
 @dataclass(frozen=True)
 class RecallScene:
+    """Describe the current session, speaker, owner and present audience.
+
+    描述当前会话、发言人、所有者及在场人员。
+    """
     session_id: str
     speaker_id: str
     owner_id: str = ""
@@ -48,19 +60,29 @@ class RecallScene:
 
 @dataclass(frozen=True)
 class DisclosureDecision:
+    """Carry the disclosure level, bounded score and fixed reason.
+
+    携带披露级别、有界分数及固定原因。
+    """
     level: DisclosureLevel
     score: float
     reason: str
 
 
 def scope_prior(art: Artifact) -> float:
-    """Return the continuous disclosure prior for a memory scope."""
+    """Return the continuous disclosure prior for the memory scope.
+
+    返回记忆可见范围的连续披露先验。
+    """
     scope = str(art.header.scope or "private")
     return _SCOPE_PRIOR.get(scope, _DEFAULT_SCOPE_PRIOR)
 
 
 def sensitivity_of(art: Artifact) -> float:
-    """Legacy sensitivity helper retained for secret/shadow compatibility."""
+    """Return the existing secret/shadow sensitivity factor.
+
+    返回既有秘密及影子内容敏感系数。
+    """
     if art.header.family == "secret":
         return 1.0
     scope = str(art.header.scope or "private")
@@ -69,10 +91,9 @@ def sensitivity_of(art: Artifact) -> float:
 
 def context_affinity(art: Artifact, scene: RecallScene,
                      origin_sessions: Iterable[str] = ()) -> float:
-    """How strongly this memory belongs to the current context.
+    """Score session and subject affinity; origin is a bonus rather than a hard visibility gate.
 
-    Session origin is a bonus, not a gate. A private memory can still reach a
-    different conversation when its subject is the current speaker.
+    计算会话及主体关联度，来源是加分项而非可见性硬门槛。
     """
     origins = {str(x) for x in origin_sessions if x}
     if scene.session_id and scene.session_id in origins:
@@ -87,11 +108,18 @@ def context_affinity(art: Artifact, scene: RecallScene,
 
 def audience_overlap(art: Artifact, scene: RecallScene,
                      origin_sessions: Iterable[str] = ()) -> float:
-    """Backward-compatible alias for the continuous context factor."""
+    """Keep the legacy alias for continuous context affinity.
+
+    保留连续上下文关联度的旧别名。
+    """
     return context_affinity(art, scene, origin_sessions)
 
 
 def subject_fit(art: Artifact, scene: RecallScene) -> float:
+    """Score subject and sharing fit for the supplied audience.
+
+    为给定受众计算主体及分享匹配度。
+    """
     shareable = str(art.header.shareable or "")
     scope = str(art.header.scope or "")
     if shareable == "public":
@@ -110,6 +138,10 @@ def subject_fit(art: Artifact, scene: RecallScene) -> float:
 
 def exposure(art: Artifact, scene: RecallScene, relevance: float,
              origin_sessions: Iterable[str] = ()) -> float:
+    """Combine context, subject, scope, sensitivity and relevance into a bounded score.
+
+    将上下文、主体、范围、敏感度及相关度组合为有界分数。
+    """
     topic = max(0.0, min(1.0, float(relevance)))
     score = context_affinity(art, scene, origin_sessions)
     score *= subject_fit(art, scene)
@@ -121,6 +153,10 @@ def exposure(art: Artifact, scene: RecallScene, relevance: float,
 
 def decide(art: Artifact, scene: RecallScene, relevance: float,
            origin_sessions: Iterable[str] = ()) -> DisclosureDecision:
+    """Choose full, paraphrase, hint or silence using existing thresholds.
+
+    按既有阈值选择全文、改述、提示或静默。
+    """
     score = exposure(art, scene, relevance, origin_sessions)
     if score >= FULL_MIN:
         return DisclosureDecision(DisclosureLevel.FULL, score, "high exposure")
@@ -132,6 +168,10 @@ def decide(art: Artifact, scene: RecallScene, relevance: float,
 
 
 def safe_text(art: Artifact, level: DisclosureLevel) -> str:
+    """Return original text only for full disclosure; other levels use fixed text or silence.
+
+    只有全文披露返回原文，其余级别使用固定文本或静默。
+    """
     if level == DisclosureLevel.SILENCE:
         return ""
     if level == DisclosureLevel.HINT:

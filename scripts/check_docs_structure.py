@@ -1,3 +1,7 @@
+"""Read navigation and mirrored Markdown links without modifying documents.
+
+读取导航及镜像 Markdown 链接，不修改文档。
+"""
 from __future__ import annotations
 import re
 import sys
@@ -16,10 +20,18 @@ CONFIG = ROOT / "mkdocs.yml"
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 
 def fail(message: str) -> None:
+    """Print a failure and stop with nonzero status.
+
+    输出失败并以非零状态停止。
+    """
     print(f"FAIL: {message}")
     raise SystemExit(1)
 
 def nav_paths(value):
+    """Yield document paths from the existing nested navigation format.
+
+    从既有嵌套导航格式产生文档路径。
+    """
     if isinstance(value, str):
         yield value
         return
@@ -35,6 +47,10 @@ def nav_paths(value):
                 yield from nav_paths(item)
 
 def check_links(files: list[Path]) -> None:
+    """Reject missing local Markdown targets while leaving external links untouched.
+
+    拒绝缺少的本地 Markdown 目标，保留外部链接。
+    """
     for path in files:
         text = path.read_text(encoding="utf-8")
         for match in LINK_RE.finditer(text):
@@ -50,6 +66,10 @@ def check_links(files: list[Path]) -> None:
                 fail(f"broken link in {path.relative_to(ROOT)}: {raw}")
 
 def main() -> int:
+    """Validate navigation, mirrored page sets and relative Markdown links.
+
+    校验导航、镜像页面集合及相对 Markdown 链接。
+    """
     if not CONFIG.is_file():
         fail("mkdocs.yml is missing")
     if not DOCS.is_dir():

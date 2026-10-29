@@ -1,4 +1,7 @@
-"""secret family：被动听到的秘密——只留影子，不存正文。"""
+"""Validate secret payloads without I/O or disclosure decisions.
+
+校验 secret 内容，不执行读写或披露决策。
+"""
 
 from __future__ import annotations
 
@@ -15,7 +18,10 @@ def _need(payload: dict[str, Any], key: str) -> str:
 
 
 def validate(payload: dict[str, Any]) -> None:
-    """校验一条 secret：ref 指向内容，shadow_text 是可全局注入的影子句。"""
+    """Validate the secret reference and shadow text; recall excludes the secret family.
+
+    校验秘密引用及影子文本，召回排除 secret 类别。
+    """
     _need(payload, "ref")
     _need(payload, "shadow_text")
     hint = payload.get("hint")

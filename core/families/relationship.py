@@ -1,4 +1,7 @@
-"""Relationship Artifact payload validation."""
+"""Validate relationship payloads without I/O or disclosure decisions.
+
+校验 relationship 内容，不执行读写或披露决策。
+"""
 
 from __future__ import annotations
 
@@ -25,7 +28,10 @@ def _number(payload: dict[str, Any], key: str, low: float, high: float) -> float
 
 
 def validate(payload: dict[str, Any]) -> None:
-    """Reject malformed or unbounded relationship snapshots."""
+    """Reject malformed or unbounded relationship snapshots.
+
+    拒绝形状错误或越界的关系快照。
+    """
     _number(payload, "affinity", -1.0, 1.0)
     _number(payload, "confidence", 0.0, 1.0)
     count = payload.get("evidence_count")

@@ -1,3 +1,7 @@
+"""Validate sequential Artifact revisions and describe state events without persistence.
+
+校验连续 Artifact 版本并描述状态事件，不执行保存。
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -10,11 +14,19 @@ CHECKPOINT_OPS = ("reinforce", "deliver", "promote")
 
 
 class VersionError(ValueError):
+    """Report identity, sequence or version invariant violations.
+
+    报告编号、顺序或版本不变量违规。
+    """
     pass
 
 
 @dataclass(frozen=True)
 class StateEvent:
+    """Describe an observed revision and an operation delta for atomic commit.
+
+    描述已观察版本及用于原子提交的操作增量。
+    """
     id: str
     entity_id: str
     revision_seen: int
@@ -23,6 +35,10 @@ class StateEvent:
     at: str = ""
 
     def validate(self) -> None:
+        """Validate event identity, observed revision and dictionary delta.
+
+        校验事件编号、已观察版本及字典增量。
+        """
         if not self.id or not self.entity_id:
             raise ValueError("state event needs id and entity_id")
         if self.revision_seen < 1:
@@ -32,6 +48,10 @@ class StateEvent:
 
 
 def assert_next_revision(previous: Artifact | None, current: Artifact) -> None:
+    """Require stable identity/family/creation time and the exact next revision; raise VersionError on mismatch.
+
+    要求编号、类别及创建时间稳定且版本恰好连续，不符则抛出 VersionError。
+    """
     if current.header.revision < 1:
         raise VersionError("revision must start at 1")
     if previous is None:
@@ -50,6 +70,10 @@ def assert_next_revision(previous: Artifact | None, current: Artifact) -> None:
 
 
 def is_semantic_change(previous: Artifact | None, current: Artifact) -> bool:
+    """Compare payload and semantic header fields without counting strength-only changes.
+
+    比较内容及语义头字段，不将纯强度变化计入。
+    """
     if previous is None:
         return True
     if previous.payload != current.payload:

@@ -1,4 +1,7 @@
-"""designated family：「帮我记一下」的指定记忆校验。"""
+"""Validate designated payloads without I/O or disclosure decisions.
+
+校验 designated 内容，不执行读写或披露决策。
+"""
 
 from __future__ import annotations
 
@@ -15,9 +18,9 @@ def _need(payload: dict[str, Any], key: str) -> str:
 
 
 def validate(payload: dict[str, Any]) -> None:
-    """校验一条 designated：text 是内容，trigger 是取回时必须触发的词。
+    """Validate designated text/trigger only; private-session delivery is checked by callers.
 
-    取回还要求私聊场景，由上层权限模块负责，不在这里校验。
+    仅校验指定内容及触发词，私聊交付由调用方检查。
     """
     _need(payload, "text")
     _need(payload, "trigger")

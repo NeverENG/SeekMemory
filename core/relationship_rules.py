@@ -1,4 +1,7 @@
-"""Pure, versioned rules for relationship evidence consolidation."""
+"""Prepare versioned relationship evidence plans without reading or writing resources.
+
+准备带版本的关系证据计划，不读写资源。
+"""
 
 from __future__ import annotations
 
@@ -19,6 +22,10 @@ _CONFIDENCE_PRIOR_COUNT = 2.0
 
 
 class RelationshipSignal(str, Enum):
+    """Define derived relationship signal categories.
+
+    定义派生关系信号类别。
+    """
     POSITIVE = "positive"
     NEGATIVE = "negative"
     REPAIR = "repair"
@@ -26,6 +33,10 @@ class RelationshipSignal(str, Enum):
 
 
 class RelationshipReason(str, Enum):
+    """Define the supported categorical evidence reasons.
+
+    定义受支持的分类证据原因。
+    """
     FRIENDLY_GREETING = "friendly_greeting"
     GRATITUDE = "gratitude"
     CARE = "care"
@@ -39,11 +50,19 @@ class RelationshipReason(str, Enum):
 
 
 class RelationshipStrength(str, Enum):
+    """Define mild and strong evidence categories.
+
+    定义轻度及强烈证据类别。
+    """
     MILD = "mild"
     STRONG = "strong"
 
 
 class ConversationScope(str, Enum):
+    """Define private, group and unknown observation scopes.
+
+    定义私聊、群聊及未知观察范围。
+    """
     PRIVATE = "private"
     GROUP = "group"
     UNKNOWN = "unknown"
@@ -51,6 +70,10 @@ class ConversationScope(str, Enum):
 
 @dataclass(frozen=True)
 class EvidenceRule:
+    """Describe target affinity and per-cycle caps for an evidence category.
+
+    描述证据类别的目标亲近度及每轮上限。
+    """
     signal: RelationshipSignal
     mild_target: float
     strong_target: float
@@ -92,6 +115,10 @@ EVIDENCE_RULES: dict[RelationshipReason, EvidenceRule] = {
 
 @dataclass(frozen=True)
 class RelationshipObservation:
+    """Carry one categorical observation with explicit Artifact and Source evidence.
+
+    携带一条有明确 Artifact 和 Source 证据的分类观察。
+    """
     artifact_id: str
     subject_id: str
     reason: RelationshipReason
@@ -103,7 +130,10 @@ class RelationshipObservation:
 
 @dataclass(frozen=True)
 class RelationshipScoringPolicy:
-    """Resolved scoring settings; configuration parsing belongs outside core."""
+    """Hold resolved scoring settings; parse configuration outside core.
+
+    保存已解析评分设置，在 core 外解析配置。
+    """
 
     version: str = RELATIONSHIP_POLICY_VERSION
     learning_rate: float = 0.25
@@ -133,6 +163,10 @@ class RelationshipScoringPolicy:
 
 @dataclass(frozen=True)
 class ScoredRelationshipEvidence:
+    """Carry the derived signal, weighted target and evidence references.
+
+    携带派生信号、加权目标及证据引用。
+    """
     observation: RelationshipObservation
     signal: RelationshipSignal
     effective_target: float
@@ -140,6 +174,10 @@ class ScoredRelationshipEvidence:
 
 @dataclass(frozen=True)
 class RelationshipRevisionPlan:
+    """Describe one bounded relationship revision and reviewed evidence; no persistence.
+
+    描述一次有界关系修订及已审证据，不执行保存。
+    """
     target: float
     delta: float
     affinity: float
@@ -155,7 +193,10 @@ def score_observation(
     observation: RelationshipObservation,
     policy: RelationshipScoringPolicy = RelationshipScoringPolicy(),
 ) -> ScoredRelationshipEvidence:
-    """Derive signal and scope-weighted target from one categorical observation."""
+    """Derive a signal and scope-weighted target from one categorical observation.
+
+    根据一条分类观察推导信号及范围加权目标。
+    """
     try:
         reason = RelationshipReason(observation.reason)
         strength = RelationshipStrength(observation.strength)
@@ -202,7 +243,10 @@ def plan_relationship_revision(
     previously_reviewed_artifact_ids: Iterable[str] = (),
     created_by_artifact_id: Mapping[str, str] | None = None,
 ) -> RelationshipRevisionPlan | None:
-    """Plan one bounded revision from fresh valid evidence, consuming capped rows."""
+    """Plan one bounded revision from fresh valid evidence, accounting for capped reviewed rows.
+
+    根据新鲜有效证据计划一次有界修订，并计入达到上限的已审行。
+    """
     previously_reviewed = {
         str(value) for value in previously_reviewed_artifact_ids if str(value)
     }

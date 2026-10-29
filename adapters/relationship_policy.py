@@ -130,6 +130,10 @@ def settings_from_config(
         mode = "observe"
 
     def probability(key: str, default: float) -> float:
+        """Read and bound a configured probability with the existing fallback.
+
+        读取并限制配置概率，保留既有回退。
+        """
         invalid = False
         try:
             value = float(config(key, default))

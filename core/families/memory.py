@@ -1,7 +1,6 @@
-"""memory family：统一记忆 payload 的校验。
+"""Validate memory payloads without I/O or disclosure decisions.
 
-必填 text / level；level 限定四级：fact / scene / detail / impression。
-shape / chrono / about 若出现，必须落在设计文档的取值域内。
+校验 memory 内容，不执行读写或披露决策。
 """
 
 from __future__ import annotations
@@ -24,7 +23,10 @@ def _need(payload: dict[str, Any], key: str) -> str:
 
 
 def validate(payload: dict[str, Any]) -> None:
-    """校验一条 memory 的 payload，不合格抛 ValueError。"""
+    """Validate memory text, level and supported optional fields; invalid payload raises ValueError.
+
+    校验记忆文本、层级及受支持可选字段，无效内容抛出 ValueError。
+    """
     _need(payload, "text")
     level = _need(payload, "level")
     if level not in LEVELS:

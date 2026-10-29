@@ -1,4 +1,7 @@
-"""Migrate legacy pending.json rows into immutable Source and extraction_state."""
+"""Migrate an explicitly supplied legacy queue into Source/extraction state; own and close storage.
+
+将明确给定的旧队列迁入 Source 及抽取状态，拥有并关闭存储。
+"""
 
 from __future__ import annotations
 
@@ -14,6 +17,10 @@ from store import open_store  # noqa: E402
 
 
 def main() -> int:
+    """Delegate the existing queue migration and report migrated/pending counts.
+
+    委托既有队列迁移，报告已迁移及待处理数量。
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", required=True, help="SeekMemory SQLite database path")
     parser.add_argument("--pending", required=True, help="Legacy pending.json path")

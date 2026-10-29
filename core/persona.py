@@ -1,9 +1,6 @@
-"""Persona file schema and pure helpers for one-time persona bootstrap.
+"""Validate authored persona configuration and prepare the single persona chain payload; no file or storage I/O. Authored examples are configuration, never fabricated chat evidence.
 
-A persona file is authored content for the single active persona chain.  It is
-not a Source and it is not chat evidence.  The bootstrap helper only converts a
-validated file into the payload of the initial persona Artifact.  Recall and
-trust decisions stay in their existing owners.
+校验人工人格配置并准备唯一人格链内容，不读写文件或存储。人工样例是配置，不是伪造的聊天证据。
 """
 from __future__ import annotations
 
@@ -56,10 +53,9 @@ def _json_object(value: object, field: str, *, maximum: int) -> dict[str, Any]:
 
 
 def _corpus(value: object) -> list[dict[str, str]]:
-    """Validate the authored style corpus.
+    """Validate authored dialogue-style examples as configuration, without creating Sources.
 
-    Corpus entries are dialogue style samples.  They are configuration, not
-    chat evidence, and are never turned into Source rows.
+    将人工对话风格样例作为配置校验，不创建 Source。
     """
     if value is None:
         return []
@@ -120,10 +116,9 @@ def _strings(value: object, field: str, *, maximum: int, item_maximum: int) -> l
 
 
 def normalize_persona_file(raw: object) -> dict[str, Any]:
-    """Validate a persona file and return its normalized, immutable data.
+    """Validate and copy normalized persona data; accept persona_text as the legacy alias of persona.
 
-    The public file uses ``persona`` for the core prompt text.  ``persona_text``
-    is accepted as a compatibility alias for the early seed-pack draft.
+    校验并复制整理后的人格数据，接受 persona_text 作为 persona 的旧别名。
     """
     if not isinstance(raw, dict):
         raise ValueError("persona 文件必须是 JSON 对象")
@@ -167,10 +162,9 @@ def normalize_persona_file(raw: object) -> dict[str, Any]:
 
 
 def persona_payload_from_file(raw: object) -> dict[str, Any]:
-    """Convert a validated persona file into the initial persona Artifact payload.
+    """Prepare initial persona payload with audit provenance and no fabricated Source links.
 
-    The payload carries provenance for audit and rollback, but no evidence ids:
-    seed content is authored configuration, not a fabricated chat event.
+    准备含审计来源的初始人格内容，不伪造 Source 引用。
     """
     seed = normalize_persona_file(raw)
     payload = {
@@ -197,7 +191,10 @@ def persona_payload_from_file(raw: object) -> dict[str, Any]:
 
 
 def compose_seed_evolution(base_text: str, behavior_text: str) -> str:
-    """Append one deterministic Dream trait sentence to a seed base text."""
+    """Append a deterministic Dream behavior sentence to the authored base text.
+
+    向人工基础文本追加确定的 Dream 行为句子。
+    """
     base = str(base_text or "").strip()
     trait = str(behavior_text or "").strip()
     if not base:
@@ -208,7 +205,10 @@ def compose_seed_evolution(base_text: str, behavior_text: str) -> str:
 
 
 def seed_evolution_matches(text: object, base_text: object, behavior_text: str) -> bool:
-    """Validate the deterministic text shape of a Dream revision over a seed."""
+    """Check the deterministic text shape of a Dream revision over an authored seed.
+
+    检查人工设定上的 Dream 修订是否符合确定文本形状。
+    """
     if not isinstance(text, str) or not isinstance(base_text, str):
         return False
     return text == compose_seed_evolution(base_text, behavior_text)

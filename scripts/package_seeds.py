@@ -1,4 +1,7 @@
-"""Validate the explicit, tracked persona catalogue before packaging."""
+"""Validate tracked authored persona files before packaging; no storage or model calls.
+
+打包前校验已跟踪人工人格文件，不调用存储或模型。
+"""
 from __future__ import annotations
 
 import json
@@ -7,6 +10,10 @@ from pathlib import Path
 
 
 def seed_files(root: Path, tracked: set[str]) -> set[str]:
+    """Return the approved tracked seed files; reject unsafe paths, formats or missing licenses.
+
+    返回认可的已跟踪设定文件，拒绝不安全路径、格式或缺少许可。
+    """
     import sys
     # Same repository validator used at runtime; no alternative seed schema.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))

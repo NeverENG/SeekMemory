@@ -1,4 +1,7 @@
-"""Pure capacity policy: turn usage snapshots into bounded scheduler decisions."""
+"""Compute capacity actions from supplied snapshots; only threshold loading reads the environment.
+
+根据给定快照计算容量动作，仅阈值加载读取环境变量。
+"""
 
 from __future__ import annotations
 
@@ -16,7 +19,10 @@ ENV_PREFIX = "SEEKMEMORY_CAPACITY_"
 
 @dataclass(frozen=True)
 class CapacityThresholds:
-    """Soft and hard limits for each governed resource pool."""
+    """Define soft and hard limits for each resource pool.
+
+    定义各资源池的软硬限额。
+    """
 
     pending_pressured_rows: int = 80
     pending_saturated_rows: int = 200
@@ -46,7 +52,10 @@ class CapacityThresholds:
 
 
 def _coerce(default: Any, raw: Any) -> Any:
-    """Coerce one raw override to the declared field type."""
+    """Convert an override to its declared field type.
+
+    将覆盖值转换为声明的字段类型。
+    """
     if isinstance(default, bool):
         if isinstance(raw, str):
             return raw.strip().lower() in {"1", "true", "yes", "on"}
@@ -63,11 +72,9 @@ def load_thresholds(
     *,
     env_prefix: str = ENV_PREFIX,
 ) -> CapacityThresholds:
-    """Build thresholds from defaults, environment variables and an override map.
+    """Resolve defaults, environment and mapping overrides in order; invalid values retain defaults. Environment keys use SEEKMEMORY_CAPACITY_<FIELD_NAME>.
 
-    Environment keys use ``SEEKMEMORY_CAPACITY_<FIELD_NAME>``; mapping keys use
-    the plain field name. Invalid overrides keep their default instead of
-    failing plugin start-up.
+    依次解析默认值、环境变量及映射覆盖，无效值保留默认值。环境变量使用 SEEKMEMORY_CAPACITY_<FIELD_NAME>。
     """
     base = CapacityThresholds()
     names = {field.name for field in fields(CapacityThresholds)}
@@ -90,7 +97,10 @@ def load_thresholds(
 
 @dataclass(frozen=True)
 class CapacitySnapshot:
-    """Current usage for Source, Pending, Artifact, Context and Trace pools."""
+    """Describe current Source, pending, Artifact, context and trace usage.
+
+    描述当前 Source、待处理、Artifact、上下文及追踪用量。
+    """
 
     source_rows: int = 0
     source_bytes: int = 0
@@ -109,7 +119,10 @@ class CapacitySnapshot:
 
 @dataclass(frozen=True)
 class CapacityDecision:
-    """Overall pressure level plus an ordered set of scheduler actions."""
+    """Return pressure and ordered scheduling actions without executing them.
+
+    返回压力及有序调度动作，不执行这些动作。
+    """
 
     state: str
     actions: tuple[str, ...]
@@ -118,13 +131,19 @@ class CapacityDecision:
 
 
 class CapacityGovernor:
-    """Evaluate capacity without I/O or side effects."""
+    """Evaluate capacity snapshots without I/O or resource ownership.
+
+    评估容量快照，不执行读写或拥有资源。
+    """
 
     def __init__(self, thresholds: CapacityThresholds | None = None) -> None:
         self.thresholds = thresholds or CapacityThresholds()
 
     def evaluate(self, snapshot: CapacitySnapshot) -> CapacityDecision:
-        """Return a deterministic decision for one capacity snapshot."""
+        """Return a deterministic decision for the supplied usage snapshot.
+
+        为给定用量快照返回确定性决策。
+        """
         limits = self.thresholds
         state = NORMAL
         reasons: list[str] = []

@@ -1,4 +1,7 @@
-"""Bounded static PNG validation, independent of filesystem and host libraries."""
+"""Validate bounded static PNG bytes without filesystem or host dependencies.
+
+校验有大小上限的静态 PNG 字节，不依赖文件系统或宿主。
+"""
 from __future__ import annotations
 
 import struct
@@ -9,7 +12,10 @@ PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 def validate_artwork(data: bytes) -> bytes:
-    """Validate a static, non-interlaced 8-bit PNG and strip ancillary metadata."""
+    """Validate static non-interlaced 8-bit PNG data and strip ancillary metadata.
+
+    校验静态非交错 8 位 PNG 数据并移除辅助元数据。
+    """
     if not 0 < len(data) <= MAX_ARTWORK_BYTES or not data.startswith(PNG_SIGNATURE):
         raise ValueError("封面必须是 2 MiB 以内的静态 PNG")
     position, width, height, color = 8, 0, 0, -1

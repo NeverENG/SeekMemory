@@ -19,6 +19,10 @@ class PendingFile:
         self.save_error = ""
 
     def read(self) -> dict:
+        """Read a legacy object; quarantine malformed input and expose its safe error type.
+
+        读取旧对象，将格式损坏输入隔离并提供安全错误类型。
+        """
         if not self.path or not os.path.exists(self.path):
             return {}
         try:
@@ -37,7 +41,10 @@ class PendingFile:
 
 
     def quarantine(self) -> None:
-        """Preserve a corrupt pending file instead of overwriting it on save."""
+        """Preserve corrupt input at a unique backup path; ordinary rename errors remain isolated.
+
+        将损坏输入保留到唯一备份路径，普通重命名错误保持隔离。
+        """
         if not self.path or not os.path.exists(self.path):
             return
         target = Path(self.path + ".corrupt")

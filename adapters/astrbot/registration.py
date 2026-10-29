@@ -9,6 +9,10 @@ from astrbot.api.event import filter
 def _register(main_module: str, name: str, decorator, component: str = "hooks"):
     """Build one callback with stable plugin module/name metadata / 构造具有稳定插件模块及名称元数据的一个回调。"""
     async def handler(self, *args, **kwargs):
+        """Forward the registered host callback to the supplied handler.
+
+        将已注册宿主回调转交给定处理函数。
+        """
         return await getattr(getattr(self, component), name)(*args, **kwargs)
 
     handler.__module__ = main_module
