@@ -198,6 +198,7 @@ class ExtractionStore(Protocol):
 
 # Console data sources / 控制台所需数据；no HTTP or UI types / 不含传输或界面类型。
 from .console_ports import (
+    DreamRunStore, # get/begin/finish/recent: daily run lifecycle / 每日整理生命周期。
     DreamJournal,  # recent: read recent daily runs / 读取近期夜间整理记录。
     PersonaPacks,  # catalog/read/save/remove: manage seed packs / 列出、读取、保存及删除人格包。
 )
@@ -223,6 +224,7 @@ from .runtime.recorder import (
 )
 from .runtime.episode import EpisodeSink  # append: persist one run record / 保存一条运行记录。
 from .runtime.tracing import TraceWriter  # append: write one diagnostic row / 写入一条诊断记录。
+from .runtime.contracts.ports import ActionRepository, EpisodeRepository, StateRepository
 
 # Daily-cycle callbacks / 夜间整理所需回调；the two clock shapes are deliberately distinct / 两种时钟返回值不同。
 from .dream import (
@@ -241,4 +243,5 @@ __all__ = [
     "ProactivePolicy", "SessionStateStore", "TraceSink", "TopicSource",
     "CheckpointSink", "EpisodeWriter", "PendingSink", "SourceSink", "EpisodeSink", "TraceWriter",
     "DreamClock", "FlushFn", "Log", "MaintainFn", "PendingFn", "UsageFn",
+    "DreamRunStore", "ActionRepository", "EpisodeRepository", "StateRepository",
 ]

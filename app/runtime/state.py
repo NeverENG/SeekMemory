@@ -10,6 +10,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .contracts import SessionState
+from .contracts.ports import StateRepository
 
 
 def session_state_from_payload(
@@ -107,7 +108,7 @@ class JsonStateStore:
 class RepoStateStore:
     """Persist SessionState through the project's runtime repository."""
 
-    def __init__(self, repository) -> None:
+    def __init__(self, repository: StateRepository) -> None:
         self.repository = repository
         self.last_error = ""
 

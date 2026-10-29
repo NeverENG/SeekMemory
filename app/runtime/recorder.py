@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass
-from typing import Any, Iterable, Protocol
+from typing import TYPE_CHECKING, Any, Iterable, Protocol
 from uuid import uuid4
 
 try:
@@ -12,6 +12,9 @@ try:
 except ImportError:  # top-level package import in scripts/tests
     from core.source import Source, make_source_id
 from .episode import EpisodeRecord, normalize_tool_calls, safe_error_code
+
+if TYPE_CHECKING:
+    from ..ports import ArtifactCache
 
 
 class SourceSink(Protocol):
@@ -64,7 +67,7 @@ class RunRecorder:
         buffer: PendingSink | None,
         checkpoint: CheckpointSink | None,
         episodes: EpisodeWriter | None,
-        cache: Any | None = None,
+        cache: ArtifactCache | None = None,
         clock=None,
     ) -> None:
         self.sources = sources

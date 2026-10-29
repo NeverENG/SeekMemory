@@ -14,6 +14,8 @@ import datetime
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Protocol
 
+from .console_ports import DreamRunStore
+
 
 class FlushFn(Protocol):
     async def __call__(
@@ -74,7 +76,7 @@ class DreamResult:
 class DreamCycle:
     """每天一次的进化周期；不持有模型与存储之外的状态。"""
 
-    def __init__(self, dreams: Any, conf: Callable[[str, Any], Any],
+    def __init__(self, dreams: DreamRunStore, conf: Callable[[str, Any], Any],
                  clock: Clock | None = None, log: Log | None = None) -> None:
         self.dreams = dreams
         self._c = conf

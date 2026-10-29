@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import time
 from dataclasses import replace
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .ports import ArtifactCache, ArtifactStore
 
 try:
     from ..core.artifact import Artifact, revise
@@ -14,7 +18,7 @@ MAX_WEIGHT = 3.0
 
 
 class CheckpointManager:
-    def __init__(self, artifacts, cache, interval: int = 1800,
+    def __init__(self, artifacts: ArtifactStore, cache: ArtifactCache, interval: int = 1800,
                  cooldown_seconds: int | None = None) -> None:
         self.artifacts = artifacts
         self.cache = cache

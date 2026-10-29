@@ -7,7 +7,7 @@ app 提供用例间共享的数据、外部能力声明和应用策略。目前�
 ## 两个接口入口
 
 - [app/domain.py](../../../../app/domain.py)：应用层提供什么。显式导出 79 个类型、函数和执行类；只做导出与说明，实现在原文件中。
-- [app/ports.py](../../../../app/ports.py)：调用方需要提供什么。显式列出 29 个协议及 5 个回调类型别名；只声明或导出，不实现读写。
+- [app/ports.py](../../../../app/ports.py)：调用方需要提供什么。显式列出 33 个协议及 5 个回调类型别名；只声明或导出，不实现读写。
 
 这是接口入口的集中整理，范围包括 app 顶层公开能力、运行时已有 `__all__` 及其他实际跨模块调用。原有导入路径保留，现有调用方尚未统一迁移；运行时数据与协议的原定义也暂未搬动。常量仍由所属策略文件维护，不把内部常量全部提升为应用接口。
 
@@ -90,7 +90,7 @@ app 提供用例间共享的数据、外部能力声明和应用策略。目前�
 | `EpisodeWriter`、`EpisodeSink` | `record`；`append` | 运行审计接收及存储，两个不同调用环节 |
 | `TraceSink`、`TraceWriter` | `record`；`append` | 诊断事件接收及行写入，不替代业务审计 |
 
-夜间整理使用六个具名回调：`FlushFn`（限量抽取）、`PendingFn`（待处理数量）、`MaintainFn`（维护）、`UsageFn`（累计模型用量）、`Log`（状态输出）、`DreamClock`（日期时间对象）。其中 `FlushFn` 是可调用协议，计入上述 29 个协议，其余五项是类型别名。`DreamClock` 是原 `app.dream.Clock` 的别名，与返回浮点秒数的运行时 `Clock` 不同。
+夜间整理使用六个具名回调：`FlushFn`（限量抽取）、`PendingFn`（待处理数量）、`MaintainFn`（维护）、`UsageFn`（累计模型用量）、`Log`（状态输出）、`DreamClock`（日期时间对象）。其中 `FlushFn` 是可调用协议，计入上述 33 个协议，其余五项是类型别名。`DreamClock` 是原 `app.dream.Clock` 的别名，与返回浮点秒数的运行时 `Clock` 不同。
 
 ### 接口相似不等于实现重复
 
@@ -142,3 +142,7 @@ ChatModel 是无会话状态的调用端口。app 的 budget、flush 和 wake/ti
 app 文件的显式导入关系中未发现循环；动态导入和实际运行行为仍需单独验证。接口入口的集中不改变上列实现位置与恢复责任。
 
 代码入口：[domain.py](../../../../app/domain.py)、[ports.py](../../../../app/ports.py)；运行时行为详见 [Agent Runtime](runtime.md)。
+
+## 完整依赖声明
+
+`DreamRunStore` 声明 `get/begin/finish/recent`，用于夜间整理的完整台账生命周期；控制台仍只要求 `DreamJournal.recent`。`StateRepository`、`EpisodeRepository`、`ActionRepository` 声明运行时转接所需的原始仓储能力，均由 `app.ports` 导出。Checkpoint 和 RunRecorder 的存储、缓存依赖已标注现有协议；这一步不改变实现或失败行为。

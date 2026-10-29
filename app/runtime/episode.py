@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .tools import ToolCall
+from .contracts.ports import EpisodeRepository
 
 
 _SAFE_ERROR_CODE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.:-]{0,63}$")
@@ -180,7 +181,7 @@ class JsonlEpisodeStore:
 class RepoEpisodeStore:
     """Persist runtime episodes through the project's runtime repository."""
 
-    def __init__(self, repository) -> None:
+    def __init__(self, repository: EpisodeRepository) -> None:
         self.repository = repository
         self.last_error = ""
 

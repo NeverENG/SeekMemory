@@ -47,3 +47,31 @@ class ModelGateway(Protocol):
 class MessageSender(Protocol):
     async def send(self, session_id: str, text: str) -> bool: ...
 
+
+class StateRepository(Protocol):
+    """Store raw session payloads; failures raise / 保存原始会话状态，失败抛异常。"""
+
+    def get(self, session_id: str) -> dict[str, Any]:
+        """Read a payload, or an empty map / 读取状态，不存在返回空映射。"""
+        ...
+
+    def put(self, session_id: str, payload: dict[str, Any]) -> None:
+        """Persist one payload before returning / 返回前保存一份状态。"""
+        ...
+
+
+class EpisodeRepository(Protocol):
+    """Append content-free run audit payloads / 追加不含正文的运行审计。"""
+
+    def append(self, episode: dict[str, Any]) -> str:
+        """Return the persisted ID; raise on failure / 返回保存的编号，失败抛异常。"""
+        ...
+
+
+class ActionRepository(Protocol):
+    """Append idempotent action transitions / 追加可去重的动作迁移记录。"""
+
+    def append_action(self, action: dict[str, Any]) -> bool:
+        """Return whether inserted; raise on failure / 返回是否新增，失败抛异常。"""
+        ...
+

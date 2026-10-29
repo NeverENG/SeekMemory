@@ -7,6 +7,7 @@ import math
 from dataclasses import replace
 
 from .contracts import ActionKind, ActionRecord, ActionSink, ActionStatus
+from .contracts.ports import ActionRepository
 from .episode import safe_error_code
 
 
@@ -108,7 +109,7 @@ class ActionLedger:
 class RepoActionSink:
     """Adapt the SQL-owned runtime episode repository to the ActionSink port."""
 
-    def __init__(self, repository) -> None:
+    def __init__(self, repository: ActionRepository) -> None:
         self.repository = repository
 
     def append(self, record: ActionRecord) -> None:
