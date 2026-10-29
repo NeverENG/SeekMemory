@@ -182,6 +182,15 @@ class IngestWritebackTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.service.retry_writebacks(), 0)
         self.assertEqual(self.model.calls, 1)
 
+    async def test_broken_diagnostics_do_not_lose_successful_flush_counts(self):
+        with patch.object(self.service.journal, "span", side_effect=OSError("diagnostic unavailable")), \
+             patch.object(self.service.journal, "record", side_effect=OSError("diagnostic unavailable")), \
+             patch.object(self.service.logger, "info", side_effect=OSError("logger unavailable")):
+            self.assertEqual(await self.service.flush("test"), (2, 1))
+        self.assertEqual(self.buffer.items, [])
+        self.assertEqual(self.db.artifacts.count(), 2)
+        self.assertEqual(self.model.calls, 1)
+
     async def test_disabled_extraction_still_runs_compensation_and_shutdown_attempt(self):
         with patch.object(self.db.extraction, "mark_extraction_succeeded", side_effect=OSError("queue unavailable")):
             await self.service.extract(self.buffer.items, self.model, confirm_queue=True)

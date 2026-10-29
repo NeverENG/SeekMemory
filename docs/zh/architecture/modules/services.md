@@ -40,7 +40,10 @@ BackgroundService 管 nightly/idle/Dream/weekly/checkpoint/runtime worker 的启
 
 | 实现文件 | 职责及副作用 | 逻辑复杂度与耦合 |
 |---|---|---|
-| `ingest_service.py` | 话题选择、模型调用及有顺序的抽取写入 | 高：协调模型、持久提交、缓存及队列 |
+| `ingest_service.py` | 解析提供方、调用模型及协调有顺序的抽取写入 | 高：管理模型→计划→提交→后续写入的顺序，各阶段共享一份凭据而非各自维护状态 |
+| `ingest_selection.py` | 为已解析的话题分组并检查用量预算 | 低：纯规则，不调用提供方或仓储 |
+| `ingest_state.py` | 已准备计划及每条记忆的阶段进度 | 低：进程内数据，不拥有资源 |
+| `diagnostics.py` | 隔离普通诊断失败，保留业务异常及取消 | 低：仅包装诊断调用及测量 |
 | `maintenance_service.py` | 读取证据、调用模型及编排维护 | 高：协调多个写入流程，不实现 SQL |
 | `persona_policy.py` | 选择证据、规范化配置权重及构造版本 | 低至中：只处理给定数据的纯规则 |
 | `management_service.py` | 兼容的管理入口 | 低：委托明确的查询与命令 |

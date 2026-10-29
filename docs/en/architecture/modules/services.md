@@ -40,7 +40,10 @@ Entry points: [service_collection.py](../../../../services/service_collection.py
 
 | Implementation | Responsibility and effects | Logical complexity / coupling |
 |---|---|---|
-| `ingest_service.py` | Topic selection, model calls and ordered extraction writes | High: coordinates model, durable commits, cache and queue |
+| `ingest_service.py` | Resolve providers, invoke models and coordinate ordered extraction writes | High: owns the model → plan → commit → follow-up sequence; these stages share one receipt rather than independent state |
+| `ingest_selection.py` | Group resolved topics and check usage budgets | Low: pure rules, no provider or repository calls |
+| `ingest_state.py` | Prepared plans and per-memory stage progress | Low: process-local data; no resource ownership |
+| `diagnostics.py` | Contain ordinary diagnostic failures while preserving business exceptions/cancellation | Low: diagnostic calls and spans only |
 | `maintenance_service.py` | Evidence reads, model calls and ordered maintenance | High: coordinates several writers; no SQL |
 | `persona_policy.py` | Evidence selection, configured weight normalization and revision construction | Low/medium: pure rules over supplied data |
 | `management_service.py` | Compatible management entrypoints | Low: delegates explicit reads and commands |

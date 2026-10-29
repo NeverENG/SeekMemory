@@ -22,8 +22,21 @@ except ImportError:
     )
 
 Config = Callable[[str, Any], Any]
-ProviderFactory = Callable[[str | None], Awaitable[Any]]
 PersonaModelFactory = Callable[[], Awaitable[ChatModel]]
+
+
+class LegacyTextModel(Protocol):
+    """Existing provider call shape; responses are adapted by perceive.model.
+
+    现有提供方的文本调用形式，响应由 perceive.model 转换；实现由组装方提供。
+    """
+
+    async def text_chat(self, *, system_prompt: str, prompt: str) -> Any:
+        """Call the legacy provider; failures raise / 调用旧提供方，失败抛错。"""
+        ...
+
+
+ProviderFactory = Callable[[str | None], Awaitable[LegacyTextModel | None]]
 
 
 class PendingBuffer(Protocol):
@@ -119,6 +132,6 @@ class CapacityTrace(Protocol):
 __all__ = [
     "ArtifactCache", "ArtifactStore", "ChatModel", "DreamJournal", "ExtractionStore",
     "LedgerStore", "MetricsStore", "PersonaPacks", "SourceStore", "TreeArtifactStore", "TreeCache",
-    "Config", "ProviderFactory", "PersonaModelFactory", "PendingBuffer", "ServiceJournal",
+    "Config", "ProviderFactory", "PersonaModelFactory", "LegacyTextModel", "PendingBuffer", "ServiceJournal",
     "ServiceLogger", "BackgroundJobs", "CapacityTrace",
 ]
