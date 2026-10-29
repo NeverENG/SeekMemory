@@ -180,3 +180,5 @@ ChatModel 是无会话状态的调用端口。app 的 budget、flush 和 wake/ti
 - worker 配置回调仍是 Callable；宿主形状对象仍进入 tracing 和工具过滤，位置迁移留待后续。
 
 代码入口：[domain.py](../../../../app/domain.py)、[ports.py](../../../../app/ports.py)；运行时交付约束见 [Agent Runtime](runtime.md)。
+
+抽取回调可通过 `ExtractionFailure` 携带已完成的写入和话题数量。夜间整理将这些数量保留在失败结果与台账中；已准备写入的恢复仍由回调方负责。

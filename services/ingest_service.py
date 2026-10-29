@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import re
 from dataclasses import replace
@@ -14,7 +15,7 @@ from typing import Any, Awaitable, Callable
 
 try:
     from ..app.budget import estimate_tokens
-    from ..app.contracts import ChatRequest, DialogueTurn, WriteOutcome
+    from ..app.contracts import ChatRequest, DialogueTurn, WriteOutcome, ExtractionFailure
     from ..app.flush_policy import (
         chunk_turns,
         decide_flush,
@@ -39,7 +40,7 @@ try:
     from ..perceive.model import ProviderChatModel
 except ImportError:
     from app.budget import estimate_tokens
-    from app.contracts import ChatRequest, DialogueTurn, WriteOutcome
+    from app.contracts import ChatRequest, DialogueTurn, WriteOutcome, ExtractionFailure
     from app.flush_policy import (
         chunk_turns,
         decide_flush,
@@ -62,6 +63,9 @@ except ImportError:
         select_ranked_topics,
     )
     from perceive.model import ProviderChatModel
+
+
+from .ingest_state import PreparedExtraction
 
 
 class IngestService:
@@ -100,6 +104,10 @@ class IngestService:
         self._usage_in = 0
         self._usage_cached = 0
         self._usage_out = 0
+        self._prepared: dict[tuple[DialogueTurn, ...], PreparedExtraction] = {}
+        self._extract_lock = asyncio.Lock()
+        self._retrying = False
+        self._committed_total = 0
 
     def usage_snapshot(self) -> dict[str, int]:
         """Read cumulative content-free model usage counters / 读取不含正文的累计模型用量。"""
@@ -214,13 +222,17 @@ class IngestService:
         if (
             self.flushing
             or self.buffer is None
-            or not self.buffer.items
             or self.extraction is None
         ):
             return 0, 0
         self.flushing = True
         try:
-            pending = list(self.buffer.items)
+            before = self._committed_total
+            recovered_topics = self.retry_writebacks()
+            recovered_written = self._committed_total - before
+            pending = [row for row in self.buffer.items if not self._reserved([row])]
+            if not pending:
+                return recovered_written, recovered_topics
             ranked = rank_topics(pending) if triage else None
             topics = self.split_topics(
                 pending,
@@ -285,12 +297,12 @@ class IngestService:
                         context=triage_metrics,
                         stage="triage",
                     )
-                return 0, 0
+                return recovered_written, recovered_topics
             self.flush_count += 1
             usage_base = self.usage_snapshot()
-            written = 0
+            written = recovered_written
             calls = 0
-            processed_topics = 0
+            processed_topics = recovered_topics
             stopped_for_budget = False
 
             def token_budget_exhausted() -> bool:
@@ -353,10 +365,12 @@ class IngestService:
                                     self.journal.record, "extract", "warning"
                                 ),
                                 strict=True,
+                                confirm_queue=True,
                                 stage=partial(self.journal.span, "extract"),
                                 include_topic=len(batch.topics) > 1,
                                 require_evidence=len(batch.topics) > 1,
                             )
+                            written += outcome.written
                             metrics["written"] = outcome.written
                             metrics["skipped"] = outcome.skipped
                             metrics["usage_in"] = outcome.usage_in
@@ -367,22 +381,17 @@ class IngestService:
                                     "extraction failed; keep pending input"
                                 )
                     except Exception as exc:
-                        self.buffer.mark_failed(
-                            batch.rows,
-                            type(exc).__name__,
-                            max_attempts=max_attempts,
-                        )
+                        if not self._reserved(batch.rows):
+                            self.buffer.mark_failed(batch.rows, type(exc).__name__, max_attempts=max_attempts)
                         failure = failure or exc
                         break
-                    self.buffer.mark_succeeded(batch.rows)
-                    written += outcome.written
                     self.logger.info(
                         f"[seekmemory] {reason} extract "
                         f"{batch.session_id or 'unknown'}: "
                         f"{len(batch.topics)} topics in {len(batch.rows)} turns, "
                         f"{outcome.written} written"
                     )
-                processed_topics = len(attempted_topics)
+                processed_topics = recovered_topics + len(attempted_topics)
                 triage_metrics["batches"] = batch_count
                 triage_metrics["calls"] = calls
                 context = {"topics": processed_topics, "written": written}
@@ -395,7 +404,7 @@ class IngestService:
                     stage="batch.complete",
                 )
                 if failure is not None:
-                    raise failure
+                    raise ExtractionFailure(written, processed_topics, type(failure).__name__) from failure
                 return written, processed_topics
 
             for session_id, topic_id, part, provider in ready:
@@ -422,8 +431,10 @@ class IngestService:
                                 ProviderChatModel(provider),
                                 log=partial(self.journal.record, "extract", "warning"),
                                 strict=True,
+                                confirm_queue=True,
                                 stage=partial(self.journal.span, "extract"),
                             )
+                            written += outcome.written
                             metrics["written"] = outcome.written
                             metrics["skipped"] = outcome.skipped
                             metrics["usage_in"] = outcome.usage_in
@@ -434,15 +445,10 @@ class IngestService:
                                     "extraction failed; keep pending input"
                                 )
                     except Exception as exc:
-                        self.buffer.mark_failed(
-                            chunk,
-                            type(exc).__name__,
-                            max_attempts=max_attempts,
-                        )
+                        if not self._reserved(chunk):
+                            self.buffer.mark_failed(chunk, type(exc).__name__, max_attempts=max_attempts)
                         failure = failure or exc
                         break
-                    self.buffer.mark_succeeded(chunk)
-                    written += outcome.written
                     self.logger.info(
                         f"[seekmemory] {reason} extract "
                         f"{session_id or 'unknown'}: topic {topic_id}, "
@@ -462,7 +468,7 @@ class IngestService:
                 stage="batch.complete",
             )
             if failure is not None:
-                raise failure
+                raise ExtractionFailure(written, processed_topics, type(failure).__name__) from failure
             return written, processed_topics
         finally:
             self.flushing = False
@@ -477,6 +483,37 @@ class IngestService:
         strict: bool = False,
         include_topic: bool = False,
         require_evidence: bool = False,
+        confirm_queue: bool = False,
+        stage: Callable[[str], AbstractContextManager[object]] = lambda _name: nullcontext(),
+    ) -> WriteOutcome:
+        """Resume an existing plan or serialize one new model/plan invocation.
+
+        恢复已有计划，或串行调用一次新模型并构造计划；默认不确认队列，原入口保持兼容。
+        """
+        rows = list(items or ())
+        async with self._extract_lock:
+            receipt = self._prepared.get(tuple(rows))
+            if receipt is not None:
+                return self._persist_plan(receipt, stage, log)
+            if self._reserved(rows):
+                return WriteOutcome(errors=("writeback_pending",), retryable=True)
+            return await self._extract(
+                rows, model, owner_id=owner_id, log=log, strict=strict,
+                include_topic=include_topic, require_evidence=require_evidence,
+                confirm_queue=confirm_queue, stage=stage,
+            )
+
+    async def _extract(
+        self,
+        items,
+        model,
+        *,
+        owner_id: str | None = None,
+        log: Callable[[str], None] = lambda _msg: None,
+        strict: bool = False,
+        include_topic: bool = False,
+        require_evidence: bool = False,
+        confirm_queue: bool = False,
         stage: Callable[[str], AbstractContextManager[object]] = lambda _name: (
             nullcontext()
         ),
@@ -545,67 +582,127 @@ class IngestService:
             require_evidence=require_evidence,
             stage=stage,
         )
-        if plan.outcome is not None:
+        if plan.outcome is not None and (plan.outcome.model_failed or plan.outcome.retryable):
             return self._with_usage(plan.outcome, usage)
-        return self._persist_plan(plan, stage, log, usage=usage)
+        receipt = PreparedExtraction(plan, tuple(items), confirm_queue)
+        self._prepared[receipt.rows] = receipt
+        return self._persist_plan(receipt, stage, log, usage=usage)
 
     def _persist_plan(
         self,
-        plan: ExtractionPlan,
+        receipt: PreparedExtraction,
         stage: Callable[[str], AbstractContextManager[object]],
         log: Callable[[str], None],
         *,
         usage: tuple[int, int, int] = (0, 0, 0),
     ) -> WriteOutcome:
-        """Commit planned memories and follow with cache and optional enrichment / 提交计划中的记忆，再更新缓存及执行可选增强。"""
+        """Resume only unfinished writes; count new commits before fallible follow-up.
+
+        仅恢复未完成写入，在可能失败的后续操作前记录新增提交数量。
+        """
+        plan = receipt.plan
         written_ids: list[str] = []
-        skipped = plan.skipped
         errors = list(plan.errors)
-        retryable = plan.retryable
+        skipped = plan.outcome.skipped if plan.outcome is not None else plan.skipped
         for art in plan.artifacts:
-            try:
-                with stage("artifact.persist"):
-                    self.artifacts.commit(
-                        art,
-                        expected_revision=0,
-                        op="create",
-                        reason="extract",
-                        source_ids=tuple(art.header.lineage.sources),
-                    )
+            entity = art.header.id
+            if entity not in receipt.committed:
+                try:
+                    with stage("artifact.persist"):
+                        self.artifacts.commit(
+                            art, expected_revision=0, op="create", reason="extract",
+                            source_ids=tuple(art.header.lineage.sources),
+                        )
+                        # Record durability before diagnostics/cache can fail.
+                        # 在诊断或缓存可能失败之前记录持久提交。
+                        receipt.committed.add(entity)
+                        written_ids.append(entity)
+                        self._committed_total += 1
+                except Exception as exc:
+                    label = "diagnostic" if entity in receipt.committed else "commit"
+                    errors.append(f"{label}: {type(exc).__name__}")
+                    if entity not in receipt.committed:
+                        continue
+            if entity not in receipt.cached:
+                try:
+                    # Read the head on every retry; never publish the old prepared snapshot.
+                    # 每次补偿读取当前版本，绝不发布旧的计划快照。
                     if self.cache is not None:
-                        self.cache.put(art)
+                        latest = self.artifacts.get(entity)
+                        if latest is None:
+                            self.cache.remove(entity)
+                        else:
+                            self.cache.put(latest)
+                    receipt.cached.add(entity)
+                except Exception as exc:
+                    errors.append(f"cache: {type(exc).__name__}")
+                    continue
+            if entity not in receipt.enriched:
+                # Enrichment is best effort, not a second durable-write owner.
+                # 增强尽力执行，不成为第二个持久提交进度所有者。
+                receipt.enriched.add(entity)
+                try:
                     link_new(art, self.graph, self.cache)
-                    written_ids.append(art.header.id)
-                    try:
-                        self._supersede(art)
-                    except Exception as exc:
-                        errors.append(f"supersede: {exc}")
-            except Exception as exc:
-                skipped += 1
-                errors.append(f"commit: {exc}")
-                retryable = True
-                log(f"memory write failed: {type(exc).__name__}")
-                continue
+                except Exception as exc:
+                    errors.append(f"link: {type(exc).__name__}")
+                try:
+                    self._supersede(art)
+                except Exception as exc:
+                    errors.append(f"supersede: {type(exc).__name__}")
+                try:
+                    if self.cache is not None and str(art.payload.get("level") or "") == "impression":
+                        with stage("impression.revise"):
+                            revise_impression(self.artifacts, self.cache, art)
+                except Exception as exc:
+                    errors.append(f"impression: {type(exc).__name__}")
+        complete = len(receipt.cached) == len(plan.artifacts)
+        retryable = plan.retryable or not complete
+        if complete and receipt.confirm_queue and not plan.retryable:
             try:
-                if (
-                    self.cache is not None
-                    and str(art.payload.get("level") or "") == "impression"
-                ):
-                    with stage("impression.revise"):
-                        revise_impression(self.artifacts, self.cache, art)
+                self.buffer.mark_succeeded(list(receipt.rows))
             except Exception as exc:
-                errors.append(f"impression: {exc}")
-                log(f"impression revision failed: {type(exc).__name__}")
-        return self._with_usage(
-            WriteOutcome(
-                written=len(written_ids),
-                skipped=skipped,
-                ids=tuple(written_ids),
-                errors=tuple(errors),
-                retryable=retryable,
-            ),
-            usage,
+                errors.append(f"queue: {type(exc).__name__}")
+                complete = False
+                retryable = True
+        if complete:
+            self._prepared.pop(receipt.rows, None)
+        for error in errors[len(plan.errors):]:
+            try:
+                log(error)
+            except Exception:
+                pass  # Diagnostic failure cannot invalidate durable work / 诊断失败不能否定持久工作。
+        return self._with_usage(WriteOutcome(
+            written=len(written_ids), skipped=skipped, ids=tuple(written_ids),
+            errors=tuple(errors), retryable=retryable,
+        ), usage)
+
+    def _reserved(self, rows: list[DialogueTurn]) -> bool:
+        """Whether pending recovery owns any supplied input / 待补偿工作是否占用了任一给定输入。"""
+        wanted = set(rows)
+        source_ids = {row.source_id for row in rows if row.source_id}
+        return any(
+            wanted.intersection(receipt.rows)
+            or source_ids.intersection(row.source_id for row in receipt.rows if row.source_id)
+            for receipt in self._prepared.values()
         )
+
+    def retry_writebacks(self) -> int:
+        """Resume prepared writes without model calls; return completed operations.
+
+        不调用模型，仅恢复已准备的写入；返回完成的操作数，补偿只在当前进程有效。
+        """
+        if self._retrying:
+            return 0
+        self._retrying = True
+        completed = 0
+        try:
+            for receipt in tuple(self._prepared.values()):
+                outcome = self._persist_plan(receipt, lambda _name: nullcontext(), lambda _msg: None)
+                if not outcome.retryable:
+                    completed += 1
+        finally:
+            self._retrying = False
+        return completed
 
     def _supersede(self, new_art) -> int:
         """Expire matching superseded memories without deleting immutable Source / 终止匹配的旧记忆有效期，不删除不可变原始消息。"""

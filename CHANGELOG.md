@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 修复抽取部分提交、缓存及队列确认失败后的重复模型调用和记忆创建：保留进程内计划，分阶段补写并读取最新缓存版本；关闭抽取时仍可补写，停止前再次尝试。夜间整理失败也保留已完成的数量，无数据格式或配置变更。
+
 - 内部卫生：增加 services 的 domain/ports 明确入口及实际依赖类型；分开管理查询与修改，抽出纯人格证据和版本规则，保留原导入及返回值，同步双语职责说明。
 
 - 修复开口策略在 `wake_prefix` 为空时把每条群消息误判为「被 @」：映射层改为只认消息组件里指向 `self_id` 的 At，不再使用 `is_at_or_wake_command`。此前陌生人闲聊都会触发回复。
@@ -11,6 +13,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Fix repeated model calls and memory creation after partial extraction commits, cache failures or queue-confirmation failures: retain process-local plans, resume unfinished writes and refresh the latest cached head, including with extraction disabled and before shutdown. Failed dream runs retain completed counts; persisted formats and configuration are unchanged.
 
 - Internal hygiene: add explicit services domain/ports entries and actual dependency types; separate management reads from commands and extract pure persona evidence/revision rules, retaining imports and return shapes with mirrored responsibility documentation.
 

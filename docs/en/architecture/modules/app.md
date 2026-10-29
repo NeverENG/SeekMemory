@@ -180,3 +180,5 @@ All app modules and public definitions use English followed by equivalent Chines
 - Worker configuration callbacks remain Callable; tracing and tool filtering retain host-shaped objects pending later movement.
 
 Code entries: [domain.py](../../../../app/domain.py), [ports.py](../../../../app/ports.py); delivery contracts are described in [Agent Runtime](runtime.md).
+
+Extraction callbacks may raise `ExtractionFailure` with completed write/topic counts. Dream retains those counts in its failed result and journal; the callback still owns prepared persistence recovery.

@@ -274,7 +274,10 @@ class LayerDependencyTest(unittest.TestCase):
                        "perceive", "maintain", "webui"):
             for path in (ROOT / folder).rglob("*.py"):
                 source = path.read_text(encoding="utf-8")
-                if "perceive.absorb import" in source or "from .absorb import" in source:
+                tree = ast.parse(source, filename=str(path))
+                if any(isinstance(node, ast.Call)
+                       and isinstance(node.func, ast.Name)
+                       and node.func.id == "build_plan" for node in ast.walk(tree)):
                     callers.append(path)
         self.assertEqual(callers, [ROOT / "services" / "ingest_service.py"])
 

@@ -91,6 +91,23 @@ class BackgroundService:
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        self.retry_writebacks()
+
+    def retry_writebacks(self) -> int:
+        """Retry pending persistence independently of extraction/speaking gates.
+
+        独立于抽取及发言开关重试待补写，不调用模型；返回已完成的补偿操作数。
+        """
+        completed = 0
+        for service in (self.ingest, self.runtime_worker):
+            retry = getattr(service, "retry_writebacks", None)
+            if retry is None:
+                continue
+            try:
+                completed += int(retry() or 0)
+            except Exception as exc:
+                self.logger.error(f"[seekmemory] writeback retry failed: {type(exc).__name__}")
+        return completed
 
     async def flush(
         self,
@@ -167,6 +184,7 @@ class BackgroundService:
             interval = max(60, int(self.config("checkpoint_seconds", 1800)))
             await asyncio.sleep(interval)
             try:
+                self.retry_writebacks()
                 if self.checkpoint is not None:
                     self.checkpoint.flush()
             except Exception as exc:
@@ -208,6 +226,7 @@ class BackgroundService:
         while True:
             await asyncio.sleep(30)
             try:
+                self.retry_writebacks()
                 decision = self.capacity.observe()
                 self.capacity.apply_maintenance(decision)
                 await self.runtime_worker.tick()
@@ -225,6 +244,7 @@ class BackgroundService:
             interval = max(120, int(self.config("ingest_interval_seconds", 600)))
             await asyncio.sleep(interval)
             try:
+                self.retry_writebacks()
                 if self.buffer is None or not self.buffer.items:
                     continue
                 if not self.config("ingest_enabled", True):

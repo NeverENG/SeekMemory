@@ -50,3 +50,13 @@ Entry points: [service_collection.py](../../../../services/service_collection.py
 | `access_service.py`, `recall_service.py`, `capacity_service.py`, `status_service.py`, `tree_service.py` | Existing access, recall, pressure, status and tree use cases | Separate owners; tree follow-up writes are not one transaction |
 
 Interface identities and fresh top-level/plugin-namespace import orders are covered by `tests/test_services_interface_contract.py`. Existing extraction, persona, management HTTP and architecture scenarios exercise the delegated behavior. They do not establish real-model or real-host coverage.
+
+## Extraction recovery
+
+`IngestService` serializes model/plan creation and owns prepared plans in `ingest_state.py`. Each memory has separate durable-commit, cache and best-effort enrichment progress. The service records a successful commit before any fallible diagnostics or cache work. A failed commit retains that exact prepared memory; a cache retry reads the latest database head. Neither path replays the model or creates an already committed memory again. `extract()` reports newly committed memories per invocation; retries do not add usage for an earlier call.
+
+Scheduled flushes explicitly request queue confirmation. Failed confirmation retains the receipt and only that confirmation is retried; fresh Source rows remain pending. A valid empty model result can also retain a queue-only receipt. Provider, parse and evidence failures retain the original bounded model retry path. Optional graph or impression failures are reported without negating persistence.
+
+`IngestService.retry_writebacks()` performs prepared persistence without model calls and returns completed operations. `BackgroundService.retry_writebacks()` delegates extraction/runtime compensation before idle or scheduled extraction gates, at checkpoints, and once after its tasks stop. Recovery is process-local; no new database/schema or crash/multiprocess exactly-once guarantee is introduced.
+
+A failed flush raises the `RuntimeError`-compatible `app.contracts.ExtractionFailure` with completed memory/topic counts and a content-free error type. Dream includes these counts in its failure result and journal; completed writes are not reported as zero. Successful return shapes remain unchanged. Regression scenarios live in `tests/test_ingest_failure_recovery.py`. Reverting the recovery commit restores the previous execution path without a data migration.

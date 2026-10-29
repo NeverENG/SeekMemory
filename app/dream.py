@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Protocol
 
 from .console_ports import DreamRunStore
+from .contracts import ExtractionFailure
 from .dream_policy import DreamBudget, parse_time, usage_values as _usage_values, usage_delta as _usage_delta
 
 
@@ -146,6 +147,9 @@ class DreamCycle:
                     triage=True,
                 )
             except Exception as exc:  # noqa: BLE001 - retain input for resume / 保留输入以便续跑
+                if isinstance(exc, ExtractionFailure):
+                    written += exc.written
+                    batches += exc.topics
                 errors.append(f"flush: {type(exc).__name__}")
                 break
             if not count:

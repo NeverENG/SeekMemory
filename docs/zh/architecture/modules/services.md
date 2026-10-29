@@ -50,3 +50,13 @@ BackgroundService 管 nightly/idle/Dream/weekly/checkpoint/runtime worker 的启
 | `access_service.py`、`recall_service.py`、`capacity_service.py`、`status_service.py`、`tree_service.py` | 既有权限、召回、压力、状态及树用例 | 分别负责各自职责；树的后续写入不是整体事务 |
 
 `tests/test_services_interface_contract.py` 验证接口对象身份，以及顶层和插件命名空间下的全新导入顺序。原有抽取、人格、管理 HTTP 和架构场景验证委托后的行为，不能据此声称真实模型或真实宿主已经通过验证。
+
+## 抽取恢复
+
+`IngestService` 串行创建模型调用与抽取计划，持有 `ingest_state.py` 中的已准备计划。每条记忆分别记录持久提交、缓存及尽力执行的增强进度；在可能失败的诊断或缓存操作之前记录提交成功。提交失败保留原计划中的记忆；缓存补偿读取数据库最新版本，两者都不重调模型或重建已提交记忆。`extract()` 按调用返回新提交数量，补偿不重复累计旧调用的用量。
+
+定时抽取明确请求队列确认。确认失败保留凭据，之后只补确认，新原始消息仍保留待处理；有效的空模型结果也可以保留仅需队列确认的凭据。提供方、解析及证据失败保留原有有限模型重试流程。可选图或印象增强失败会被报告，不否定持久提交。
+
+`IngestService.retry_writebacks()` 不调用模型，仅执行已准备的持久化，返回完成的操作数。`BackgroundService.retry_writebacks()` 在空闲及定时抽取开关之前、检查点以及停止自有任务后，委托抽取和运行时补偿。补偿限当前进程，不新增数据库或格式，也不承诺崩溃或跨进程严格单次执行。
+
+失败的抽取批次抛出兼容 `RuntimeError` 的 `app.contracts.ExtractionFailure`，携带已完成记忆数、话题数及无正文错误类型。夜间整理将这些计数纳入失败结果和台账，不将已完成写入报告为零。成功返回值不变。回归场景位于 `tests/test_ingest_failure_recovery.py`；撤销恢复提交即可恢复旧流程，无需数据迁移。

@@ -13,6 +13,7 @@ from .contracts import (
     ChatResponse,      # Model text and usage metadata / 模型回复及用量。
     DialogueTurn,      # Buffered Source projection / 原始消息的缓冲视图。
     ExtractionState,   # Queue state without message text / 不含正文的抽取队列状态。
+    ExtractionFailure, # Completed counts on failed extraction / 失败抽取的已完成数量。
     RecallRequest,     # Narrow recall input; see usage limits in docs / 窄召回请求，接入情况见文档。
     RecallResult,      # Narrow recall output / 窄召回结果。
     WriteOutcome,      # Write counts, failures and usage / 写入数量、失败及用量。
@@ -104,7 +105,7 @@ from .runtime.tools import (
 from .runtime.tracing import RunTracer  # Host event correlation and diagnostic writes / 宿主事件关联及诊断写入。
 
 __all__ = [
-    "ChatRequest", "ChatResponse", "DialogueTurn", "ExtractionState",
+    "ChatRequest", "ChatResponse", "DialogueTurn", "ExtractionState", "ExtractionFailure",
     "RecallRequest", "RecallResult", "WriteOutcome",
     "ContextBudget", "budget_from_config", "clamp_chars", "estimate_messages", "estimate_tokens",
     "ExtractionBatch", "FlushDecision", "chunk_turns", "decide_flush",

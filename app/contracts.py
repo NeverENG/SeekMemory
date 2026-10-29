@@ -69,6 +69,18 @@ class WriteOutcome:
     usage_out: int = 0
 
 
+@dataclass
+class ExtractionFailure(RuntimeError):
+    """Carry completed counts when a flush fails; never include message bodies.
+
+    在抽取批次失败时携带已完成数量，不包含消息正文；仍兼容 RuntimeError 捕获。
+    """
+
+    written: int = 0
+    topics: int = 0
+    error_type: str = ""
+
+
 @dataclass(frozen=True)
 class ChatRequest:
     """Provider-neutral model input; the caller owns invocation / 与供应商无关的模型输入，由调用方执行调用。"""
