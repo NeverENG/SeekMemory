@@ -112,6 +112,9 @@ class DeliveryWritebacks:
                 receipt.moment, datetime.timezone.utc,
             ).isoformat(timespec="seconds")
             if receipt.mode == "normal":
+                resume = getattr(recorder, "resume_reply", None)
+                if callable(resume):
+                    resume(receipt.run_id)
                 recorder.record_delivery(
                     run_id=receipt.run_id, session_id=receipt.session_id,
                     decision=receipt.decision, reason=receipt.reason,

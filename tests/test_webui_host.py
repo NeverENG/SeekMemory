@@ -575,6 +575,26 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.plugin.store.sources.latest_user_source(event.unified_msg_origin))
         self.assertFalse(any(row["kind"] == "recall" for row in self.plugin.journal.events))
 
+    async def test_normal_source_failure_keeps_host_delivery_correlated(self) -> None:
+        await self.restart_plugin(open_to="everyone")
+        event = PrivateEvent("first", "partial-source")
+        await self.plugin.buffer_message(event)
+        with patch.object(self.plugin.store.sources, "append_sources", side_effect=OSError("busy")):
+            await self.plugin.capture_reply(
+                event, SimpleNamespace(role="assistant", completion_text="reply"),
+            )
+            assistant_id = event.get_extra("_seekmemory_assistant_source_id")
+            self.assertTrue(assistant_id)
+            await self.plugin.record_delivery(event)
+            state = self.plugin.services.runtime.store.get(event.unified_msg_origin)
+            self.assertEqual(state.unread_count, 0)
+        self.plugin.services.runtime.retry_writebacks()
+        self.assertIn(assistant_id, self.plugin.store.sources.sources_by_ids([assistant_id]))
+        rows = self.plugin.store.runtime_episodes.list(event.unified_msg_origin)
+        delivered = [row for row in rows if row["run_id"] and row["decision"] != "action"]
+        self.assertEqual(len(delivered), 1)
+        self.assertEqual(delivered[0]["assistant_source_id"], assistant_id)
+
     async def test_normal_delivery_acknowledges_its_event_without_clearing_new_input(self) -> None:
         await self.restart_plugin(open_to="everyone")
         first = PrivateEvent("first", "delivery-first")

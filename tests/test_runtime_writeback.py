@@ -166,6 +166,25 @@ class WritebackTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.episodes[0].delivered)
         self.assertEqual((self.calls, self.sends), (0, 0))
 
+    async def test_normal_source_failure_still_binds_delivery_and_later_audit(self):
+        self.fail = "source"
+        reply = self.runtime.record_reply(
+            run_id="normal", session_id="s1", text="reply", speaker_id="bot", turn_id="t1",
+        )
+        self.assertTrue(reply.assistant_source_id)
+        self.runtime.record_delivery(
+            run_id="normal", session_id="s1", decision="reply", reason="direct",
+            assistant_source_id=reply.assistant_source_id,
+            read_through_seq=self.receipt.read_through_seq, now=106,
+        )
+        self.assertEqual(self.store.get("s1").unread_count, 0)
+        self.assertEqual(self.episodes, [])
+        self.fail = ""
+        self.runtime.retry_writebacks()
+        self.assertEqual(len(self.episodes), 1)
+        self.assertEqual(self.episodes[0].assistant_source_id, reply.assistant_source_id)
+        self.assertEqual(self.sources[-1].id, reply.assistant_source_id)
+
     async def test_proactive_writeback_failure_keeps_new_schedule(self):
         self.runtime.schedule_proactive("s1", 0, now=105)
         async def send(*args):

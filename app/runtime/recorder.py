@@ -1,4 +1,7 @@
-"""Single write-back service for completed runtime runs."""
+"""Stage-aware Source, projection, reinforcement and audit write-back; dependencies are injected.
+
+分阶段的原始消息、投影、强化及审计写回，依赖由外部注入。
+"""
 
 from __future__ import annotations
 
@@ -9,7 +12,7 @@ from uuid import uuid4
 
 try:
     from ...core.source import Source, make_source_id
-except ImportError:  # top-level package import in scripts/tests
+except ImportError:  # Top-level scripts/tests / 顶层脚本及测试导入
     from core.source import Source, make_source_id
 from .episode import EpisodeRecord, normalize_tool_calls, safe_error_code
 
@@ -18,26 +21,39 @@ if TYPE_CHECKING:
 
 
 class SourceSink(Protocol):
-    def append_sources(self, sources: list[Source]) -> int: ...
+    """Append-only evidence capability / 只追加的原始证据能力。"""
+    def append_sources(self, sources: list[Source]) -> int:
+        """Persist immutable Source rows; return inserted count or raise / 保存不可变原始消息，返回新增数或抛异常。"""
+        ...
 
 
 class PendingSink(Protocol):
+    """Source-backed extraction projection capability / 以原始消息为依据的待抽取投影能力。"""
     def add(self, umo: str, text: str, sender: str = "", source_id: str = "",
             at: str = "", *, source: Source | None = None, turn_id: str = "",
             reply_to: str = "", deferred: bool = False,
-            role: str = "user") -> Any: ...
+            role: str = "user") -> Any:
+        """Add a Source projection; preserve identity and propagate queue failures / 加入原始消息投影，保留编号并上抛队列失败。"""
+        ...
 
 
 class CheckpointSink(Protocol):
-    def record(self, art: Any, at: str = "") -> bool: ...
+    """Accept explicit recall hits without immediate persistence / 接收显式召回命中，不立即持久提交。"""
+    def record(self, art: Any, at: str = "") -> bool:
+        """Queue an accepted hit; false means suppressed by cooldown / 排队有效命中，假表示被冷却规则忽略。"""
+        ...
 
 
 class EpisodeWriter(Protocol):
-    def record(self, episode: EpisodeRecord) -> None: ...
+    """Runtime record capability whose failure remains retryable / 运行记录写入能力，失败可重试。"""
+    def record(self, episode: EpisodeRecord) -> None:
+        """Persist one content-free record or raise / 保存一条不含正文的记录，失败抛异常。"""
+        ...
 
 
 @dataclass(frozen=True)
 class RecordedTurn:
+    """Identity and topic after user write-back / 用户写回后的标识及话题。"""
     source_id: str
     turn_id: str
     topic_id: str = ""
@@ -45,6 +61,7 @@ class RecordedTurn:
 
 @dataclass(frozen=True)
 class RecordedReply:
+    """Identity and length after assistant write-back / 助手写回后的标识及长度。"""
     run_id: str
     session_id: str
     turn_id: str
@@ -66,11 +83,9 @@ class _SourceWriteback:
 
 
 class RunRecorder:
-    """Owns assistant Source, pending buffer and episode write-back.
+    """Own Source, queue, per-ID reinforcement and audit stages. Retain partial progress in memory; database Source identity is stable, but crash recovery is not exactly-once.
 
-    A run id is the idempotency boundary. Source ids are deterministic and the
-    database uses INSERT OR IGNORE, while repeated calls in one process are
-    short-circuited here so checkpoints and episode rows are not duplicated.
+    管理原始消息、队列、逐条强化和审计阶段，在内存保留部分进度；原始消息编号稳定，但不保证崩溃后严格单次处理。
     """
 
     def __init__(
@@ -98,6 +113,7 @@ class RunRecorder:
 
     @staticmethod
     def new_run_id() -> str:
+        """Create a random run ID independent of clock precision / 创建不依赖时钟精度的随机运行编号。"""
         return uuid4().hex
 
     def record_user(
@@ -110,7 +126,7 @@ class RunRecorder:
         at: str = "",
         deferred: bool = False,
     ) -> RecordedTurn:
-        """Write one user Source and its extraction projection exactly once."""
+        """Write evidence then its queue projection; retain successful stages on failure / 先保存证据再建立队列投影，失败保留成功阶段。"""
         clean = str(text or "").strip()
         if not clean:
             raise ValueError("user message text is empty")
@@ -156,7 +172,7 @@ class RunRecorder:
         recall_ids: Iterable[str] = (),
         source_suffix: str = "assistant",
     ) -> RecordedReply:
-        """Write one assistant Source and its pending projection exactly once."""
+        """Write assistant evidence, projection and explicit hits; retry missing stages only / 写入助手证据、投影及显式命中，仅重试未完成阶段。"""
         key = str(run_id or "").strip() or self.new_run_id()
         existing = self._replies.get(key)
         if existing is not None:
@@ -199,6 +215,26 @@ class RunRecorder:
         )
         return self._finish_reply(key, progress)
 
+    def prepared_reply(self, run_id: str) -> RecordedReply | None:
+        """Read prepared identity even while Source/projection writes are pending.
+
+        原始消息或投影待补写时也能读取已准备编号，不表示写入已经成功。
+        """
+        if run_id in self._replies:
+            return self._replies[run_id]
+        progress = self._pending_replies.get(run_id)
+        if progress is None:
+            return None
+        source = progress.source
+        return RecordedReply(run_id, source.session_id, source.turn_id, source.id, len(source.text))
+
+    def resume_reply(self, run_id: str) -> RecordedReply | None:
+        """Complete pending stages before recording delivery audit / 记录交付审计前补完回复阶段。"""
+        progress = self._pending_replies.get(run_id)
+        if progress is not None:
+            return self._finish_reply(run_id, progress)
+        return self._replies.get(run_id)
+
     def record_delivery(
         self,
         *,
@@ -213,7 +249,7 @@ class RunRecorder:
         assistant_source_id: str = "",
         at: str = "",
     ) -> None:
-        """Record a successful platform delivery once for this run."""
+        """Record confirmed delivery once per run within this recorder / 在当前记录器内按运行编号记录已确认交付。"""
         self._record_episode(
             run_id=run_id,
             session_id=session_id,
@@ -242,7 +278,7 @@ class RunRecorder:
         assistant_source_id: str = "",
         at: str = "",
     ) -> None:
-        """Record one failed run without message bodies or exception text."""
+        """Record safe failure metadata without message or exception bodies / 记录安全失败信息，不保存消息或异常正文。"""
         self._record_episode(
             run_id=run_id,
             session_id=session_id,
@@ -269,7 +305,7 @@ class RunRecorder:
         reason: str = "deferred_wait",
         at: str = "",
     ) -> RecordedReply:
-        """Persist a deferred assistant reply and its delivered episode."""
+        """Complete deferred Source/projection and delivered audit using retained stage progress / 利用保留进度完成延迟原始消息、投影及交付审计。"""
         reply = self.record_reply(
             run_id=run_id,
             session_id=session_id,
@@ -304,6 +340,7 @@ class RunRecorder:
         reason: str = "deferred_wait",
         at: str = "",
     ) -> None:
+        """Record a deferred failure without inventing assistant evidence / 记录延迟执行失败，不伪造助手证据。"""
         self.record_error(
             run_id=run_id,
             session_id=session_id,

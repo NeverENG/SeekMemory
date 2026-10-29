@@ -41,7 +41,10 @@ from .dispatch import Dispatch, StateOperations, build_context, save_state
 
 
 class AgentRuntime:
-    """Owns attention decisions and session state, independent of the host framework."""
+    """Keep caller-facing input, state and execution methods; internal dispatch owns no facade reference.
+
+    保留对外输入、状态及执行方法，内部执行不持有整个入口对象。
+    """
 
     def __init__(
         self,
@@ -112,11 +115,9 @@ class AgentRuntime:
         now: float | None = None,
         decision: RunDecision | None = None,
     ) -> UserRunReceipt:
-        """Record one user turn, then evaluate the run decision.
+        """Record user evidence and projection, then evaluate attention; return the accepted read cursor.
 
-        The host hook supplies only the reduced inbound event and optional host
-        event id. Source construction, pending projection and state transition
-        stay inside the runtime write path.
+        记录用户证据及投影后判断注意力，返回接收时的已读确认位置。
         """
         recorded = None
         if self.recorder is not None:
@@ -160,19 +161,22 @@ class AgentRuntime:
         at: str = "",
         recall_ids=(),
     ) -> RecordedReply | None:
-        """Write one completed assistant reply through the single recorder."""
+        """Write assistant stages through the single recorder / 通过唯一记录器写入助手各阶段。"""
         if self.recorder is None:
             return None
-        return self.recorder.record_reply(
-            run_id=run_id,
-            session_id=session_id,
-            text=text,
-            speaker_id=speaker_id,
-            turn_id=turn_id,
-            reply_to=reply_to,
-            at=at,
-            recall_ids=recall_ids,
-        )
+        try:
+            return self.recorder.record_reply(
+                run_id=run_id, session_id=session_id, text=text, speaker_id=speaker_id,
+                turn_id=turn_id, reply_to=reply_to, at=at, recall_ids=recall_ids,
+            )
+        except Exception:
+            # Bind host delivery to the prepared ID even when persistence failed.
+            # 持久写入失败时仍把宿主交付关联到已准备编号。
+            prepared = getattr(self.recorder, "prepared_reply", None)
+            reply = prepared(run_id) if callable(prepared) else None
+            if reply is None:
+                raise
+            return reply
 
     def record_delivery(
         self,
@@ -188,7 +192,7 @@ class AgentRuntime:
         read_through_seq: int | None = None,
         now: float | None = None,
     ) -> None:
-        """Commit one delivered normal run and advance session delivery state."""
+        """Retain confirmed delivery before state/audit writes; failures remain retryable / 状态及审计写入前保留已确认交付，失败可补写。"""
         moment = self.clock() if now is None else float(now)
         if self._writebacks.completed(session_id, run_id) is not None:
             return
@@ -211,7 +215,7 @@ class AgentRuntime:
         user_source_id: str = "",
         assistant_source_id: str = "",
     ) -> None:
-        """Write one failed normal run through the single recorder."""
+        """Write safe normal-run failure metadata through the recorder / 通过记录器写入安全的普通运行失败信息。"""
         if self.recorder is None:
             return
         self.recorder.record_error(
