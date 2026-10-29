@@ -40,6 +40,8 @@
 
 ### 中文
 
+- 夜间整理：分离纯时间/预算规则；台账结束失败如实返回失败及已完成数量，错误不再保存异常正文，诊断失败不影响整理结果。
+
 - 修复强化提交成功但缓存失败后的重复提交；缓存补偿读取最新版本，未提交命中和缓存补偿分别保留。
 
 - 内部接口：增加 `app.domain`，并在 `app.ports` 集中列出应用层提供的能力与外部依赖；补齐中英接口清单、逻辑复杂度及职责缺口。保留原导入路径和实现位置，未改变业务规则、持久化格式或公开配置。
@@ -87,6 +89,8 @@
 - 人格控制台接入历史版本回滚、差异比较与变化原因；安装时校验预览内容，按版本显示已安装状态；Dream 日志区分预算停止与完成，并显示调度开关。新增控制台接口需与 dashboard 同步更新，不涉及数据库迁移或配置变化（#82 / #83）。
 
 ### English
+
+- Separate daily time/budget rules; report journal finish failure with completed counts, omit exception bodies, and isolate diagnostic failures.
 
 - Prevent duplicate reinforcement after a successful commit followed by cache failure; repair from the latest head and retain uncommitted hits separately.
 

@@ -150,3 +150,7 @@ Code entry points: [domain.py](../../../../app/domain.py), [ports.py](../../../.
 ## Checkpoint recovery
 
 Checkpoint separates uncommitted hits from cache repairs. `flush()` returns only newly committed IDs; `pending()` counts the union of unfinished IDs. Successful commits consume their hit batch before cache work. Cache failures retry only the refresh from the latest persisted head, preventing duplicate reinforcement or stale replacement. Cache misses no longer discard hits for active persisted memories. Recovery is process-local; reinforcement coefficients, evidence and atomic revision commits are unchanged.
+
+## Daily policy and journal outcomes
+
+Internal `dream_policy.py` computes time/budget rules only; `DreamCycle` orders extraction, maintenance and journal writes. A failed journal finish returns `failed / journal_finish_failed` while preserving completed counts. Errors retain only stages and exception types; diagnostic callback failure does not change the business outcome. The daily journal is not a cross-process lock and resuming does not guarantee exactly-once maintenance.

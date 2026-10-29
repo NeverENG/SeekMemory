@@ -70,6 +70,38 @@ class DreamDueTest(unittest.TestCase):
 
 
 class DreamRunTest(unittest.IsolatedAsyncioTestCase):
+    async def test_finish_failure_preserves_counts_and_reports_failure(self):
+        class BrokenJournal(FakeStore):
+            def finish(self, *args, **kwargs):
+                raise OSError("private prompt secret")
+        left, logs = [1], []
+        async def flush(*args, **kwargs):
+            left[0] = 0
+            return 3, 1
+        dream = DreamCycle(BrokenJournal(), conf(), log=logs.append)
+        result = await dream.run(flush, pending=lambda: left[0], now=AT)
+        self.assertEqual((result.status, result.reason), ("failed", "journal_finish_failed"))
+        self.assertEqual((result.written, result.batches), (3, 1))
+        self.assertEqual(left[0], 0)
+        self.assertNotIn("private prompt secret", str(result) + str(logs))
+        self.assertTrue(dream.due(AT))
+
+    async def test_failed_diagnostics_do_not_change_completed_cycle(self):
+        def log(message):
+            raise OSError("diagnostics unavailable")
+        async def flush(*args, **kwargs):
+            return 0, 0
+        store = FakeStore()
+        result = await DreamCycle(store, conf(), log=log).run(flush, pending=lambda: 0, now=AT)
+        self.assertEqual(result.status, "done")
+        self.assertEqual(store.get(AT.date().isoformat())["status"], "done")
+
+    async def test_extraction_error_keeps_only_stage_and_class(self):
+        async def flush(*args, **kwargs):
+            raise RuntimeError("private prompt secret")
+        result = await DreamCycle(FakeStore(), conf()).run(flush, pending=lambda: 1, now=AT)
+        self.assertEqual(result.errors, ("flush: RuntimeError",))
+
     async def test_runs_once_and_is_idempotent(self):
         store, calls, left = FakeStore(), [], {"pending": 1}
 

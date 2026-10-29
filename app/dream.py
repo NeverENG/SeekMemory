@@ -63,9 +63,10 @@ class DreamCycle:
 
     @property
     def enabled(self) -> bool:
+        """Read the switch, defaulting to enabled on config failure / 读取开关，配置失败时默认开启。"""
         try:
             return bool(self._c("dream_enabled", True))
-        except Exception:  # noqa: BLE001 - 配置坏了按开启处理，避免白天误抽取
+        except Exception:  # noqa: BLE001 - preserve night gating / 保留夜间门控
             return True
 
     def _at(self) -> tuple[int, int]:
@@ -129,8 +130,8 @@ class DreamCycle:
                 break
             try:
                 left = int(pending())
-            except Exception as exc:  # noqa: BLE001 - 读不到就当作没有
-                errors.append(f"pending: {type(exc).__name__}: {exc}")
+            except Exception as exc:  # noqa: BLE001 - stop without consuming input / 停止且不消费输入
+                errors.append(f"pending: {type(exc).__name__}")
                 break
             if left <= 0:
                 break
@@ -143,8 +144,8 @@ class DreamCycle:
                     max_tokens=remaining_tokens,
                     triage=True,
                 )
-            except Exception as exc:  # noqa: BLE001 - 保留待处理行，下次续跑
-                errors.append(f"flush: {type(exc).__name__}: {exc}")
+            except Exception as exc:  # noqa: BLE001 - retain input for resume / 保留输入以便续跑
+                errors.append(f"flush: {type(exc).__name__}")
                 break
             if not count:
                 break
@@ -155,8 +156,8 @@ class DreamCycle:
         if maintain is not None and not errors:
             try:
                 summary = dict(await maintain() or {})
-            except Exception as exc:  # noqa: BLE001 - 整理失败不影响已抽取的记忆
-                errors.append(f"maintain: {type(exc).__name__}: {exc}")
+            except Exception as exc:  # noqa: BLE001 - preserve extracted memory / 保留已抽取记忆
+                errors.append(f"maintain: {type(exc).__name__}")
 
         if usage is not None:
             try:
@@ -176,22 +177,32 @@ class DreamCycle:
         summary["usage"] = usage_delta
 
         status = "done" if not errors else "failed"
+        reason = "ran"
         try:
             self.dreams.finish(
                 date, status=status, batches=batches, written=written,
                 errors=errors, summary=summary,
                 now=moment.isoformat(timespec="seconds"),
             )
-        except Exception as exc:  # noqa: BLE001
-            self.log(f"梦境台账写入失败： {exc}")
+        except Exception as exc:  # noqa: BLE001 - writes already completed / 已有写入不回滚
+            status = "failed"
+            reason = "journal_finish_failed"
+            errors.append(f"journal_finish: {type(exc).__name__}")
 
-        result = DreamResult(date, status, "ran", batches, written,
+        result = DreamResult(date, status, reason, batches, written,
                              tuple(errors), summary)
-        self.log(
+        self._log(
             f"梦境 {date} {status}：{batches} 个话题，写入 {written} 条"
             + (f"，{len(errors)} 个错误" if errors else "")
         )
         return result
+
+    def _log(self, message: str) -> None:
+        """Keep diagnostic failures outside business outcomes / 诊断失败不改变业务结果。"""
+        try:
+            self.log(message)
+        except Exception:
+            pass
 
     def status(self, now: datetime.datetime | None = None) -> dict[str, Any]:
         """Read current and recent journal status / 读取当前及近期台账状态。"""
