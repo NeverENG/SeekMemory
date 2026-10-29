@@ -57,3 +57,5 @@ Pure queries read current designated database heads without filling cache. A fai
 Legacy `mark_given()` and `record_context()` attempt through the same implementation once. Callers needing later compensation retain a `ContextRecorder`, as RecallService does. Recovery is process-local, with no new schema/jobs or crash/multiprocess guarantees. `tests/test_recall_failure_recovery.py` covers failed commits/reads, continuous cache failures, newer heads, stale/conflicting receipts, legacy counts and shutdown compensation. Reverting this recovery commit needs no data migration.
 
 Committed-ID cache repair is shared through `app.CacheRepairs`; the composition root injects the same instance into checkpoint, extraction, context and maintenance writers. Business plans remain with each use case, and per-owner counts keep unrelated repairs out of checkpoint pending totals.
+
+`designated_policy.py` owns pure trigger, given-state and private-chat predicates. `designated.py` retains legacy aliases and the one-shot recording entry; the recorder depends directly on policy, removing the internal implementation cycle.

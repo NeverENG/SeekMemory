@@ -17,7 +17,7 @@ except ImportError:
     from app.cache_repair import CacheRepairs
     from core.artifact import Artifact, revise
     from core.versioning import VersionError
-from .designated import already_given
+from .designated_policy import already_given
 
 
 @dataclass(frozen=True)

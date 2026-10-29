@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 将指定记忆的纯触发/给出规则从兼容写入入口分开，解除上下文记录器的内部反向依赖，保留旧导入别名和规则行为。
+
 - 完成后端及脚本英文在前的等义中文职责说明，修正命中、人格副本及秘密披露旧注释；同步最终模块能力、资源归属、恢复边界和验证入口，并说明保留较长编排文件的理由。纯注释修改校验非说明语法树一致。
 
 - 离线脚本明确资源归属：人格写入总会关闭数据库，快照在完整备份并关闭连接后原子替换且失败保留旧文件，运行服务启动信息保存失败也关闭端口。规模及消融普通报告改用独立忽略目录，不覆盖历史。
@@ -47,6 +49,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Separate pure designated trigger/given predicates from the compatible recording entry, removing the context writer’s reverse implementation dependency while preserving old aliases and rule behavior.
 
 - Complete English-first equivalent Chinese responsibility notes for backend and script entries; correct old hit/persona-copy/secret-disclosure descriptions. Align module capabilities, resource ownership, recovery limits and verification maps, documenting coherent long orchestrators. Comment-only edits preserve the non-docstring AST.
 

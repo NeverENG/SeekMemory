@@ -57,3 +57,5 @@ family=secret 完全不会进入普通候选。scope=shadow 的 memory 只允许
 旧 `mark_given()` 和 `record_context()` 通过同一实现尝试一次，需要后续补偿的调用方应像 RecallService 一样保留 `ContextRecorder`。补偿限当前进程，不新增结构、任务或崩溃和跨进程保证。`tests/test_recall_failure_recovery.py` 覆盖提交或读取失败、缓存连续失败、新版本、旧及冲突凭据、兼容计数和停止补偿。撤销恢复提交无需数据迁移。
 
 已提交编号的缓存补偿通过 `app.CacheRepairs` 共享；组装根将同一实例注入检查点、抽取、上下文及维护写入协调器。业务计划仍归各用例，按所有者计数避免无关补偿混入检查点待处理总数。
+
+`designated_policy.py` 管理纯触发、已给出及私聊判断；`designated.py` 保留旧别名和单次记录兼容入口，记录器直接依赖纯规则，内部不再相互引用。
