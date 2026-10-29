@@ -48,6 +48,7 @@ scripts/build-check.mjs      打包白名单自检（files / 入口 / dsh.bundle
 scripts/postinstall-check.mjs 跨平台安装后自检（node 版；.cmd 是 Windows 包装）
 scripts/smoke-contract.mjs   契约冒烟（11 项）
 scripts/check-kernel-contract.mjs  内核端点契约符合性（15 项，对任意 serve.py 都能跑）
+scripts/local-e2e.mjs        本地端到端：真宿主 + 任意内核，一条命令出结论（需手动跑）
 test/client-failopen.mjs     fail-open 八种降级（11 项）
 test/hooks-fake-host.mjs     假宿主验 apply/注入/卸载（19 项）
 test/persona-isolation.mjs   双主体画像隔离：A 的画像不得出现在 B 的上下文（6 项）
@@ -85,6 +86,14 @@ node scripts/check-kernel-contract.mjs --runtime .tmp/mock/runtime.json
 `npm run lint` = 第 1 步；`npm run test` = 第 2 步；`npm run build` = 第 3 步；第 4 步的两个脚本分别对应 `npm run smoke` 与 `npm run contract:kernel`。
 
 `check-kernel-contract.mjs` 验的是**内核是否符合契约**（/healthz、/capture、/recall、/persona、/status、/extract/plan、/extract/commit 七端点 + 错 token 401 + 未知路径 404），所以对端可以是 mock，也可以是真正的 `serve.py`——后者上线时它就是第一道验收。
+
+`local-e2e.mjs` 更进一步：它起一个**隔离的 DSH 宿主**（`--home` 拒绝指向 `~/.dsh`），把 `runtimePath` 写进 profile 的 patch 层（原文件备份为 `cordis.patch.yml.bak-local-e2e`），跑一轮 agent loop 后读插件日志，断言 apply / 已连接 / 无 not_configured / 钩子注册与回收，再顺带跑上面两个契约脚本，最后出「通 / 不通」的结论。
+
+```bash
+node scripts/local-e2e.mjs --home <隔离 DSH_HOME> --runtime <runtime.json> --dsh-exe "<DSH 可执行体>"
+```
+
+它**只能手动运行**，不进 CI——需要真实 Electron 宿主；进 CI 的兜底仍是 `check-kernel-contract.mjs` 与 `smoke-contract.mjs`。
 CI 由仓库的 `.github/workflows/node-adapter.yml` 承担：单个 `node-adapter` job，按顺序跑语法与 manifest 检查、全部测试套件、`npm pack --dry-run` 与 mock 内核冒烟。
 
 mock 的故障注入开关（验 fail-open 用）：
