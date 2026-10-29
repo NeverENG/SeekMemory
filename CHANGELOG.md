@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 内部卫生：明确共享及 AstrBot 适配器 domain/ports，将钩子任意属性转发改为有限有类型宿主依赖，注册逻辑独立并保留旧别名、回调身份与顺序；规范双语职责说明，UTC+8 逻辑不变。
+
 - 修复维护写入或缓存失败后重复生成自我印象及并列人格的问题：服务保留精确版本计划，提交成功后仅补缓存；旧缓存未修复时不推导新计划，预期版本冲突不覆盖新正文，人格补写不重复调用模型。
 
 - 内部卫生：明确 maintain 的 domain/ports 和有类型版本计划，分开遗忘、聚类、印象、自我证据、人格及关系的准备规则与读写；保留原函数路径、原子范围、证据及算法行为，并标明未接入的反思能力。
@@ -31,6 +33,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Internal hygiene: add shared/AstrBot adapter domain/ports, replace arbitrary hook attribute forwarding with finite typed host dependencies and separate registration while preserving aliases, callback identity/order and UTC+8 logic; clarify bilingual responsibility comments.
 
 - Retain exact maintenance revision plans across failed commits/cache updates, preventing repeated self-impressions or parallel personas; committed writes retry cache only, stale views block new planning, conflicts preserve newer text and persona compensation never repeats model calls.
 

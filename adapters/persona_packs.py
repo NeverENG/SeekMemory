@@ -1,4 +1,7 @@
-"""Local persona files; authored seeds never become chat evidence."""
+"""Read and atomically publish authored persona packs at the filesystem edge; never create chat evidence.
+
+在文件系统适配层读取并原子发布人工人格包，不创建聊天证据。
+"""
 from __future__ import annotations
 
 import json
@@ -9,19 +12,25 @@ import base64
 import hashlib
 from pathlib import Path
 
-from ..core.persona_pack import normalize_pack, PACK_FORMAT, MAX_PACK_BYTES
-from ..core.persona_artwork import MAX_ARTWORK_BYTES, validate_artwork
+try:
+    from ..core.persona_pack import normalize_pack, PACK_FORMAT, MAX_PACK_BYTES
+    from ..core.persona_artwork import MAX_ARTWORK_BYTES, validate_artwork
+except ImportError:  # Shared adapters support top-level imports / 共享适配器支持顶层导入。
+    from core.persona_pack import normalize_pack, PACK_FORMAT, MAX_PACK_BYTES
+    from core.persona_artwork import MAX_ARTWORK_BYTES, validate_artwork
 
 ID = re.compile(r'^[a-z0-9][a-z0-9_.-]{1,63}$')
 MAX_BYTES = 65536
 
 
 class FilePersonaPacks:
+    """Own official/personal filesystem paths and authored pack operations / 管理官方及个人人格文件路径和人工包操作。"""
     def __init__(self, official: Path, personal: Path) -> None:
         self.official = official
         self.personal = personal
 
     def _path(self, reference: str) -> Path:
+        """Resolve a validated pack reference without links or directory escape / 解析已验证人格包引用，不允许链接或越出目录。"""
         parts = reference.split('/')
         if len(parts) != 2 or parts[0] not in {'official', 'mine'} or not ID.fullmatch(parts[1]):
             raise ValueError('人格包标识无效')
@@ -33,6 +42,7 @@ class FilePersonaPacks:
 
     @staticmethod
     def _read_json(path: Path, limit: int = MAX_BYTES) -> object:
+        """Read one bounded JSON file or raise for missing/oversized input / 读取一个有大小上限的 JSON 文件，缺失或过大时抛错。"""
         if not path.is_file():
             raise LookupError('人格包不存在')
         if path.stat().st_size > limit:
@@ -44,6 +54,7 @@ class FilePersonaPacks:
         return json.loads(raw.decode('utf-8'))
 
     def bundle(self, reference: str) -> dict:
+        """Read and validate seed, license and optional artwork without installing persona / 读取并验证设定、许可证及可选插画，不安装人格。"""
         path = self._path(reference)
         bundle = normalize_pack(self._read_json(path, MAX_PACK_BYTES))
         if bundle['seed']['id'] != reference.split('/')[1]:
@@ -64,9 +75,11 @@ class FilePersonaPacks:
         return normalize_pack(bundle)
 
     def read(self, reference: str) -> dict:
+        """Read the authored seed from a validated bundle / 从已验证完整包读取人工设定。"""
         return self.bundle(reference)['seed']
 
     def artwork(self, reference: str) -> dict:
+        """Read validated artwork; missing artwork raises LookupError / 读取已验证插画，缺少时抛出 LookupError。"""
         artwork = self.bundle(reference)['artwork']
         if artwork is None:
             raise LookupError('人格包没有封面')
@@ -74,12 +87,14 @@ class FilePersonaPacks:
 
     @staticmethod
     def artwork_ref(reference: str, bundle: dict) -> str | None:
+        """Derive a stable artwork digest reference without file writes / 派生稳定的插画摘要引用，不写文件。"""
         if bundle['artwork'] is None:
             return None
         digest = hashlib.sha256(bundle['artwork']['dataBase64'].encode('ascii')).hexdigest()
         return reference + '@' + digest
 
     def catalog(self, collection: str, offset: int = 0, limit: int = 24) -> dict:
+        """Read one bounded validated pack page / 读取一页有数量上限且已验证的人格包。"""
         if collection not in {'official', 'mine'} or not 0 <= offset <= 100000 or not 1 <= limit <= 100:
             raise ValueError('目录分页参数无效')
         if collection == 'official':
@@ -108,6 +123,7 @@ class FilePersonaPacks:
         return {'items': items, 'total': len(ids), 'offset': offset, 'limit': limit}
 
     def save(self, raw: dict, expected_version: str | None = None) -> str:
+        """Publish a complete validated authored pack without overwriting a concurrent new import / 发布完整已验证人工包，不覆盖并发新导入。"""
         bundle = normalize_pack(raw)
         seed = bundle['seed']
         reference = f"mine/{seed['id']}"
@@ -121,7 +137,8 @@ class FilePersonaPacks:
         if len(encoded) > MAX_PACK_BYTES:
             raise ValueError('人格文件过大')
         path.parent.mkdir(parents=True, exist_ok=True)
-        # Publish only a complete file, without overwriting a concurrent import.
+        # Publish complete input without overwriting a concurrent import.
+        # 发布完整输入，不覆盖并发导入。
         temporary = None
         try:
             with tempfile.NamedTemporaryFile(dir=path.parent, prefix='.import-', delete=False) as stream:
@@ -132,7 +149,8 @@ class FilePersonaPacks:
             if expected_version is None:
                 os.link(temporary, path)
             else:
-                # Keep the old blueprint recoverable before atomically publishing the update.
+                # Preserve the old authored pack before atomic replacement.
+                # 原子替换前保留可恢复的旧人工包。
                 trash = self.personal / '.trash'
                 if trash.is_symlink():
                     raise ValueError('回收目录无效')
@@ -148,12 +166,14 @@ class FilePersonaPacks:
         return reference
 
     def remove(self, reference: str) -> None:
+        """Move a personal pack to recoverable trash; never change active persona / 将个人包移至可恢复回收区，不改变有效人格。"""
         if not reference.startswith('mine/'):
             raise ValueError('内置人格包不可移除')
         path = self._path(reference)
         if not path.exists():
             raise LookupError('人格包不存在')
-        # Keep a recoverable local copy. Removing a pack never changes active persona.
+        # Keep a recoverable copy; active persona is separate.
+        # 保留可恢复副本，有效人格独立管理。
         trash = self.personal / '.trash'
         if trash.is_symlink():
             raise ValueError('回收目录无效')

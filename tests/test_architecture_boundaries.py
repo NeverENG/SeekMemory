@@ -74,7 +74,7 @@ class MainOwnershipTest(unittest.TestCase):
 
     def test_each_hook_wrapper_has_a_unique_name(self) -> None:
         """AstrBot 用 module+__name__ 生成 handler 唯一名，闭包同名会互相覆盖。"""
-        hooks_source = (ROOT / "adapters" / "astrbot" / "hooks.py").read_text()
+        hooks_source = (ROOT / "adapters" / "astrbot" / "registration.py").read_text()
         self.assertIn("handler.__name__ = name", hooks_source)
 
     def test_service_collection_is_a_typed_bundle(self) -> None:
@@ -104,7 +104,7 @@ class MainOwnershipTest(unittest.TestCase):
         ))
 
     def test_start_jobs_remains_the_astrbot_loaded_hook(self) -> None:
-        hooks = (ROOT / "adapters" / "astrbot" / "hooks.py").read_text(
+        hooks = (ROOT / "adapters" / "astrbot" / "registration.py").read_text(
             encoding="utf-8"
         )
         self.assertIn('"start_jobs": _register(', hooks)

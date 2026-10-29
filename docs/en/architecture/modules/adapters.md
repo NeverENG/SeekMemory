@@ -48,3 +48,21 @@ Legacy or unsupported runtime services retain capture/recall. Once a runtime wri
 Each DSH host context registers once. Unload removes hooks, aborts bridge requests, and clears context caches; late responses cannot inject. The repository now also contains a real Python loopback composition (`scripts/runtime_http.py`) and a Node test that exercises the DSH bridge against it.
 Relationship mode defaults to observe: RelationshipInteractionPolicy may compute a content-free candidate interaction profile, but it does not inject directives or deny replies by default. Reply denial requires both explicit `relationship_mode=enforce` and the existing `runtime_gate_enabled=true`; an allowed or neutral relationship never enables that gate. Low/dislike ordinary private statements use stable `0.8`/`0.5` Source-ID sampling when enforcement is explicitly enabled, while actual questions and direct host signals remain required replies. Low/dislike group ambient is denied under the same explicit enforcement controls. Relationship Artifacts remain excluded from Recall and the management catalog.
 Relationship mode defaults to observe: RelationshipInteractionPolicy may compute a content-free candidate interaction profile, but it does not inject directives or deny replies by default. Reply denial requires both explicit `relationship_mode=enforce` and the existing `runtime_gate_enabled=true`; an allowed or neutral relationship never enables that gate. Low/dislike ordinary private statements use stable `0.8`/`0.5` Source-ID sampling when enforcement is explicitly enabled, while actual questions and direct host signals remain required replies. Low/dislike group ambient is denied under the same explicit enforcement controls. Relationship Artifacts remain excluded from Recall and the management catalog.
+
+## Explicit interfaces and host bindings
+
+`adapters/domain.py` exports SDK-free shared persona-file and relationship adapters; `adapters/ports.py` reuses application protocols. `adapters/astrbot/domain.py` exports AstrBot integration entries and intentionally requires its SDK. SDK-free event/runtime/time/action/context mappings remain available at their original individual paths. `adapters/astrbot/ports.py` declares the finite `HookHost`, `ProviderHost` and `MessageHost` views.
+
+Hooks/attention no longer forward arbitrary unknown attributes. Their `_bindings` property exposes only the documented typed host capability view; detached test adapters can bind the same fields locally. The host remains the single owner of readiness, services, repositories and runtime-audit cleanup timestamp. Hook-local tool correlation remains separate from host resource ownership.
+
+| Files | Responsibility and effects | Logical complexity and coupling |
+|---|---|---|
+| `astrbot/plugin.py` | Construct resources in dependency order and close them in lifecycle order | High: composition root; no memory algorithms |
+| `astrbot/hooks.py`, `attention.py` | Map callbacks and apply the existing runtime/access/interaction decisions | Medium/high: finite typed host view, no arbitrary forwarding |
+| `astrbot/registration.py` | Stable callback module/name/priority/order | Low: SDK registration only; old hooks imports remain aliases |
+| `astrbot/events.py`, `runtime.py` | Event/receipt/extra correlation mapping | Medium: no SDK event imports or persistence policy |
+| `astrbot/actions.py`, `model.py`, `context.py` | Host sends/provider calls and explicit context-record forwarding | Low: narrow injected host capabilities |
+| `astrbot/time.py`, `topics.py` | Existing UTC+8 read/write views and Source-backed topic candidates | Medium: conversion and queue views; no new time policy |
+| `persona_packs.py`, `relationship_policy.py` | Authored local files and validated relationship projections | Medium: format/access rules remain in their existing owners |
+
+`tests/test_adapter_interface_contract.py` protects shared exports/protocols; runtime plugin tests protect finite dependencies and callback identity/order. Existing host lifecycle, cancellation, context, action and time-hook checks remain required. The UTC+8 implementation was compared as an AST with docstrings removed and is unchanged. Management routes and Node/frontend implementations are outside restructuring scope.

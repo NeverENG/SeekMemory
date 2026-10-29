@@ -71,6 +71,43 @@ class _Sources:
 
 
 class AttentionHookDelegationTest(unittest.TestCase):
+    def test_hooks_expose_only_declared_host_dependencies(self) -> None:
+        host = SimpleNamespace(unrelated_resource=object(), clock=lambda: 1.0)
+        for hook in (AstrBotHooks(host), AttentionHooks(host)):
+            self.assertIs(hook._bindings, host)
+            with self.assertRaises(AttributeError):
+                _ = hook.unrelated_resource
+
+    def test_registration_exports_keep_plugin_callback_metadata(self) -> None:
+        domain = importlib.import_module(f"{ROOT.name}.adapters.astrbot.domain")
+        registration = importlib.import_module(f"{ROOT.name}.adapters.astrbot.registration")
+        hooks = importlib.import_module(f"{ROOT.name}.adapters.astrbot.hooks")
+        self.assertIs(domain.build_astrbot_hooks, hooks.build_astrbot_hooks)
+        self.assertIs(domain.build_astrbot_hooks, registration.build_astrbot_hooks)
+        original_filter = registration.filter
+        decorator = lambda *_args, **_kwargs: lambda function: function
+        registration.filter = SimpleNamespace(
+            EventMessageType=SimpleNamespace(ALL="all"),
+            **{name: decorator for name in (
+                "on_llm_request", "event_message_type", "on_llm_response", "after_message_sent",
+                "on_agent_begin", "on_agent_done", "on_using_llm_tool", "on_llm_tool_respond",
+                "on_astrbot_loaded",
+            )},
+        )
+        try:
+            callbacks = domain.build_astrbot_hooks("seekmemory_test_plugin.main")
+        finally:
+            registration.filter = original_filter
+        self.assertEqual(list(callbacks), [
+            "inject_memory", "buffer_message", "capture_reply", "record_delivery",
+            "observe_agent_begin", "observe_agent_done", "observe_tool", "observe_tool_result",
+            "start_jobs", "attention_gate",
+        ])
+        for name, callback in callbacks.items():
+            self.assertEqual(callback.__name__, name)
+            self.assertEqual(callback.__module__, "seekmemory_test_plugin.main")
+            self.assertEqual(callback.__qualname__, "Main." + name)
+
     def test_may_observe_falls_back_to_host_hooks(self) -> None:
         calls = []
 

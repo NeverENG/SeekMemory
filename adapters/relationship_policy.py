@@ -1,4 +1,7 @@
-"""Read-only relationship lookup and fixed interaction prompt projection."""
+"""Read validated relationship snapshots and map fixed interaction directives without writes.
+
+读取已验证关系快照并映射固定交互指令，不执行写入。
+"""
 
 from __future__ import annotations
 
@@ -35,12 +38,13 @@ except ImportError:
 
 
 class RelationshipReader:
-    """Resolve one validated active relationship from the derived Artifact cache."""
+    """Read one validated active relationship per subject from supplied cache / 从给定缓存按主体读取唯一已验证有效关系。"""
 
     def __init__(self, cache: ArtifactCache | None) -> None:
         self.cache = cache
 
     def get(self, subject_id: str) -> RelationshipSnapshot:
+        """Read a unique validated relationship; invalid/missing state yields no snapshot / 读取唯一已验证关系，无效或缺失状态不提供快照。"""
         subject = str(subject_id or "").strip()
         if not subject or self.cache is None:
             return RelationshipSnapshot(subject_id=subject)
@@ -61,11 +65,11 @@ class RelationshipReader:
                 artifact_id=art.header.id,
                 revision=art.header.revision,
             )
-        except Exception:  # noqa: BLE001 - corrupt relationship data is neutral
+        except Exception:  # noqa: BLE001 - Invalid relationships stay neutral / 无效关系保持中性。
             return RelationshipSnapshot(subject_id=subject)
 
 class RelationshipInteractionPolicy:
-    """Adapt relationship snapshots to Runtime's generic interaction port."""
+    """Adapt snapshots to the existing generic interaction gate without mutating memory / 将快照转接为既有通用交互条件，不修改记忆。"""
 
     version = INTERACTION_POLICY_VERSION
 
@@ -84,18 +88,19 @@ class RelationshipInteractionPolicy:
         *,
         source_id: str = "",
     ) -> InteractionGate:
+        """Evaluate the existing interaction rule over neutral event and runtime data / 根据通用事件及运行时数据判断既有交互规则。"""
         if self.settings.mode == "off":
             return InteractionGate(reason="relationship_off")
         snapshot = self.reader.get(event.speaker_id)
         must_reply = decision.must_reply
         if event.private:
-            # A private message is not automatically a direct question.
+            # Private input is not automatically a direct question / 私聊输入不自动成为明确提问。
             must_reply = bool(
                 event.question or event.mentioned or event.addressed or event.reply_to_me
             )
         elif event.question or event.mentioned or event.addressed or event.reply_to_me:
-            # Explicit questions and host direct signals must not be muted by
-            # relationship state, including in group conversations.
+            # Questions/direct host signals remain required replies, including in groups.
+            # 问题及宿主明确信号仍必须回复，群聊同样适用。
             must_reply = True
         return decide_interaction(
             snapshot,
@@ -110,6 +115,7 @@ class RelationshipInteractionPolicy:
 
     @staticmethod
     def directive(gate: InteractionGate) -> str:
+        """Render a fixed enforced style directive without private relationship content / 转换固定的已执行语气指令，不包含私密关系内容。"""
         return interaction_prompt(gate)
 
 
@@ -117,7 +123,7 @@ def settings_from_config(
     config: Callable[[str, Any], Any],
     warn: Callable[[str], None] = lambda _key: None,
 ) -> InteractionPolicySettings:
-    """Normalize backend relationship mode and probabilities without user data."""
+    """Normalize existing relationship settings without user data / 规范化既有关系设置，不处理用户数据。"""
     mode = str(config("relationship_mode", "observe") or "").strip().lower()
     if mode not in ("off", "observe", "enforce"):
         warn("relationship_mode")
@@ -173,7 +179,7 @@ _STYLE_DIRECTIVES = {
 
 
 def interaction_prompt(gate: InteractionGate) -> str:
-    """Project an enforced gate into a fixed directive without relationship data."""
+    """Render only a fixed directive for an enforced interaction gate / 仅为已执行交互条件转换固定指令。"""
     if not gate.enforced:
         return ""
     directive = _STYLE_DIRECTIVES[gate.style]

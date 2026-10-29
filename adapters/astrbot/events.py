@@ -1,9 +1,6 @@
-"""AstrBot 事件 → RuntimeInput 的纯映射。
+"""Map supplied host events into runtime data without business policy or persistence.
 
-只做字段翻译，不做判断；矩阵平台（Telegram/微信/抖音/B站）以后各自实现同形状的
-映射函数，运行时只消费 RuntimeInput。
-
-设计口径见 `docs/zh/architecture/event-contract.md`：不引入 HostEvent 中间层。
+将给定宿主事件映射为运行时数据，不实现业务规则或持久化。
 """
 
 from __future__ import annotations
@@ -13,7 +10,7 @@ from typing import Any, Callable
 
 try:
     from ...app.runtime.contracts import RuntimeInput
-except ImportError:  # 作为顶层包导入（脚本 / 测试）
+except ImportError:  # Top-level package / 顶层包。
     from app.runtime.contracts import RuntimeInput
 
 
@@ -34,22 +31,22 @@ def _mentioned(event: Any) -> bool:
         if not me:
             try:
                 me = str(event.get_self_id() or "")
-            except Exception:  # noqa: BLE001 - 部分宿主没有该 getter
+            except Exception:  # noqa: BLE001 - Optional host getter / 可选宿主读取函数。
                 me = ""
         for comp in event.get_messages() or ():
             if type(comp).__name__ == "At" and str(getattr(comp, "qq", "")) == me:
                 return True
-    except Exception:  # noqa: BLE001 - 宿主字段缺失按未点名处理
+    except Exception:  # noqa: BLE001 - Missing mention metadata stays false / 缺少点名信息时保持否。
         return False
     return False
 
 
 def _scene(event: Any) -> str:
-    """私聊 / 群 / 评论区；未知平台默认按群处理。"""
+    """Map existing private/group/comment markers; preserve the unknown fallback / 映射既有私聊、群聊及评论标记，保留未知回退。"""
     try:
         if bool(event.is_private_chat()):
             return "private"
-    except Exception:  # noqa: BLE001 - 未知宿主默认群聊
+    except Exception:  # noqa: BLE001 - Preserve unknown-host group fallback / 保留未知宿主群聊回退。
         pass
     scene = str(getattr(event, "scene", "") or "")
     if scene in ("group", "channel", "thread", "comment"):
@@ -58,14 +55,15 @@ def _scene(event: Any) -> str:
 
 
 def _identity(event: Any, attribute: str, getter: str = "") -> str:
+    """Read host identity metadata with the existing fallback / 按既有回退读取宿主身份元数据。"""
     try:
         return str(getattr(event, attribute, "") or getattr(event, getter, lambda: "")() or "")
-    except Exception:  # host metadata must not break input capture
+    except Exception:  # Isolate host metadata failures / 隔离宿主元数据失败。
         return ""
 
 
 def event_id(event: Any) -> str:
-    """Use the platform message ID for all host callbacks."""
+    """Read one stable platform event identity for callback correlation / 读取用于回调关联的稳定平台事件身份。"""
     try:
         return str(getattr(getattr(event, "message_obj", None), "message_id", "")
                    or getattr(event, "message_id", "") or "")
@@ -74,7 +72,7 @@ def event_id(event: Any) -> str:
 
 
 def _role(event: Any, owner_id: str) -> str:
-    """主人优先；管理员角色由宿主给出。"""
+    """Map owner first, then existing host-admin role metadata / 先映射所有者，再映射既有宿主管理员角色元数据。"""
     sender = _identity(event, "sender_id", "get_sender_id")
     if owner_id and sender == owner_id:
         return "owner"
@@ -85,7 +83,7 @@ def _role(event: Any, owner_id: str) -> str:
 
 
 def _at(event: Any) -> float:
-    """事件时间；取不到就返回 0，由运行时用当前时钟。"""
+    """Read a known event instant or zero using the existing timestamp mapping / 按既有时间戳映射读取已知事件时刻或零。"""
     value = getattr(event, "created_at", 0.0)
     try:
         at = float(value or 0.0)
@@ -105,7 +103,7 @@ def to_runtime_input(
     received_at: float | None = None,
     clock: Callable[[], float] | None = None,
 ) -> RuntimeInput:
-    """把一个宿主事件映射成运行时输入；字段缺失时按保守默认值处理。"""
+    """Reduce a host event to existing runtime fields using supplied clock / 以给定时钟将宿主事件简化为既有运行时字段。"""
     text = _text(event)
     scene = _scene(event)
     called = any(name and name in text for name in names)
