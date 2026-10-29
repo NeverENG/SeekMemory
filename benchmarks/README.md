@@ -61,7 +61,7 @@ python3 benchmarks/runtime_load.py
 
 `run.py`、`scale.py` 和 `ablation.py` 均实际运行图检索/BM25 两条路径，
 比较命中、候选或字数加权噪声、注入长度和耗时；不同噪声口径在报告中标明。
-这些组件基准不替代完整管线的 scope/disclosure 集成测试。
+这些组件基准不替代完整管线的 scope/disclosure 集成测试。scale/ablation 的普通报告也写入独立 `.tmp/benchmarks/` 运行目录，不覆盖 results 中的历史。
 
 ```bash
 python benchmarks/bm25.py --calibrate --sizes --output benchmarks/results/bm25.json

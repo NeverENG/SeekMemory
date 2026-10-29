@@ -51,6 +51,12 @@ For capability-specific core checks, see [core verification entry points and evi
 
 Tests cannot establish real-model extraction quality by themselves. Host behavior also needs an AstrBot environment. Benchmarks measure different things from tests: fixed memory regression uses one evaluator and a frozen baseline to reject per-query regressions with nonzero status; the historical composite is not a gate, and BM25 has separate frozen acceptance checks. Character counts are not tokens or cost. Definitions and limits are in [benchmarks/README.md](../../../benchmarks/README.md).
 
+## Offline scripts and artifacts
+
+`scripts/snapshot_db.py` creates a consistent backup including WAL, closes connections before atomic publication and preserves the old backup on failure; the source cannot be the destination. Persona bootstrap, pending migration and relationship rollback scripts close their own stores. The runtime-service creator closes its listener even if endpoint metadata cannot be saved.
+
+Ordinary memory, scale and ablation reports use new ignored run directories without replacing history. Release packaging produces a local artifact and does not authorize release or deployment.
+
 ## Dashboard
 
     cd dashboard

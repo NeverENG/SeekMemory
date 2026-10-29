@@ -2,7 +2,7 @@
 
 不修改核心代码：打分项靠「给 select 传入改造过的候选」关闭，去重 / 时间
 衰减靠 with 里临时替换、退出即还原，层级只在组装时抹掉。九种配置跑同一
-份数据、同一份黄金集，输出 benchmarks/results/ablation.md。
+份数据、同一份黄金集，输出 .tmp/benchmarks/<运行编号>/ablation.md。
 
 用法：python3 benchmarks/ablation.py
 """
@@ -12,7 +12,6 @@ from __future__ import annotations
 import contextlib
 import os
 import sys
-import tempfile
 import time
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
@@ -22,6 +21,7 @@ sys.path.insert(0, ROOT)
 
 import recall.assemble as assemble_mod  # noqa: E402
 import recall.gate as gate_mod, recall.score as score_mod  # noqa: E402
+from benchmarks.output import report_path
 from benchmarks.edge_stats import spread_counts  # noqa: E402
 from benchmarks.goldset import FORBIDDEN, GOLD, SEED, TODAY, build, noise_share  # noqa: E402
 from core.artifact import Artifact, content_of, make  # noqa: E402
@@ -88,17 +88,21 @@ def _artifact(m) -> Artifact:
 
 def _load(mems) -> tuple[Store, Cache, Graph, list[Artifact]]:
     """走生产写入路径建 similar/temporal 边；causal 仍由人工金标补。"""
-    db = open_store(os.path.join(tempfile.mkdtemp(prefix="seekmem_abl_"), "abl.db"))
-    cache = Cache(db.artifacts)
-    graph = Graph(db.artifacts)
-    for m in mems:
-        persist(_artifact(m), db.artifacts, cache, graph)
-    pool = cache.active()
-    by_text = {str(a.payload.get("text")): a for a in pool}
-    if os.environ.get("ABLATION_NO_CAUSAL") != "1":
-        graph.link(by_text["他去万兴科技面试了"].header.id,
-                   by_text["万兴那边给他发了offer，他过了"].header.id, "causal", .9)
-    return db, cache, graph, pool
+    db = open_store(":memory:")
+    try:
+        cache = Cache(db.artifacts)
+        graph = Graph(db.artifacts)
+        for m in mems:
+            persist(_artifact(m), db.artifacts, cache, graph)
+        pool = cache.active()
+        by_text = {str(a.payload.get("text")): a for a in pool}
+        if os.environ.get("ABLATION_NO_CAUSAL") != "1":
+            graph.link(by_text["他去万兴科技面试了"].header.id,
+                       by_text["万兴那边给他发了offer，他过了"].header.id, "causal", .9)
+        return db, cache, graph, pool
+    except BaseException:
+        db.close()
+        raise
 
 
 def _transform(cfg: Cfg, pool: list[Artifact]) -> list[Artifact]:
@@ -306,8 +310,7 @@ def main() -> None:
             r = results[-1]
             print(f"[{cfg.name:<16}] 命中 {r['hit']}/{r['total']} 总注入 {r['chars']:.0f} 常驻 {r['pin_chars']:.0f} "
                   f"检索 {r['ret_chars']:.0f} 检索噪声 {r['noise']:.0%} 泄露 {r['leak']}")
-        out = os.path.join(ROOT, "benchmarks", "results", "ablation.md")
-        os.makedirs(os.path.dirname(out), exist_ok=True)
+        out = report_path("ablation")
         with open(out, "w", encoding="utf-8") as f:
             f.write(report(results, stats))
         print(f"\n→ 写入 {out}")

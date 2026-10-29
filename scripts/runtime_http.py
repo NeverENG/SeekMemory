@@ -170,18 +170,18 @@ def main() -> int:
     Handler.service = RuntimeService(data_dir)
     Handler.token = args.token
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    endpoint = {
-        "port": server.server_address[1],
-        "token": args.token,
-        "pid": os.getpid(),
-        "version": "0.0.1-python-runtime",
-        "host_contract": 1,
-        "runtime_contract": 1,
-        "runtime_gate_enabled": False,
-        "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-    }
-    (data_dir / "runtime.json").write_text(json.dumps(endpoint), encoding="utf-8")
     try:
+        endpoint = {
+            "port": server.server_address[1],
+            "token": args.token,
+            "pid": os.getpid(),
+            "version": "0.0.1-python-runtime",
+            "host_contract": 1,
+            "runtime_contract": 1,
+            "runtime_gate_enabled": False,
+            "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }
+        (data_dir / "runtime.json").write_text(json.dumps(endpoint), encoding="utf-8")
         server.serve_forever()
     finally:
         server.server_close()

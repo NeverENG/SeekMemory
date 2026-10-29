@@ -1,25 +1,38 @@
-"""Create a consistent SQLite snapshot, including WAL contents."""
+"""Atomically publish a consistent SQLite snapshot, including WAL contents.
+
+原子发布包含 WAL 内容的一致 SQLite 快照。
+"""
 from __future__ import annotations
 import argparse
+from contextlib import closing
+import os
 import sqlite3
+import tempfile
 from pathlib import Path
 
 
 def snapshot(source: str, destination: str) -> None:
-    src_path = Path(source).expanduser()
-    dst_path = Path(destination).expanduser()
+    """Close both handles before publishing; failures preserve the old destination.
+
+关闭两端连接后才发布，失败保留原目标文件。
+    """
+    src_path = Path(source).expanduser().resolve()
+    dst_path = Path(destination).expanduser().absolute()
     if not src_path.exists():
         raise FileNotFoundError(str(src_path))
+    if src_path == dst_path.resolve() or (dst_path.exists() and src_path.samefile(dst_path)):
+        raise ValueError("snapshot source and destination must differ")
     dst_path.parent.mkdir(parents=True, exist_ok=True)
-    if dst_path.exists():
-        dst_path.unlink()
-    src = sqlite3.connect(f"file:{src_path}?mode=ro", uri=True)
-    dst = sqlite3.connect(dst_path)
+    descriptor, name = tempfile.mkstemp(prefix=f".{dst_path.name}.", suffix=".tmp", dir=dst_path.parent)
+    os.close(descriptor)
+    temporary = Path(name)
     try:
-        src.backup(dst)
+        with closing(sqlite3.connect(src_path.as_uri() + "?mode=ro", uri=True)) as src:
+            with closing(sqlite3.connect(temporary)) as dst:
+                src.backup(dst)
+        os.replace(temporary, dst_path)
     finally:
-        dst.close()
-        src.close()
+        temporary.unlink(missing_ok=True)
 
 
 def main() -> int:

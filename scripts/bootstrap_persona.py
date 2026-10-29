@@ -90,6 +90,8 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError) as exc:
         print(f"写入人格失败：{exc}", file=sys.stderr)
         return 1
+    finally:
+        store.close()
     print(json.dumps(result, ensure_ascii=False))
     return 0
 

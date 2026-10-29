@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 离线脚本明确资源归属：人格写入总会关闭数据库，快照在完整备份并关闭连接后原子替换且失败保留旧文件，运行服务启动信息保存失败也关闭端口。规模及消融普通报告改用独立忽略目录，不覆盖历史。
+
 - 纠正离线跑分口径：分开候选/最终命中、无答案误召回、含无答案题的噪声和字数；样本权重不再称为强化，旧人格综合分不作验收。固定语料、时钟、编号和基线，完整管线验证隐私，退化命令返回非零，普通输出不覆盖历史报告。
 
 - 测试卫生：分开纯领域规则、数据库及抽取维护场景，图规则使用存储端口替身；core 契约固定认可的导出及原对象身份，不再要求内部新增名称自动对外公开。
@@ -43,6 +45,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Clarify offline-script resource ownership: persona writes always close storage; snapshots close connections before atomic publication and preserve old backups on failure; endpoint-metadata failures close the listener. Ordinary scale/ablation reports use independent ignored directories without replacing history.
 
 - Correct offline evaluation: separate candidate/final hits, negative-query false positives, noise including negatives and character counts. Fixture weights are not reinforcement and the legacy personality composite is not an acceptance gate. Fix corpus/clock/IDs/baseline, exercise full-pipeline privacy, fail on regressions and preserve historical reports.
 
