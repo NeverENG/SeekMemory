@@ -35,14 +35,18 @@ class Store:
     def __init__(self, path: str) -> None:
         self.path = path
         self.database = SqliteDatabase(path)
-        self.artifacts = ArtifactRepository(self.database)
-        self.sources = SourceRepository(self.database)
-        self.extraction = ExtractionRepository(self.database)
-        self.ledger = LedgerRepository(self.database)
-        self.runtime_state = RuntimeStateRepository(self.database)
-        self.runtime_episodes = RuntimeEpisodeRepository(self.database)
-        self.dreams = DreamRepository(self.database)
-        self.metrics = StoreMetricsRepository(self.database, self.extraction)
+        try:
+            self.artifacts = ArtifactRepository(self.database)
+            self.sources = SourceRepository(self.database)
+            self.extraction = ExtractionRepository(self.database)
+            self.ledger = LedgerRepository(self.database)
+            self.runtime_state = RuntimeStateRepository(self.database)
+            self.runtime_episodes = RuntimeEpisodeRepository(self.database)
+            self.dreams = DreamRepository(self.database)
+            self.metrics = StoreMetricsRepository(self.database, self.extraction)
+        except BaseException:
+            self.database.close()
+            raise
 
     @property
     def conn(self) -> sqlite3.Connection:

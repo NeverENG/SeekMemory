@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 修复缓存重建或替换准备失败时丢失旧视图、连接初始化失败时未及时关闭的问题；分组提交与单次提交使用同一操作校验，诊断追加失败会明确抛错并保留已保存快照，宿主继续隔离诊断异常。无结构或配置变更。
+
 - 内部卫生：增加 store 的 domain/ports 明确入口，分开连接组装、既有迁移步骤、纯序列化及记忆 SQL 模板；保留导入、迁移顺序、账本字节和所有持久化格式，明确共享连接与事务归属。
 
 - 修复抽取部分提交、缓存及队列确认失败后的重复模型调用和记忆创建：保留进程内计划，分阶段补写并读取最新缓存版本；关闭抽取时仍可补写，停止前再次尝试。夜间整理失败也保留已完成的数量，无数据格式或配置变更。
@@ -15,6 +17,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Preserve the previous cache view when rebuild/replacement preparation fails and close connections after failed initialization; validate the same operation vocabulary for group/single commits, and raise failed diagnostic appends while retaining the saved snapshot. Host-facing tracing remains fail-open; schema and configuration are unchanged.
 
 - Internal hygiene: add explicit store domain/ports entries and separate connection composition, existing migration steps, pure serialization and Artifact SQL templates, preserving imports, migration order, ledger bytes and persisted formats while clarifying shared-connection/transaction ownership.
 

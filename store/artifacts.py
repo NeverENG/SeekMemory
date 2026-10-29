@@ -38,6 +38,11 @@ except ImportError:
     from core.versioning import StateEvent, VersionError, assert_next_revision
 
 
+_COMMIT_OPERATIONS = frozenset({
+    "create", "revise", "reinforce", "deliver", "merge", "forget", "promote",
+})
+
+
 class ArtifactRepository(SqliteRepository):
     """Own current memories, versions, evidence, graph writes and atomic ledger updates / 管理当前记忆、版本、证据、图写入及原子账本更新。"""
 
@@ -87,15 +92,7 @@ class ArtifactRepository(SqliteRepository):
         state_events: tuple[StateEvent, ...] = (),
     ) -> None:
         """Commit one expected revision, evidence, events and ledger atomically; errors roll back / 原子提交一个预期版本、证据、事件及账本，错误时回滚。"""
-        if op not in (
-            "create",
-            "revise",
-            "reinforce",
-            "deliver",
-            "merge",
-            "forget",
-            "promote",
-        ):
+        if op not in _COMMIT_OPERATIONS:
             raise ValueError(f"unknown commit op: {op}")
         with self.conn:
             self._commit_conn(
@@ -117,6 +114,8 @@ class ArtifactRepository(SqliteRepository):
         """Commit the whole supplied revision group in one transaction; any failure rolls it back / 在一个事务中提交给定版本组，任一失败则整组回滚。"""
         if not writes:
             return
+        if op not in _COMMIT_OPERATIONS:
+            raise ValueError(f"unknown commit op: {op}")
         with self.conn:
             for art, expected_revision, source_ids in writes:
                 self._commit_conn(

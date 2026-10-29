@@ -58,3 +58,13 @@ Artifact version snapshots and evidence are audit facts; the ledger hash chain c
 Repositories borrow the connection and never close it. Public writes own their transaction; `_commit_conn`, `write_source_conn` and `append_ledger_conn` join their callers transaction and must not commit independently. `set_parent` is an existing separate compatibility column write, not an Artifact revision/edge transaction.
 
 `tests/test_store_interface_contract.py` covers explicit identities, helper compatibility and connection sharing. Existing migration, kernel, extraction, runtime action and import-order scenarios cover behavior; these checks do not execute a live host or model.
+
+## Failure publication and cleanup
+
+Cache rebuilds a complete temporary set of indices before replacing the live view and advancing `version`. A failed repository read or row preparation leaves all old indices and the change marker available. `put()` prepares payload/index keys before removing the prior value. Cache uses the existing single-execution-thread ownership; it does not add a cross-thread transaction guarantee.
+
+SQLite/schema initialization and repository construction close their newly opened connection if any stage fails, including cancellation. Both `commit()` and nonempty `commit_many()` validate the same accepted operation vocabulary before writes; group conflicts still roll back the entire transaction. Schema, migration order, persisted values and time conversion remain unchanged.
+
+`TraceStore.append()` sets `persistence_error` and raises on a failed validation/file write, leaving the last saved in-memory snapshot intact. Host-facing `RunTracer` contains ordinary diagnostic exceptions, so a failed trace cannot acknowledge success or interrupt chat. Diagnostic snapshot reads may compact retained rows; a failed compaction reports its persistence status and keeps the last saved state. These traces are not business commit receipts.
+
+`tests/test_store_failure_recovery.py` covers failed cache reads, partial rebuild/replacement preparation, connection cleanup, invalid group operations and trace replacement failures. Reverting the recovery commit requires no data migration.

@@ -71,7 +71,7 @@ class TraceStore:
                 os.unlink(name)
 
     def append(self, row: dict) -> None:
-        """Append a cleaned diagnostic row and expose persistence status / 追加经过清理的诊断行，并暴露持久化状态。"""
+        """Append a cleaned row; failures raise and preserve the saved snapshot / 追加已清理的行，失败抛错并保留已保存快照。"""
         with self._lock:
             try:
                 row = clean_event(row)
@@ -93,6 +93,9 @@ class TraceStore:
                 self.persistence_error = False
             except (OSError, ValueError, TypeError, KeyError, AttributeError):
                 self.persistence_error = True
+                # The caller decides fail-open behavior; never acknowledge a failed write.
+                # 由调用方决定如何隔离失败，不能将失败写入确认为成功。
+                raise
 
     def snapshot(self, state: str = "all") -> dict:
         """Read projected runs; may compact expired diagnostics, with visible persistence status / 读取运行视图，允许裁剪过期诊断，并提供可见的持久化状态。"""

@@ -48,10 +48,14 @@ class SqliteDatabase:
     def __init__(self, path: str) -> None:
         self.path = path
         self.conn = sqlite3.connect(path)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.executescript("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
-        self.conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
-        self._migrate()
+        try:
+            self.conn.row_factory = sqlite3.Row
+            self.conn.executescript("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
+            self.conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+            self._migrate()
+        except BaseException:
+            self.conn.close()
+            raise
 
     def _migrate(self) -> None:
         """Delegate the existing ordered migration steps / 委托执行既有的有序迁移步骤。"""
