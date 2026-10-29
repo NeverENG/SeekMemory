@@ -322,6 +322,7 @@ class AstrBotPlugin(star.Star):
             journal=self.journal,
             config=self._c,
             logger=logger,
+            context_writer=recall,
         )
         self.services = ServiceCollection(
             access_service=AccessService(

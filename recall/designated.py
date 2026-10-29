@@ -63,21 +63,23 @@ def deliverable(art: Artifact, text: str, private: bool) -> bool:
 def mark_given(artifacts: ArtifactStore, cache: Any, arts: list[Artifact], block: str,
                now: str | None = None) -> int:
     """Explicitly commit given markers only for included designated bodies; isolate per-item failure / 仅为已包含的指定正文明确提交给出标记，逐条隔离失败。"""
-    stamp = now or datetime.now().isoformat(timespec="seconds")
-    done = 0
+    from .context_recording import ContextRecorder
+    return ContextRecorder(artifacts, cache).record_artifacts(arts, block, now)
+
+
+def current_heads(arts: list[Artifact], artifacts: ArtifactStore) -> list[Artifact]:
+    """Read fresh designated heads without updating cache; failed reads withhold them.
+
+    读取指定记忆最新版本，不更新缓存；读取失败时不提供该项，避免缓存失败后重复给出。
+    """
+    out = []
     for art in arts:
-        if art.header.family != "designated" or already_given(art):
-            continue
-        body = " ".join(str(art.payload.get("text") or "").split())[:24]
-        if not body or body not in block:
-            continue
-        try:
-            updated = revise(art, payload={**art.payload, "given": stamp})
-            artifacts.commit(updated, expected_revision=art.header.revision, op="deliver",
-                      reason="designated delivered",
-                      source_ids=tuple(art.header.lineage.sources))
-            cache.put(updated)
-        except Exception:  # noqa: BLE001
-            continue
-        done += 1
-    return done
+        if art.header.family == "designated":
+            try:
+                art = artifacts.get(art.header.id)
+            except Exception:
+                continue
+            if art is None or art.header.state != "active":
+                continue
+        out.append(art)
+    return out

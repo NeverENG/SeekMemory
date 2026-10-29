@@ -47,3 +47,11 @@ Legacy `build_block()` and `RecallService.build()` retain their parameters, retu
 | `assemble.py`, `history.py`, `drift.py`, `scope.py` | Narrative budget, optional impression history, spontaneous recall and explicit candidate access | Medium: caller supplies candidates/resources |
 
 `tests/test_recall_context_integration.py` covers pure reads, compatible default writes, explicit repeated recording, budget-dropped bodies and model/send failure timing. `tests/test_recall_interface_contract.py` covers the approved export set and optional generic runtime capability; fresh import-order tests cover top-level and plugin namespaces. Existing privacy, scope and frozen BM25 acceptance remain required; these tests are not live-model quality evidence.
+
+## Context-record recovery
+
+`RecallService` owns one `ContextRecorder` for process-local pending inclusion commits and cache-only repairs. Query metadata includes the designated IDs and observed revisions that survived assembly; recording retains that revision and original timestamp. A failed database commit stays pending. A changed revision or CAS conflict is discarded rather than rebased onto new text. Database success consumes the pending commit before any cache operation and counts as one committed marker even if cache refresh fails.
+
+Pure queries read current designated database heads without filling cache. A failed designated read withholds that item; stale cache cannot re-inject an already committed given body. Cache-only retries read the newest database version and never issue another delivery commit. `retry_writebacks()` completes prepared persistence without recalling, generating or sending again; existing background cadence and shutdown delegate it independently of extraction/speaking switches.
+
+Legacy `mark_given()` and `record_context()` attempt through the same implementation once. Callers needing later compensation retain a `ContextRecorder`, as RecallService does. Recovery is process-local, with no new schema/jobs or crash/multiprocess guarantees. `tests/test_recall_failure_recovery.py` covers failed commits/reads, continuous cache failures, newer heads, stale/conflicting receipts, legacy counts and shutdown compensation. Reverting this recovery commit needs no data migration.

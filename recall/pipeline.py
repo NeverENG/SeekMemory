@@ -21,7 +21,7 @@ try:  # Plugin namespace / 插件命名空间。
     from ..core.graph import Graph
     from ..core.bot_behavior import trusted_self_persona
     from ..recall.assemble import build_with_meta as assemble_text_meta
-    from ..recall.designated import deliverable, mark_given
+    from ..recall.designated import deliverable, mark_given, current_heads
     from ..recall.drift import best_of as drift_best
     from ..recall.drift import should_drift
     from ..recall.gate import pinned
@@ -45,7 +45,7 @@ except ImportError:  # Top-level package / 顶层包。
     from core.bot_behavior import trusted_self_persona
 
     from recall.assemble import build_with_meta as assemble_text_meta
-    from recall.designated import deliverable, mark_given
+    from recall.designated import deliverable, mark_given, current_heads
     from recall.drift import best_of as drift_best
     from recall.drift import should_drift
     from recall.gate import pinned
@@ -89,7 +89,7 @@ def query_block(
     pinned_arts = visible(pinned(cache, subject), umo, owner_umo, lookup)
     pool = [
         art
-        for art in visible(cache.active(), umo, owner_umo, lookup)
+        for art in visible(current_heads(cache.active(), artifacts), umo, owner_umo, lookup)
         if art.header.family != "relationship"
         and deliverable(art, text, private)
     ]
@@ -209,6 +209,8 @@ def query_block(
         overrides=overrides,
     )
     info = {
+        "designated_revisions": tuple((art.header.id, art.header.revision) for art in safe_designated + picked
+                                      if art.header.family == "designated" and art.header.id in final_ids),
         "designated_ids": tuple(art.header.id for art in safe_designated + picked
                                 if art.header.family == "designated" and art.header.id in final_ids),
         "mode": mode,

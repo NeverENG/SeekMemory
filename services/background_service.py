@@ -9,7 +9,7 @@ import asyncio
 import datetime
 from typing import TYPE_CHECKING, Any, Callable
 
-from .ports import BackgroundJobs, PendingBuffer, ServiceJournal, ServiceLogger
+from .ports import BackgroundJobs, PendingBuffer, ServiceJournal, ServiceLogger, WritebackRetrier
 
 if TYPE_CHECKING:
     from .capacity_service import CapacityService
@@ -42,6 +42,7 @@ class BackgroundService:
         journal: ServiceJournal,
         config: Callable[[str, Any], Any],
         logger: ServiceLogger,
+        context_writer: WritebackRetrier | None = None,
     ) -> None:
         self.jobs = jobs
         self.checkpoint = checkpoint
@@ -54,6 +55,7 @@ class BackgroundService:
         self.journal = journal
         self.config = config
         self.logger = logger
+        self.context_writer = context_writer
         self._tasks: list[asyncio.Task] = []
 
     @property
@@ -99,7 +101,7 @@ class BackgroundService:
         独立于抽取及发言开关重试待补写，不调用模型；返回已完成的补偿操作数。
         """
         completed = 0
-        for service in (self.ingest, self.runtime_worker):
+        for service in (self.ingest, self.runtime_worker, self.context_writer):
             retry = getattr(service, "retry_writebacks", None)
             if retry is None:
                 continue

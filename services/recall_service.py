@@ -19,12 +19,12 @@ except ImportError:
 try:
     from ..recall.designated import deliverable
     from ..recall.pipeline import query_block
-    from ..recall.context_recording import record_context
+    from ..recall.context_recording import record_context, ContextRecorder
     from ..recall.scope import visible
 except ImportError:
     from recall.designated import deliverable
     from recall.pipeline import query_block
-    from recall.context_recording import record_context
+    from recall.context_recording import record_context, ContextRecorder
     from recall.scope import visible
 
 
@@ -53,6 +53,7 @@ class RecallService:
         self.owner_umo = owner_umo
         self.hybrid_retriever = hybrid_retriever
         self.log = log or (lambda _msg: None)
+        self._context_writer = ContextRecorder(artifacts, cache)
 
     def query(
         self,
@@ -119,7 +120,14 @@ class RecallService:
 
         在模型或发送产生结果之前记录实际进入模型上下文的内容；预览不调用本入口。
         """
-        return record_context(self.artifacts, self.cache, block, info)
+        return self._context_writer.record(block, info)
+
+    def retry_writebacks(self) -> int:
+        """Resume inclusion commits/cache repairs without recall or model calls.
+
+        恢复包含记录提交及缓存补偿，不进行召回或模型调用。
+        """
+        return self._context_writer.retry_writebacks()
 
     def preview(self, text: str, session_id: str, private: bool,
                 speaker: str = "") -> dict:

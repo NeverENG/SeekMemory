@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 EXPORTS = {
     "build_block": "pipeline", "query_block": "pipeline", "record_context": "context_recording",
+    "ContextRecorder": "context_recording",
     "GraphRetriever": "retriever", "HybridRetriever": "retriever", "BM25Index": "bm25",
     "build": "assemble", "build_with_meta": "assemble", "SourceHit": "source_query",
     "query_recent": "source_query", "owner_of": "scope", "visible": "scope",

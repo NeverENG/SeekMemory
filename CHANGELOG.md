@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 修复指定记忆已记录但缓存失败后的重复正文注入与重复提交：纯查询检查数据库最新状态，待提交和仅需缓存补偿分别恢复；旧版本不能覆盖新正文，后台及停止前可纯补写。无结构或配置变更。
+
 - 内部卫生：明确 recall 的 domain/ports 及纯查询、上下文记录入口，分开筛选、证据回退、披露和组装；预览不写入，宿主及后台在正文进入模型上下文时明确记录指定记忆，旧 build 默认行为保持兼容。
 
 - 修复待处理队列重载失败时的部分视图，以及旧 JSON 保存失败时的输入丢失：先准备和保存再发布，原子替换文件，失败抛错并保留原视图；确认仅消费原行，保留新输入和不可变证据。
@@ -25,6 +27,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Prevent repeated designated-body injection/commits after cache failure: pure queries check the latest database state, pending commits and cache-only repairs resume separately, stale revisions cannot overwrite new text, and background/shutdown can compensate without model calls. Schema/configuration are unchanged.
 
 - Internal hygiene: add explicit recall domain/ports, pure queries and context-recording entries; separate selection, evidence fallback, disclosure and assembly. Preview stays read-only; host/background paths explicitly record designated bodies when included in model context, preserving legacy build defaults.
 

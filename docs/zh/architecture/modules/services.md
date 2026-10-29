@@ -69,3 +69,5 @@ BackgroundService 管 nightly/idle/Dream/weekly/checkpoint/runtime worker 的启
 没有已完成提交时，抽取失败保持原异常类型；存在已完成写入时才携带明确进度。
 
 记忆上下文构造使用纯 `RecallService.query()`。明确包含记录通过可选通用 `MemoryContextRecorder` 转发；普通宿主钩子在附加到请求后调用，后台在模型调用前立即调用。运行时不包含指定记忆规则；旧 `RecallService.build()` 仍是兼容的查询加记录入口。
+
+后台补偿也委托上下文包含记录器，因此关闭抽取或发言时，以及数据库关闭前，仍可完成指定记忆待提交或缓存补偿。

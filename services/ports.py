@@ -98,6 +98,17 @@ class ServiceLogger(Protocol):
         ...
 
 
+class WritebackRetrier(Protocol):
+    """Resume already prepared persistence independently of scheduling gates.
+
+    独立于调度开关恢复已经准备的持久化，不调用模型或发送。
+    """
+
+    def retry_writebacks(self) -> int:
+        """Return completed operations / 返回已完成操作数。"""
+        ...
+
+
 class BackgroundJobs(Protocol):
     """Serialize scheduled work; the caller owns shutdown / 串行处理定时任务，由调用方管理关闭。"""
 
@@ -133,5 +144,5 @@ __all__ = [
     "ArtifactCache", "ArtifactStore", "ChatModel", "DreamJournal", "ExtractionStore",
     "LedgerStore", "MetricsStore", "PersonaPacks", "SourceStore", "TreeArtifactStore", "TreeCache",
     "Config", "ProviderFactory", "PersonaModelFactory", "LegacyTextModel", "PendingBuffer", "ServiceJournal",
-    "ServiceLogger", "BackgroundJobs", "CapacityTrace",
+    "ServiceLogger", "WritebackRetrier", "BackgroundJobs", "CapacityTrace",
 ]

@@ -69,3 +69,5 @@ Transparent diagnostic wrappers mark their frames with `__tracebackhide__`; Jour
 Flush failures with no completed commit preserve the original exception type; completed-write failures carry explicit progress instead.
 
 Memory context construction uses the pure `RecallService.query()`. Explicit inclusion recording is forwarded through the optional generic `MemoryContextRecorder`; ordinary host hooks call it after request attachment, background dispatch immediately before model invocation. The runtime contains no designated rules. Existing `RecallService.build()` remains a compatibility query-plus-recording entry.
+
+Background compensation also delegates the context-inclusion writer, so pending designated commits/cache repairs can finish while extraction/speaking are disabled and before database shutdown.
