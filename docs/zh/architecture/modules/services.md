@@ -33,3 +33,20 @@ TreeService 的实现集中在 `services/tree_service.py`，通过 `app/ports.py
 BackgroundService 管 nightly/idle/Dream/weekly/checkpoint/runtime worker 的启动和停止。WebUI 的 Jobs 将手动和定时维护串行化为单个活动任务；插件停止时先取消和等待后台任务，再关闭数据库。服务不直接注册宿主事件，adapters 负责将事件送入服务。
 
 入口：[service_collection.py](../../../../services/service_collection.py)、[ingest_service.py](../../../../services/ingest_service.py)、[recall_service.py](../../../../services/recall_service.py)、[maintenance_service.py](../../../../services/maintenance_service.py)。
+
+## 接口与文件归属
+
+`services/domain.py` 明确导出受支持的服务。`services/ports.py` 声明所需缓冲区、模型提供方、诊断、日志、任务及追踪能力，复用 app 已有仓储和缓存协议。两个入口文件不含业务实现；旧包入口和实现路径仍指向同一对象。所有注入资源的构造与关闭均由组装方管理。
+
+| 实现文件 | 职责及副作用 | 逻辑复杂度与耦合 |
+|---|---|---|
+| `ingest_service.py` | 话题选择、模型调用及有顺序的抽取写入 | 高：协调模型、持久提交、缓存及队列 |
+| `maintenance_service.py` | 读取证据、调用模型及编排维护 | 高：协调多个写入流程，不实现 SQL |
+| `persona_policy.py` | 选择证据、规范化配置权重及构造版本 | 低至中：只处理给定数据的纯规则 |
+| `management_service.py` | 兼容的管理入口 | 低：委托明确的查询与命令 |
+| `management_queries.py` | 目录、详情、人格包及版本视图 | 中：读取仓储，不写入记忆 |
+| `management_commands.py` | 校验已确认的修改、设定安装、回滚及人格包操作 | 中：先提交再更新缓存，不拥有资源 |
+| `background_service.py` | 任务生命周期及执行频率 | 中：拥有自有任务，业务工作交给其他服务 |
+| `access_service.py`、`recall_service.py`、`capacity_service.py`、`status_service.py`、`tree_service.py` | 既有权限、召回、压力、状态及树用例 | 分别负责各自职责；树的后续写入不是整体事务 |
+
+`tests/test_services_interface_contract.py` 验证接口对象身份，以及顶层和插件命名空间下的全新导入顺序。原有抽取、人格、管理 HTTP 和架构场景验证委托后的行为，不能据此声称真实模型或真实宿主已经通过验证。

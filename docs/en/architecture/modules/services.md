@@ -33,3 +33,20 @@ TreeService is implemented entirely in `services/tree_service.py`. It uses `Tree
 BackgroundService starts and stops nightly/idle/Dream/weekly/checkpoint/runtime-worker cadence. WebUI Jobs serializes manual and scheduled maintenance into one active task. On plugin shutdown, background and management tasks stop before the database closes. Services do not register host events; adapters route events into them.
 
 Entry points: [service_collection.py](../../../../services/service_collection.py), [ingest_service.py](../../../../services/ingest_service.py), [recall_service.py](../../../../services/recall_service.py), [maintenance_service.py](../../../../services/maintenance_service.py).
+
+## Interface and file ownership
+
+`services/domain.py` explicitly re-exports the supported services. `services/ports.py` declares required buffer, provider, journal, logger, job and trace capabilities and reuses the existing app repository/cache protocols. These entry files contain no business implementation. Existing package and implementation imports keep the same objects. Composition owns construction and shutdown of every injected resource.
+
+| Implementation | Responsibility and effects | Logical complexity / coupling |
+|---|---|---|
+| `ingest_service.py` | Topic selection, model calls and ordered extraction writes | High: coordinates model, durable commits, cache and queue |
+| `maintenance_service.py` | Evidence reads, model calls and ordered maintenance | High: coordinates several writers; no SQL |
+| `persona_policy.py` | Evidence selection, configured weight normalization and revision construction | Low/medium: pure rules over supplied data |
+| `management_service.py` | Compatible management entrypoints | Low: delegates explicit reads and commands |
+| `management_queries.py` | Catalog, detail, packs and version projections | Medium: repository reads; no memory writes |
+| `management_commands.py` | Validate confirmed edits, seed installation, rollback and pack actions | Medium: commit first, then cache; no resource ownership |
+| `background_service.py` | Task lifecycle and cadence | Medium: owns its tasks; delegates business work |
+| `access_service.py`, `recall_service.py`, `capacity_service.py`, `status_service.py`, `tree_service.py` | Existing access, recall, pressure, status and tree use cases | Separate owners; tree follow-up writes are not one transaction |
+
+Interface identities and fresh top-level/plugin-namespace import orders are covered by `tests/test_services_interface_contract.py`. Existing extraction, persona, management HTTP and architecture scenarios exercise the delegated behavior. They do not establish real-model or real-host coverage.

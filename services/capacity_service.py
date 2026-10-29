@@ -1,4 +1,7 @@
-"""Capacity governance and maintenance actions."""
+"""Observe capacity and coordinate admission/maintenance; no SQL or resource ownership.
+
+观察容量并协调接纳和维护，不实现 SQL 或管理资源生命周期。
+"""
 
 from __future__ import annotations
 
@@ -6,7 +9,7 @@ import datetime
 from typing import Any, Callable
 
 try:
-    from ..app.ports import ExtractionStore, MetricsStore
+    from .ports import ExtractionStore, MetricsStore, CapacityTrace, ServiceJournal, ServiceLogger
     from .maintenance_service import MaintenanceService
     from ..core.capacity import (
         NORMAL,
@@ -16,7 +19,7 @@ try:
         CapacitySnapshot,
     )
 except ImportError:
-    from app.ports import ExtractionStore, MetricsStore
+    from services.ports import ExtractionStore, MetricsStore, CapacityTrace, ServiceJournal, ServiceLogger
     from services.maintenance_service import MaintenanceService
     from core.capacity import (
         NORMAL,
@@ -28,7 +31,7 @@ except ImportError:
 
 
 class CapacityService:
-    """Own capacity observation, admission state and maintenance actions."""
+    """Own capacity observation and admission state; delegate memory maintenance / 管理容量观察及接纳状态，将记忆维护委托给维护服务。"""
 
     def __init__(
         self,
@@ -36,11 +39,11 @@ class CapacityService:
         metrics: MetricsStore | None,
         extraction: ExtractionStore | None,
         maintenance: MaintenanceService,
-        trace,
-        journal,
+        trace: CapacityTrace,
+        journal: ServiceJournal,
         governor: CapacityGovernor,
         config: Callable[[str, Any], Any],
-        logger,
+        logger: ServiceLogger,
         on_release: Callable[[], None] | None = None,
     ) -> None:
         self.metrics = metrics
@@ -61,12 +64,15 @@ class CapacityService:
 
     @property
     def thresholds(self):
+        """Read the configured governor thresholds / 读取容量调节器的配置阈值。"""
         return self.governor.thresholds
 
     def set_context_chars(self, value: int) -> None:
+        """Update the observed per-turn context size / 更新观察到的每轮上下文大小。"""
         self.context_chars = max(0, int(value))
 
     def snapshot(self) -> CapacitySnapshot:
+        """Read capacity measurements without changing admission state / 读取容量用量，不改变接纳状态。"""
         usage = self.metrics.capacity_usage() if self.metrics is not None else {}
         return CapacitySnapshot(
             source_rows=int(usage.get("source_rows", 0)),
@@ -87,6 +93,7 @@ class CapacityService:
         )
 
     def observe(self) -> CapacityDecision:
+        """Evaluate capacity, update admission state and record state transitions / 评估容量，更新接纳状态并记录状态变化。"""
         snapshot = self.snapshot()
         decision = self.governor.evaluate(snapshot)
         self.degrade_recall = "degrade_recall" in decision.actions
@@ -125,17 +132,20 @@ class CapacityService:
         return decision
 
     def admit_deferred(self) -> bool:
+        """Decide whether a new deferred row fits the current limit / 判断当前上限是否允许新增延后处理行。"""
         if not self.backpressure:
             return False
         return self.deferred_rows < self.thresholds.defer_limit
 
     def batch_cap(self, decision: CapacityDecision) -> int:
+        """Compute the extraction batch cap from the capacity decision / 根据容量决策计算抽取批次上限。"""
         cap = max(1, int(self.config("max_sessions_per_flush", 6)))
         if "raise_batch_size" in decision.actions:
             return min(24, cap * 2)
         return cap
 
     def apply_maintenance(self, decision: CapacityDecision) -> None:
+        """Release deferred rows and execute due pressure actions in order / 释放延后处理行并依次执行到期的压力处理动作。"""
         if (
             "release_deferred" in decision.actions
             and self.deferred_rows
@@ -190,6 +200,7 @@ class CapacityService:
         )
 
     def status(self) -> dict:
+        """Read a capacity summary without applying maintenance actions / 读取容量摘要，不执行维护动作。"""
         snapshot = self.snapshot()
         decision = self.governor.evaluate(snapshot)
         queue = self.extraction.queue_counts() if self.extraction is not None else {}

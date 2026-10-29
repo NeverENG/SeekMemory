@@ -1,13 +1,20 @@
-"""Memory read-path assembly."""
+"""Coordinate recall and its compatible designated-context writeback behavior.
+
+协调召回及兼容的指定记忆上下文写回行为，资源由调用方管理。
+"""
 
 from __future__ import annotations
 
 from typing import Any, Callable
 
 try:
-    from ..app.ports import ArtifactStore, SourceStore
+    from .ports import ArtifactCache, ArtifactStore, SourceStore
+    from ..core.graph import Graph
+    from ..app.budget import ContextBudget
 except ImportError:
-    from app.ports import ArtifactStore, SourceStore
+    from services.ports import ArtifactCache, ArtifactStore, SourceStore
+    from core.graph import Graph
+    from app.budget import ContextBudget
 
 try:
     from ..recall.designated import deliverable
@@ -20,20 +27,16 @@ except ImportError:
 
 
 class RecallService:
-    """Build one recall block from the memory stores.
-
-    Capacity pressure is an input, not a second policy owner: the caller passes
-    ``degraded`` when the capacity governor has requested smaller recall.
-    """
+    """Coordinate recall inputs and budgets; callers own stores and retrievers / 协调召回输入与预算，仓储和检索器由调用方管理。"""
 
     def __init__(
         self,
         *,
-        cache: Any,
-        graph: Any,
+        cache: ArtifactCache | None,
+        graph: Graph | None,
         artifacts: ArtifactStore | None,
         sources: SourceStore | None,
-        budget,
+        budget: ContextBudget,
         config: Callable[[str, Any], Any],
         owner_umo: Callable[[], str],
         hybrid_retriever=None,
@@ -59,7 +62,7 @@ class RecallService:
         degraded: bool = False,
         dry_run: bool = False,
     ) -> tuple[str, dict]:
-        """Return the recalled text and its content-free recall metadata."""
+        """Build recall context; the legacy default also marks injected designated memories given / 构建召回上下文，兼容默认行为也将已注入的指定记忆标为已给出。"""
         budget_chars = int(self.budget.injection_chars)
         recall_k = int(self.config("recall_k", 8))
         if degraded:
@@ -100,7 +103,7 @@ class RecallService:
 
     def preview(self, text: str, session_id: str, private: bool,
                 speaker: str = "") -> dict:
-        """Run the recall path without writing delivery state."""
+        """Preview recall without writing designated delivery state / 预览召回，不写入指定记忆的交付状态。"""
         block, info = self.build(
             text, session_id, private, speaker, dry_run=True
         )

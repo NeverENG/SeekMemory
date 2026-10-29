@@ -1,10 +1,12 @@
-"""Memory maintenance: decay, merge, impression and persona evolution."""
+"""Orchestrate memory maintenance and persona evolution over injected resources.
+
+在注入的资源上编排记忆维护和人格演化，不管理资源生命周期。
+"""
 
 from __future__ import annotations
 
 import datetime
-import math
-from typing import Any, Awaitable, Callable
+from typing import Any, Callable
 
 try:
     from ..app.persona_synthesis import (
@@ -12,37 +14,35 @@ try:
         build_persona_request,
         parse_persona_draft,
     )
-    from ..app.ports import ArtifactStore, SourceStore
-    from ..core.artifact import Lineage, Strength, content_of, revise
+    from .ports import ArtifactCache, ArtifactStore, SourceStore, PersonaModelFactory, ServiceJournal, ServiceLogger
     from ..core.bot_behavior import SELF_SUBJECT
     from ..core.persona import PERSONA_SYNTHESIS_VERSION
-except ImportError:  # Standalone tests use the repository as the import root.
+except ImportError:  # Standalone root / 独立测试以仓库为导入根。
     from app.persona_synthesis import (
         PersonaEvidence,
         build_persona_request,
         parse_persona_draft,
     )
-    from app.ports import ArtifactStore, SourceStore
-    from core.artifact import Lineage, Strength, content_of, revise
+    from services.ports import ArtifactCache, ArtifactStore, SourceStore, PersonaModelFactory, ServiceJournal, ServiceLogger
     from core.bot_behavior import SELF_SUBJECT
     from core.persona import PERSONA_SYNTHESIS_VERSION
 
 
-PersonaModelFactory = Callable[[], Awaitable[Any]]
+from .persona_policy import persona_evidence, persona_revision, relationship_weight
 
 
 class MaintenanceService:
-    """Own the weekly memory-maintenance pipeline."""
+    """Orchestrate maintenance and persona model calls over caller-owned resources / 在调用方管理的资源上编排维护及人格模型调用。"""
 
     def __init__(
         self,
         *,
         artifacts: ArtifactStore | None,
         sources: SourceStore | None,
-        cache: Any,
-        journal,
+        cache: ArtifactCache | None,
+        journal: ServiceJournal,
         task_id: Callable[[], str],
-        logger,
+        logger: ServiceLogger,
         config: Callable[[str, Any], Any] | None = None,
         persona_model: PersonaModelFactory | None = None,
         clock: Callable[[], datetime.datetime] | None = None,
@@ -58,6 +58,7 @@ class MaintenanceService:
         self.clock = clock or datetime.datetime.now
 
     def _relationship_mode(self) -> str:
+        """Read the relationship mode, warning and falling back when invalid / 读取关系模式，无效时警告并回退。"""
         mode = str(self._c("relationship_mode", "observe") or "").strip().lower()
         if mode in ("off", "observe", "enforce"):
             return mode
@@ -65,21 +66,14 @@ class MaintenanceService:
         return "observe"
 
     def _relationship_weight(self, key: str, default: float) -> float:
-        invalid = False
-        try:
-            value = float(self._c(key, default))
-        except (TypeError, ValueError):
-            value = default
-            invalid = True
-        if not math.isfinite(value):
-            value = default
-            invalid = True
-        clamped = max(0.0, min(1.0, value))
-        if invalid or clamped != value:
+        """Normalize a configured weight and report corrections / 规范化配置权重并报告纠正。"""
+        normalized = relationship_weight(self._c(key, default), default)
+        if normalized.corrected:
             self.logger.warning(f"[seekmemory] clamped relationship config: {key}")
-        return clamped
+        return normalized.value
 
     def _relationship_policy(self):
+        """Build the relationship policy from normalized configuration weights / 按规范化后的配置权重构造关系规则。"""
         try:
             from ..core.relationship_rules import RelationshipScoringPolicy
         except ImportError:
@@ -97,6 +91,7 @@ class MaintenanceService:
         )
 
     async def weekly(self) -> dict:
+        """Run the ordered relationship, self-impression, decay, merge and persona stages / 依次执行关系、自身印象、衰退、合并及人格阶段。"""
         try:
             from ..maintain.decay import decay_all
             from ..maintain.merge import merge_similar
@@ -178,6 +173,7 @@ class MaintenanceService:
         }
 
     async def _synthesize_persona_async(self) -> dict:
+        """Select evidence, request a draft and commit before updating cache / 选择证据并请求草案，提交后再更新缓存。"""
         if not bool(self._c("persona_synthesis_enabled", True)):
             return {"status": "disabled"}
         active = sorted(
@@ -256,6 +252,7 @@ class MaintenanceService:
         }
 
     def _persona_age_days(self, current) -> float | None:
+        """Read persona age with the existing timezone-alignment behavior / 沿用现有时区对齐行为读取人格年龄。"""
         raw = str(current.header.time.updated or "")
         if not raw:
             return None
@@ -271,104 +268,22 @@ class MaintenanceService:
         return max(0.0, (now - last).total_seconds() / 86400.0)
 
     def _persona_evidence(self) -> list[PersonaEvidence]:
+        """Read candidate evidence, then apply pure visibility rules / 读取候选证据，再应用纯可见性规则。"""
         try:
             from ..maintain.self_impression import promote_self_candidates
         except ImportError:
             from maintain.self_impression import promote_self_candidates
+        return persona_evidence(
+            promote_self_candidates(self.cache, self.sources), self.cache.active(),
+            max(1, int(self._c("persona_synthesis_evidence_limit", 8))),
+        )
 
-        limit = max(1, int(self._c("persona_synthesis_evidence_limit", 8)))
-        out: list[PersonaEvidence] = []
-        seen: set[str] = set()
-
-        def add(art: Any, kind: str) -> None:
-            if len(out) >= limit or art.header.id in seen:
-                return
-            try:
-                text = content_of(art)
-            except Exception:  # noqa: BLE001 - one bad row must not block synthesis
-                return
-            text = str(text or "").strip()
-            if not text:
-                return
-            out.append(
-                PersonaEvidence(
-                    id=art.header.id,
-                    kind=kind,
-                    text=text,
-                    source_ids=tuple(art.header.lineage.sources),
-                )
-            )
-            seen.add(art.header.id)
-
-        for art in promote_self_candidates(self.cache, self.sources):
-            add(art, "self_impression")
-
-        shared_memories = []
-        for art in self.cache.active():
-            if art.header.family != "memory":
-                continue
-            # Shared scope is the existing global-visibility boundary. Do not
-            # use private memories for a persona that will be injected into
-            # every conversation.
-            if art.header.scope != "shared" or art.header.shareable == "secret":
-                continue
-            level = str(art.payload.get("level") or "")
-            if level not in ("scene", "detail", "fact", "impression"):
-                continue
-            shared_memories.append(art)
-        shared_memories.sort(
-            key=lambda art: (
-                -float(art.header.strength.weight or 0),
-                str(art.header.time.updated or ""),
-                art.header.id,
-            )
-        )
-        for art in shared_memories:
-            add(art, f"memory:{art.payload.get('level')}")
-        return out
-
-    def _persona_revision(
-        self, current, draft: dict, evidence: list[PersonaEvidence]
-    ) -> Any:
-        payload = dict(current.payload)
-        payload.update(
-            {
-                "text": draft["persona"],
-                "origin": "dream",
-                "synthesis": PERSONA_SYNTHESIS_VERSION,
-                "style": draft["style"],
-                "boundaries": draft["boundaries"],
-                "change_reason": draft["change_reason"],
-            }
-        )
-        payload.pop("corpus", None)
-        payload.pop("behaviors", None)
-        payload.pop("base_text", None)
-        source_ids = tuple(
-            sorted({source for item in evidence for source in item.source_ids if source})
-        )
-        derived_from = tuple(item.id for item in evidence)
-        confidence = max(
-            0.9, min(1.0, float(current.header.strength.confidence or 0.9))
-        )
-        strength = Strength(
-            weight=float(current.header.strength.weight or 1.0),
-            confidence=confidence,
-            hits=int(current.header.strength.hits or 0) + len(evidence),
-        )
-        return revise(
-            current,
-            payload=payload,
-            subject_id=SELF_SUBJECT,
-            scope="shared",
-            shareable="public",
-            said_by="inferred",
-            lineage=Lineage(sources=source_ids, derived_from=derived_from),
-            strength=strength,
-        )
+    def _persona_revision(self, current, draft: dict, evidence: list[PersonaEvidence]) -> Any:
+        """Prepare a revision without writing it / 准备版本，不执行写入。"""
+        return persona_revision(current, draft, evidence)
 
     def compact_artifacts(self) -> int:
-        """Merge similar active memories through the single maintenance path."""
+        """Merge similar active memories through the existing maintenance writer / 通过现有维护写入流程合并相似的有效记忆。"""
         try:
             from ..maintain.merge import merge_similar
         except ImportError:
@@ -381,7 +296,7 @@ class MaintenanceService:
         return merged
 
     def forget_expired(self, today: str = "") -> int:
-        """Forget expired artifacts through the single maintenance path."""
+        """Forget expired memories through the existing maintenance writer / 通过现有维护写入流程遗忘过期记忆。"""
         try:
             from ..maintain.lifecycle import forget_expired
         except ImportError:

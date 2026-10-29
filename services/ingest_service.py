@@ -1,4 +1,7 @@
-"""Pending-buffer extraction service."""
+"""Coordinate pending extraction, model usage and ordered memory writes.
+
+协调待处理抽取、模型用量及有顺序的记忆写入，资源由调用方管理。
+"""
 
 from __future__ import annotations
 
@@ -18,7 +21,8 @@ try:
         pack_same_session_batches,
         select_topic_batches,
     )
-    from ..app.ports import ArtifactStore, ExtractionStore, SourceStore
+    from .ports import ArtifactCache, ArtifactStore, ExtractionStore, SourceStore, PendingBuffer, ServiceJournal, ServiceLogger, ProviderFactory
+    from ..core.graph import Graph
     from ..core.artifact import content_of, revise
     from ..core.capacity import PROTECTIVE, SATURATED
     from ..maintain.impression import revise_impression
@@ -42,7 +46,8 @@ except ImportError:
         pack_same_session_batches,
         select_topic_batches,
     )
-    from app.ports import ArtifactStore, ExtractionStore, SourceStore
+    from services.ports import ArtifactCache, ArtifactStore, ExtractionStore, SourceStore, PendingBuffer, ServiceJournal, ServiceLogger, ProviderFactory
+    from core.graph import Graph
     from core.artifact import content_of, revise
     from core.capacity import PROTECTIVE, SATURATED
     from maintain.impression import revise_impression
@@ -60,22 +65,22 @@ except ImportError:
 
 
 class IngestService:
-    """Turn pending dialogue into memory; never owns capacity or scheduling."""
+    """Own extraction and its write stages; scheduling and resources belong to callers / 管理抽取及其写入阶段，调度与资源由调用方负责。"""
 
     def __init__(
         self,
         *,
-        buffer: Any,
+        buffer: PendingBuffer | None,
         artifacts: ArtifactStore | None,
         sources: SourceStore | None,
         extraction: ExtractionStore | None,
-        cache: Any,
-        graph: Any,
-        journal,
+        cache: ArtifactCache | None,
+        graph: Graph | None,
+        journal: ServiceJournal | None,
         config: Callable[[str, Any], Any],
-        provider_for: Callable[[str | None], Awaitable[Any]],
+        provider_for: ProviderFactory,
         owner_id: Callable[[], str],
-        logger,
+        logger: ServiceLogger,
     ) -> None:
         self.buffer = buffer
         self.artifacts = artifacts
@@ -97,7 +102,7 @@ class IngestService:
         self._usage_out = 0
 
     def usage_snapshot(self) -> dict[str, int]:
-        """Return cumulative content-free extraction usage counters."""
+        """Read cumulative content-free model usage counters / 读取不含正文的累计模型用量。"""
         return {
             "calls": int(self._usage_calls),
             "in": int(self._usage_in),
@@ -107,6 +112,7 @@ class IngestService:
 
     @staticmethod
     def _response_usage(response: Any) -> tuple[int, int, int]:
+        """Normalize either supported provider usage shape / 规范化两种受支持的供应商用量结构。"""
         def number(value: Any) -> int:
             try:
                 return max(0, int(value or 0))
@@ -127,6 +133,7 @@ class IngestService:
         )
 
     def _record_usage(self, usage: tuple[int, int, int]) -> None:
+        """Accumulate usage after a completed model call / 在模型调用完成后累计用量。"""
         self._usage_calls += 1
         self._usage_in += max(0, int(usage[0]))
         self._usage_cached += max(0, int(usage[1]))
@@ -134,6 +141,7 @@ class IngestService:
 
     @staticmethod
     def _with_usage(outcome: WriteOutcome, usage: tuple[int, int, int]) -> WriteOutcome:
+        """Attach the completed call usage to the write outcome / 将已完成调用的用量附到写入结果。"""
         return replace(
             outcome,
             usage_in=max(0, int(usage[0])),
@@ -148,6 +156,7 @@ class IngestService:
         capacity_actions,
         dream_only: bool,
     ) -> bool:
+        """Evaluate pending-input and capacity gates without starting extraction / 评估待处理输入与容量条件，不启动抽取。"""
         if self.flushing or self.buffer is None or self.extraction is None:
             return False
         today = datetime.date.today().isoformat()
@@ -182,6 +191,7 @@ class IngestService:
         triage: bool = False,
         ranked: list[TopicImportance] | None = None,
     ) -> list[tuple[str, str, list[DialogueTurn]]]:
+        """Select bounded topic groups with optional importance ranking / 选择有数量上限的话题组，可按重要性排序。"""
         limit = int(cap or self.config("max_sessions_per_flush", 6))
         if triage:
             if ranked is None:
@@ -200,7 +210,7 @@ class IngestService:
         max_tokens: int = 0,
         triage: bool = False,
     ) -> tuple[int, int]:
-        """Extract ready topics while preserving pending rows on failure."""
+        """Extract ready topics while preserving pending rows on failure / 抽取可处理话题，失败时保留待处理行。"""
         if (
             self.flushing
             or self.buffer is None
@@ -471,7 +481,7 @@ class IngestService:
             nullcontext()
         ),
     ) -> WriteOutcome:
-        """Call the model, build a pure plan, then persist through this service."""
+        """Call the model, build a validated plan, then persist it; failed input stays retryable / 调用模型并构造验证后的计划，再持久化，失败输入仍可重试。"""
         if (
             not items
             or self.artifacts is None
@@ -547,6 +557,7 @@ class IngestService:
         *,
         usage: tuple[int, int, int] = (0, 0, 0),
     ) -> WriteOutcome:
+        """Commit planned memories and follow with cache and optional enrichment / 提交计划中的记忆，再更新缓存及执行可选增强。"""
         written_ids: list[str] = []
         skipped = plan.skipped
         errors = list(plan.errors)
@@ -597,7 +608,7 @@ class IngestService:
         )
 
     def _supersede(self, new_art) -> int:
-        """Expire an explicitly superseded old memory without deleting its Source."""
+        """Expire matching superseded memories without deleting immutable Source / 终止匹配的旧记忆有效期，不删除不可变原始消息。"""
         payload = new_art.payload if isinstance(new_art.payload, dict) else {}
         old_text = str(payload.get("supersedes") or "").strip()
         if not old_text or self.cache is None:

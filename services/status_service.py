@@ -1,4 +1,7 @@
-"""Read-only memory status queries for the management UI."""
+"""Read management status; no Source text, writes or owned resources.
+
+读取管理状态，不读取原始消息正文、执行写入或拥有资源。
+"""
 
 from __future__ import annotations
 
@@ -11,7 +14,7 @@ except ImportError:
 
 
 class StatusService:
-    """Expose persona revisions without leaking source text."""
+    """Read persona versions and ledger integrity without Source text / 读取人格版本及账本完整性，不读取原始消息正文。"""
 
     def __init__(self, *, artifacts: ArtifactStore | None,
                  ledger: LedgerStore | None = None) -> None:
@@ -20,6 +23,7 @@ class StatusService:
 
     @staticmethod
     def json_object(raw: object) -> dict:
+        """Decode an object or return an empty object for invalid legacy data / 解析对象，对无效的旧数据返回空对象。"""
         value = raw
         if isinstance(value, str):
             try:
@@ -30,6 +34,7 @@ class StatusService:
 
     @classmethod
     def header_evidence(cls, raw_header: object) -> tuple[list[str], list[str]]:
+        """Read source and derived-memory IDs from legacy version headers / 从旧版本头部读取原始消息及派生记忆编号。"""
         header = cls.json_object(raw_header)
         lineage = cls.json_object(header.get("lineage"))
 
@@ -56,6 +61,7 @@ class StatusService:
         return ids("derived_from", "derivedFrom"), ids("sources", "sourceIds")
 
     def persona(self) -> dict | None:
+        """Read the current persona with each versions own evidence / 读取当前人格及各版本自身的证据。"""
         if self.artifacts is None:
             return None
         active = [art for art in self.artifacts.list(family="persona", state="active")]
@@ -103,5 +109,5 @@ class StatusService:
         }
 
     def ledger_valid(self) -> bool:
-        """Return whether the append-only ledger hash chain is intact."""
+        """Verify the stored append-only ledger chain / 验证已保存的追加式账本链。"""
         return bool(self.ledger is not None and self.ledger.verify())

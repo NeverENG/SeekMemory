@@ -1,33 +1,47 @@
-"""Periodic memory-maintenance scheduling."""
+"""Own periodic tasks and delegate business work to injected services.
+
+管理周期任务并将业务工作委托给注入的服务，其他资源由组装方管理。
+"""
 
 from __future__ import annotations
 
 import asyncio
 import datetime
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
+
+from .ports import BackgroundJobs, PendingBuffer, ServiceJournal, ServiceLogger
+
+if TYPE_CHECKING:
+    from .capacity_service import CapacityService
+    from .ingest_service import IngestService
+    from .maintenance_service import MaintenanceService
+    try:
+        from ..app.checkpoint import CheckpointManager
+        from ..app.dream import DreamCycle
+        from ..app.runtime import RuntimeWorker
+    except ImportError:
+        from app.checkpoint import CheckpointManager
+        from app.dream import DreamCycle
+        from app.runtime import RuntimeWorker
 
 
 class BackgroundService:
-    """Own the lifecycle and cadence of periodic memory work.
-
-    The individual operations stay in IngestService, CapacityService,
-    MaintenanceService and RuntimeWorker. This object only decides when they run.
-    """
+    """Own scheduled task lifecycle and cadence; delegate memory work to services / 管理定时任务的生命周期与执行频率，将记忆工作委托给服务。"""
 
     def __init__(
         self,
         *,
-        jobs,
-        checkpoint,
-        buffer,
-        capacity,
-        ingest,
-        maintenance,
-        dream,
-        runtime_worker,
-        journal,
+        jobs: BackgroundJobs,
+        checkpoint: CheckpointManager | None,
+        buffer: PendingBuffer | None,
+        capacity: CapacityService,
+        ingest: IngestService,
+        maintenance: MaintenanceService,
+        dream: DreamCycle | None,
+        runtime_worker: RuntimeWorker,
+        journal: ServiceJournal,
         config: Callable[[str, Any], Any],
-        logger,
+        logger: ServiceLogger,
     ) -> None:
         self.jobs = jobs
         self.checkpoint = checkpoint
@@ -44,13 +58,16 @@ class BackgroundService:
 
     @property
     def tasks(self) -> list[asyncio.Task]:
+        """Read the owned scheduled tasks for lifecycle inspection / 读取自有定时任务以检查生命周期。"""
         return self._tasks
 
     @property
     def dream_enabled(self) -> bool:
+        """Read whether the constructed dream cycle is enabled / 读取已构造的夜间整理流程是否启用。"""
         return bool(self.dream is not None and self.dream.enabled)
 
     def start(self) -> bool:
+        """Start scheduled tasks once; return whether a new set was created / 仅启动一组定时任务，返回是否创建了新任务组。"""
         if self._tasks:
             return False
         operations = [
@@ -68,6 +85,7 @@ class BackgroundService:
         return True
 
     async def stop(self) -> None:
+        """Cancel and await all owned tasks; repeated calls are safe / 取消并等待所有自有任务，可重复调用。"""
         tasks = self._tasks
         self._tasks = []
         for task in tasks:
@@ -94,6 +112,7 @@ class BackgroundService:
         )
 
     def should_flush(self) -> bool:
+        """Evaluate pending-input and capacity gates without starting extraction / 评估待处理输入与容量条件，不启动抽取。"""
         decision = self.capacity.observe()
         return self.ingest.should_flush(
             capacity_state=decision.state,
@@ -102,17 +121,21 @@ class BackgroundService:
         )
 
     async def nightly(self) -> None:
+        """Apply capacity maintenance, then request extraction / 执行容量维护，再请求抽取。"""
         decision = self.capacity.observe()
         self.capacity.apply_maintenance(decision)
         await self.flush("nightly")
 
     async def weekly(self) -> dict:
+        """Delegate weekly maintenance and return its summary / 委托每周维护并返回摘要。"""
         return await self.maintenance.weekly()
 
     async def dream_maintain(self) -> dict:
+        """Run the existing weekly maintenance within the dream cycle / 在夜间整理流程中执行现有每周维护。"""
         return await self.weekly()
 
     async def run_dream(self) -> None:
+        """Run bounded extraction and maintenance, then journal the result / 执行有预算上限的抽取与维护，再记录结果。"""
         if self.dream is None or self.buffer is None:
             return
         self.capacity.apply_maintenance(self.capacity.observe())
@@ -139,6 +162,7 @@ class BackgroundService:
         )
 
     async def _checkpoint_loop(self) -> None:
+        """Run checkpoints at the configured cadence; contain ordinary failures / 按配置频率提交检查点，并隔离普通失败。"""
         while True:
             interval = max(60, int(self.config("checkpoint_seconds", 1800)))
             await asyncio.sleep(interval)
@@ -149,6 +173,7 @@ class BackgroundService:
                 self.logger.error(f"[seekmemory] checkpoint failed: {exc}")
 
     async def _nightly_loop(self) -> None:
+        """Schedule nightly extraction; retain the existing local-time policy / 调度每晚抽取，沿用现有本地时间规则。"""
         while True:
             await asyncio.sleep(
                 self.seconds_until(str(self.config("summary_time", "23:50")))
@@ -162,6 +187,7 @@ class BackgroundService:
                 )
 
     async def _weekly_loop(self) -> None:
+        """Schedule weekly maintenance; retain the existing weekday policy / 调度每周维护，沿用现有星期规则。"""
         while True:
             await asyncio.sleep(
                 self.seconds_until(
@@ -178,6 +204,7 @@ class BackgroundService:
                 )
 
     async def _idle_loop(self) -> None:
+        """Observe capacity and runtime, then schedule eligible idle extraction / 观察容量和运行时，再调度符合条件的空闲抽取。"""
         while True:
             await asyncio.sleep(30)
             try:
@@ -193,6 +220,7 @@ class BackgroundService:
                 )
 
     async def _ingest_loop(self) -> None:
+        """Schedule extraction only when its existing gates allow it / 仅在现有条件允许时调度抽取。"""
         while True:
             interval = max(120, int(self.config("ingest_interval_seconds", 600)))
             await asyncio.sleep(interval)
@@ -209,6 +237,7 @@ class BackgroundService:
                 self.logger.error(f"[seekmemory] ingest scheduling failed: {exc}")
 
     async def _dream_loop(self) -> None:
+        """Schedule due catch-up and daily dream runs / 调度到期补跑及每日夜间整理。"""
         if self.dream is not None and self.dream.due():
             try:
                 self.jobs.submit("dream", self.run_dream)
@@ -228,6 +257,7 @@ class BackgroundService:
 
     @staticmethod
     def seconds_until(hhmm: str, weekday: int | None = None) -> float:
+        """Compute the next configured local schedule with the existing fallback / 按既有回退规则计算下一次本地调度时间。"""
         try:
             hour, minute = (int(value) for value in hhmm.split(":"))
             if not 0 <= hour <= 23 or not 0 <= minute <= 59:
