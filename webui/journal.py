@@ -122,8 +122,14 @@ class Journal:
         """
         frame = inspect.currentframe()
         try:
-            if source is None and frame is not None and frame.f_back is not None:
-                source = _location(frame.f_back, frame.f_back.f_lineno)
+            if source is None and frame is not None:
+                caller = frame.f_back
+                # Transparent diagnostic wrappers preserve the business location.
+                # 透明的诊断包装保留业务代码位置。
+                while caller and caller.f_locals.get("__tracebackhide__") is True:
+                    caller = caller.f_back
+                if caller is not None:
+                    source = _location(caller, caller.f_lineno)
         finally:
             del frame
         failure = None
@@ -216,7 +222,10 @@ class Journal:
         try:
             caller = frame.f_back if frame else None
             # contextlib 会进入此生成器；调用位置应指向业务代码的 with 语句。
-            while caller and caller.f_globals.get("__name__") == "contextlib":
+            while caller and (
+                caller.f_globals.get("__name__") == "contextlib"
+                or caller.f_locals.get("__tracebackhide__") is True
+            ):
                 caller = caller.f_back
             source = _location(caller, caller.f_lineno) if caller else None
         finally:

@@ -17,6 +17,7 @@ def diagnostic(action: Callable[..., T], *args: Any, **kwargs: Any) -> T | None:
 
     尝试诊断，普通失败不改变业务结果；取消等控制信号仍向上传递。
     """
+    __tracebackhide__ = True  # Attribute diagnostics to the business caller / 诊断来源归属业务调用方。
     try:
         return action(*args, **kwargs)
     except Exception:
@@ -30,6 +31,7 @@ def span(factory: Callable[..., AbstractContextManager[dict]],
 
     隔离诊断进入和退出时的失败，保留业务体抛出的异常；不能由诊断吞掉业务失败。
     """
+    __tracebackhide__ = True  # Preserve business source locations / 保留业务代码来源位置。
     manager = None
     try:
         manager = factory(*args, **kwargs)

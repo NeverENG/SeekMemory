@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import ast
 import inspect
 import json
 import sys
@@ -62,20 +63,26 @@ class JournalTests(unittest.IsolatedAsyncioTestCase):
             }
             <= stages
         )
-        extract_events = [
-            e for e in self.journal.events if e["source"]["file"]
-            in ("services/ingest_service.py", "perceive/absorb.py")
-        ]
-        self.assertTrue(any(
-            e["source"]["file"] == "services/ingest_service.py"
-            and e["source"]["function"] == "extract"
-            for e in extract_events
-        ))
-        self.assertTrue(any(
-            e["source"]["file"] == "perceive/absorb.py"
-            and e["source"]["function"] == "build_plan"
-            for e in extract_events
-        ))
+        owners = {
+            "provider.call": "services/ingest_service.py",
+            "artifact.persist": "services/ingest_service.py",
+            "response.parse": "perceive/absorb.py",
+            "memory.deduplicate": "perceive/absorb.py",
+            "artifact.validate": "perceive/absorb.py",
+        }
+        for stage, relative in owners.items():
+            events = [event for event in self.journal.events if event["stage"] == stage]
+            self.assertTrue(events)
+            tree = ast.parse((Path(__file__).resolve().parents[1] / relative).read_text(encoding="utf-8"))
+            for event in events:
+                source = event["source"]
+                self.assertEqual(source["file"], relative)
+                functions = [node for node in ast.walk(tree)
+                             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                             and node.lineno <= source["line"] <= node.end_lineno]
+                self.assertTrue(functions)
+                owner = min(functions, key=lambda node: node.end_lineno - node.lineno)
+                self.assertEqual(source["function"], owner.name)
         self.assertNotIn("PRIVATE", self.path.read_text(encoding="utf-8"))
 
     def test_direct_and_callback_locations(self) -> None:
@@ -90,6 +97,20 @@ class JournalTests(unittest.IsolatedAsyncioTestCase):
         callback("Artifact validation failed: ValueError")
         self.assertEqual(self.journal.events[-1]["source"]["line"], expected_line)
         self.assertEqual(self.journal.events[-1]["level"], "WARNING")
+
+    def test_transparent_diagnostic_wrappers_keep_business_locations(self) -> None:
+        from services.diagnostics import diagnostic, span
+
+        expected = inspect.currentframe().f_lineno + 1
+        diagnostic(self.journal.record, "test", "info", "Wrapped diagnostic")
+        self.assertEqual(self.journal.events[-1]["source"]["line"], expected)
+        self.assertEqual(self.journal.events[-1]["source"]["file"], "tests/test_journal.py")
+        expected = inspect.currentframe().f_lineno + 1
+        with span(self.journal.span, "test", "wrapped"):
+            pass
+        for event in list(self.journal.events)[-2:]:
+            self.assertEqual(event["source"]["file"], "tests/test_journal.py")
+            self.assertEqual(event["source"]["line"], expected)
 
     async def test_stage_context_inherits_task_and_resets(self) -> None:
         jobs = Jobs(self.journal)
