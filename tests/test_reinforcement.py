@@ -10,7 +10,9 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.checkpoint import CheckpointManager  # noqa: E402
-from core.artifact import Strength, make  # noqa: E402
+from core.artifact import Strength, make, revise  # noqa: E402
+from dataclasses import replace
+from unittest.mock import patch
 from recall.assemble import build_with_meta  # noqa: E402
 from store.cache import Cache  # noqa: E402
 from store import open_store  # noqa: E402
@@ -69,6 +71,68 @@ class CheckpointCooldownTest(unittest.TestCase):
         self.assertTrue(manager.record(art))
         self.assertEqual(manager.flush(), 1)
         self.assertEqual(cache.get(art.header.id).header.strength.hits, 2)
+
+
+class CheckpointRecoveryTest(unittest.TestCase):
+    def setUp(self):
+        self.db = open_store(":memory:")
+        self.addCleanup(self.db.close)
+        self.art = _fact("recoverable fact")
+        self.db.artifacts.commit(self.art, expected_revision=0, op="create")
+        self.cache = Cache(self.db.artifacts)
+        self.cache.put(self.art)
+        self.manager = CheckpointManager(self.db.artifacts, self.cache, cooldown_seconds=0)
+        self.manager.record(self.art)
+
+    def test_failed_commit_keeps_hits_and_cache(self):
+        with patch.object(self.db.artifacts, "commit", side_effect=OSError):
+            self.assertEqual(self.manager.flush(), 0)
+        self.assertEqual(self.cache.get(self.art.header.id), self.art)
+        self.assertEqual(self.manager.pending(), 1)
+        self.assertEqual(self.manager.flush(), 1)
+        self.assertEqual(self.cache.get(self.art.header.id).header.strength.hits, 1)
+
+    def test_repeated_cache_failure_never_recommits_hits(self):
+        with patch.object(self.cache, "put", side_effect=OSError):
+            self.assertEqual(self.manager.flush(), 1)
+            self.assertEqual(self.manager.flush(), 0)
+            self.assertEqual(self.manager.pending(), 1)
+        latest = self.db.artifacts.get(self.art.header.id)
+        self.assertEqual(latest.header.strength.hits, 1)
+        self.assertEqual(latest.header.revision, self.art.header.revision + 1)
+        self.assertEqual(self.manager.flush(), 0)
+        self.assertEqual(self.manager.pending(), 0)
+        self.assertEqual(self.cache.get(self.art.header.id), latest)
+
+    def test_repair_uses_latest_head_and_preserves_new_hits(self):
+        with patch.object(self.cache, "put", side_effect=OSError):
+            self.assertEqual(self.manager.flush(), 1)
+            self.manager.record(self.art)
+            self.assertEqual(self.manager.pending(), 1)
+        head = self.db.artifacts.get(self.art.header.id)
+        changed = revise(head, strength=replace(head.header.strength, weight=2.0))
+        self.db.artifacts.commit(changed, expected_revision=head.header.revision, op="revise")
+        self.assertEqual(self.manager.flush(), 1)
+        latest = self.cache.get(self.art.header.id)
+        self.assertEqual(latest.header.strength.hits, 2)
+        self.assertAlmostEqual(latest.header.strength.weight, 2.1)
+        self.assertEqual(latest, self.db.artifacts.get(self.art.header.id))
+
+    def test_cache_miss_does_not_discard_stored_hits(self):
+        self.cache.remove(self.art.header.id)
+        self.assertEqual(self.manager.flush(), 1)
+        self.assertEqual(self.cache.get(self.art.header.id).header.strength.hits, 1)
+
+    def test_hit_arriving_during_commit_is_retained(self):
+        original = self.db.artifacts.commit
+        def commit(*args, **kwargs):
+            original(*args, **kwargs)
+            self.manager.record(self.art)
+        with patch.object(self.db.artifacts, "commit", side_effect=commit):
+            self.assertEqual(self.manager.flush(), 1)
+        self.assertEqual(self.manager.pending(), 1)
+        self.assertEqual(self.manager.flush(), 1)
+        self.assertEqual(self.cache.get(self.art.header.id).header.strength.hits, 2)
 
 
 if __name__ == "__main__":

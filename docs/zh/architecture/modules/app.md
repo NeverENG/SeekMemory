@@ -146,3 +146,7 @@ app 文件的显式导入关系中未发现循环；动态导入和实际运行�
 ## 完整依赖声明
 
 `DreamRunStore` 声明 `get/begin/finish/recent`，用于夜间整理的完整台账生命周期；控制台仍只要求 `DreamJournal.recent`。`StateRepository`、`EpisodeRepository`、`ActionRepository` 声明运行时转接所需的原始仓储能力，均由 `app.ports` 导出。Checkpoint 和 RunRecorder 的存储、缓存依赖已标注现有协议；这一步不改变实现或失败行为。
+
+## 强化提交恢复
+
+Checkpoint 使用独立的未提交命中和缓存补偿状态。`flush()` 仅返回新提交数量，`pending()` 按编号统计两者并集。提交成功即消费该批命中；缓存失败只补缓存，且读取数据库最新版本，避免重复强化或覆盖新版本。缓存缺失不再丢弃数据库仍有效的记忆命中。补偿限于当前进程，强化系数、证据和版本原子提交规则保持不变。

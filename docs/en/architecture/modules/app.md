@@ -146,3 +146,7 @@ Code entry points: [domain.py](../../../../app/domain.py), [ports.py](../../../.
 ## Complete dependency declarations
 
 `DreamRunStore` declares `get/begin/finish/recent` for the full daily journal lifecycle; the console still only requires `DreamJournal.recent`. `StateRepository`, `EpisodeRepository` and `ActionRepository` declare the raw repository capabilities needed by runtime adapters and are exported by `app.ports`. Checkpoint and RunRecorder storage/cache dependencies now use existing protocol annotations; this step changes neither implementation nor failure behavior.
+
+## Checkpoint recovery
+
+Checkpoint separates uncommitted hits from cache repairs. `flush()` returns only newly committed IDs; `pending()` counts the union of unfinished IDs. Successful commits consume their hit batch before cache work. Cache failures retry only the refresh from the latest persisted head, preventing duplicate reinforcement or stale replacement. Cache misses no longer discard hits for active persisted memories. Recovery is process-local; reinforcement coefficients, evidence and atomic revision commits are unchanged.
