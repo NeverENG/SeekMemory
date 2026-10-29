@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 测试卫生：分开纯领域规则、数据库及抽取维护场景，图规则使用存储端口替身；core 契约固定认可的导出及原对象身份，不再要求内部新增名称自动对外公开。
+
 - 测试入口逐文件独立进程发现，包含 `__main__` 后的测试，失败返回非零且继续收集结果；层级后缀优先，冒烟场景纳入发现并及时关闭临时存储。
 
 - 跨模块卫生：统一已提交编号的最新版本缓存补偿并保留各用例计划和检查点计数；补偿中同编号新工作不会丢失。复用已证明等价的文本、JSON、版本准备及真实重复默认值，移除维护对召回实现的依赖，保留不同匹配语义及时间行为。
@@ -39,6 +41,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Test hygiene: separate pure domain rules from database/extraction/maintenance flows and test graph rules with a storage-port fake. Core contracts protect an explicit approved export/identity surface instead of automatically publishing new internal names.
 
 - Discover tests per file in isolated processes, including definitions after `__main__`; failures return nonzero while collecting all results. Explicit layer suffixes take priority, and the smoke scenario participates in discovery with scoped temporary-store cleanup.
 

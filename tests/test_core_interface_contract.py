@@ -16,6 +16,80 @@ sys.path.insert(0, str(ROOT))
 from core import domain, ports  # noqa: E402
 
 
+# Approved interface surface; private definitions do not automatically become exports.
+# 已认可的接口清单；内部新增定义不会自动变成导出。
+EXPORTS = {
+    "artifact": (
+        'FAMILIES', 'Artifact', 'Header', 'Lineage',
+        'Strength', 'TimeSpan', 'make', 'revise',
+        'validate', 'content_of',
+    ),
+    "source": (
+        'ROLES', 'Source', 'content_hash', 'make_source_id',
+    ),
+    "versioning": (
+        'OPS', 'CHECKPOINT_OPS', 'StateEvent', 'VersionError',
+        'assert_next_revision', 'is_semantic_change',
+    ),
+    "retrieval": (
+        'RetrievalCandidate',
+    ),
+    "strength": (
+        'BASE_DAYS', 'HIT_STEP', 'COOLDOWN', 'SHAPE_FACTORS',
+        'REINFORCE_DELTAS', 'retention', 'decayed_weight', 'reinforce',
+        'hit_cooldown_ok',
+    ),
+    "disclosure": (
+        'FULL_MIN', 'PARAPHRASE_MIN', 'HINT_MIN', 'DisclosureLevel',
+        'RecallScene', 'DisclosureDecision', 'scope_prior', 'sensitivity_of',
+        'context_affinity', 'audience_overlap', 'subject_fit', 'exposure',
+        'decide', 'safe_text',
+    ),
+    "graph": (
+        'ArtifactEdge', 'Graph', 'KINDS',
+    ),
+    "capacity": (
+        'NORMAL', 'PRESSURED', 'SATURATED', 'PROTECTIVE',
+        'ENV_PREFIX', 'CapacityThresholds', 'CapacitySnapshot', 'CapacityDecision',
+        'CapacityGovernor', 'load_thresholds',
+    ),
+    "persona": (
+        'PERSONA_ORIGIN_SEED', 'PERSONA_ORIGIN_DREAM', 'PERSONA_SYNTHESIS_VERSION', 'PERSONA_ORIGINS',
+        'MIN_CORPUS_EXAMPLES', 'MIN_CORPUS_CHARS', 'normalize_persona_file', 'persona_payload_from_file',
+        'compose_seed_evolution', 'seed_evolution_matches',
+    ),
+    "persona_artwork": (
+        'MAX_ARTWORK_BYTES', 'PNG_SIGNATURE', 'validate_artwork',
+    ),
+    "persona_pack": (
+        'PACK_FORMAT', 'MAX_PACK_BYTES', 'MAX_SEED_BYTES', 'normalize_pack',
+    ),
+    "bot_behavior": (
+        'SELF_SUBJECT', 'MIN_EVIDENCE', 'MIN_CONFIDENCE', 'BEHAVIOR_TEXT',
+        'BEHAVIORS', 'confident', 'compose_behaviors', 'trusted_self_impression',
+        'trusted_self_persona',
+    ),
+    "relationship": (
+        'RELATIONSHIP_POLICY_VERSION', 'HARD_GATE_CONFIDENCE', 'RelationshipBand', 'RelationshipSnapshot',
+        'relationship_id', 'summary_for', 'band_for', 'snapshot_from_payload',
+    ),
+    "relationship_rules": (
+        'RelationshipSignal', 'RelationshipReason', 'RelationshipStrength', 'ConversationScope',
+        'EvidenceRule', 'EVIDENCE_RULES', 'RelationshipObservation', 'RelationshipScoringPolicy',
+        'ScoredRelationshipEvidence', 'RelationshipRevisionPlan', 'score_observation', 'plan_relationship_revision',
+    ),
+    "interaction_policy": (
+        'INTERACTION_POLICY_VERSION', 'LOW_REPLY_CHARS', 'DISLIKE_REPLY_CHARS', 'CLOSE_PROACTIVE_KINDS',
+        'ReplyStyle', 'AffectionScope', 'InteractionRule', 'InteractionContext',
+        'InteractionGate', 'InteractionPolicySettings', 'stable_sample', 'decide_interaction',
+    ),
+    "trace": (
+        'EVENTS', 'FILTERS', 'STATUSES', 'ID_LIMIT',
+        'ids', 'count', 'choice', 'recall_data',
+        'clean_event', 'project_runs',
+    ),
+}
+
 class CoreInterfaceContractTest(unittest.TestCase):
     def test_every_export_resolves_without_placeholder_operations(self) -> None:
         """Exports are the existing values/functions, not empty stubs / 导出沿用原对象，不是空函数。"""
@@ -36,24 +110,13 @@ class CoreInterfaceContractTest(unittest.TestCase):
 
     def test_existing_public_symbols_keep_identity_through_the_interface(self) -> None:
         """One entry exposes the existing domain surface / 单一入口导出已有领域能力。"""
-        for path in sorted((ROOT / "core").glob("*.py")):
-            if path.stem.startswith("_") or path.stem in {"domain", "ports"}:
-                continue
-            module = importlib.import_module(f"core.{path.stem}")
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            names = []
-            for node in tree.body:
-                if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
-                    names.append(node.name)
-                elif isinstance(node, ast.Assign):
-                    names.extend(t.id for t in node.targets if isinstance(t, ast.Name))
-                elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-                    names.append(node.target.id)
+        approved = {name for names in EXPORTS.values() for name in names}
+        self.assertEqual(set(domain.__all__), approved)
+        for owner, names in EXPORTS.items():
+            module = importlib.import_module(f"core.{owner}")
             for name in names:
-                if not name.startswith("_"):
-                    with self.subTest(module=module.__name__, name=name):
-                        self.assertIn(name, domain.__all__)
-                        self.assertIs(getattr(domain, name), getattr(module, name))
+                with self.subTest(module=module.__name__, name=name):
+                    self.assertIs(getattr(domain, name), getattr(module, name))
 
     def test_graph_protocol_import_is_an_alias_of_the_single_declaration(self) -> None:
         """Graph keeps its existing protocol import / 图保留原接口导入路径。"""

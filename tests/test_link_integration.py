@@ -253,23 +253,5 @@ class FailOpenTest(_LinkCase):
         self.assertEqual(self._edges(second), [])
 
 
-class GraphApiTest(_LinkCase):
-    """core.graph 新增接口：causal 边只留接口，degree 统一计数。"""
-
-    def test_causal_interface_and_degree(self) -> None:
-        """link_causal 建出的 causal 边可查；degree 统计全部关系边。"""
-        first = self._write(_memory("他今天淋了雨",
-                                    created="2026-10-18T20:00:00"))
-        second = self._write(_memory("他第二天发烧了",
-                                     created="2026-10-19T20:00:00"))
-
-        self.graph.link_causal(first.header.id, second.header.id, 0.8)
-        self.assertIn((second.header.id, 0.8),
-                      self.graph.neighbours(first.header.id))
-        self.assertEqual(self.graph.degree(first.header.id), 1)
-        self.assertEqual(self.graph.degree(""), 0)
-        self.assertEqual(Graph(None).degree(first.header.id), 0)
-
-
 if __name__ == "__main__":
     unittest.main(verbosity=2)

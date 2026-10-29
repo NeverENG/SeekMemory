@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import sys
 import unittest
 from pathlib import Path
@@ -28,6 +29,19 @@ class LayerMapTest(unittest.TestCase):
     def test_explicit_suffix_overrides_legacy_integration_markers(self) -> None:
         for layer in ALL_LAYERS:
             self.assertEqual(_layer_for(Path(f"test_runtime_recall_{layer}.py")), layer)
+
+    def test_pure_core_scenarios_do_not_import_storage_or_orchestration(self) -> None:
+        forbidden = {"sqlite3", "store", "services", "perceive", "maintain", "adapters"}
+        for filename in ("test_kernel_unit.py", "test_capacity_unit.py", "test_relationship_unit.py", "test_graph_unit.py"):
+            tree = ast.parse((ROOT / "tests" / filename).read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                names = []
+                if isinstance(node, ast.Import):
+                    names = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    names = [node.module or ""]
+                for name in names:
+                    self.assertNotIn(name.split(".")[0], forbidden, f"{filename}: {name}")
 
 
 if __name__ == "__main__":

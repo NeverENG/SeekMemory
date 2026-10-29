@@ -1,17 +1,20 @@
-"""Relationship scoring, extraction, consolidation, and validation tests."""
+"""Exercise extraction, evidence persistence and relationship maintenance.
+
+验证抽取、证据持久化及关系维护。"""
 
 from __future__ import annotations
+
+import sys
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import asyncio
 import json
 import os
-import sys
-import unittest
 from unittest.mock import patch
 from contextlib import contextmanager
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from adapters.relationship_policy import RelationshipReader
 from app.contracts import DialogueTurn
 from core.artifact import Lineage, Strength, TimeSpan, content_of, make, validate
@@ -31,138 +34,7 @@ from perceive.relationship import observation_boundary, signal_of
 from services.maintenance_service import MaintenanceService
 from store import open_store
 from store.cache import Cache
-
-
-def relationship_payload(**updates):
-    payload = {
-        "summary": "关系状态：中性",
-        "affinity": 0.0,
-        "confidence": 0.0,
-        "evidence_count": 0,
-        "relation_band": "neutral",
-        "policy": {
-            "version": "relationship-v1",
-            "private_weight": 1.0,
-            "group_weight": 0.5,
-            "learning_rate": 0.25,
-            "max_revision_delta": 0.1,
-        },
-    }
-    payload.update(updates)
-    return payload
-
-
-def observation(
-    artifact_id: str,
-    reason: RelationshipReason,
-    strength: RelationshipStrength,
-    confidence: float,
-    scope: ConversationScope,
-) -> RelationshipObservation:
-    return RelationshipObservation(
-        artifact_id,
-        "u1",
-        reason,
-        strength,
-        confidence,
-        (f"source-{artifact_id}",),
-        scope,
-    )
-
-
-class RelationshipCoreTest(unittest.TestCase):
-    def test_relationship_artifact_requires_bounded_policy_snapshot(self) -> None:
-        art = make("relationship", relationship_payload(), subject_id="u1")
-        validate(art)
-        self.assertEqual(content_of(art), "关系状态：中性")
-        broken_values = (
-            ("affinity", float("nan")),
-            ("confidence", 2.0),
-            ("evidence_count", True),
-            ("relation_band", "hostile"),
-            ("policy", {}),
-        )
-        for key, value in broken_values:
-            with self.subTest(key=key):
-                with self.assertRaises(ValueError):
-                    validate(make(
-                        "relationship",
-                        relationship_payload(**{key: value}),
-                        subject_id="u1",
-                    ))
-
-    def test_scoring_policy_rejects_non_finite_and_unbounded_values(self) -> None:
-        for kwargs in (
-            {"private_weight": float("nan")},
-            {"group_weight": -0.1},
-            {"learning_rate": 1.1},
-        ):
-            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
-                RelationshipScoringPolicy(**kwargs)
-
-    def test_private_and_group_greetings_have_exact_targets_and_deltas(self) -> None:
-        current = RelationshipSnapshot(subject_id="u1")
-        private = plan_relationship_revision(current, [observation(
-            "private",
-            RelationshipReason.FRIENDLY_GREETING,
-            RelationshipStrength.MILD,
-            0.95,
-            ConversationScope.PRIVATE,
-        )])
-        group = plan_relationship_revision(current, [observation(
-            "group",
-            RelationshipReason.FRIENDLY_GREETING,
-            RelationshipStrength.MILD,
-            0.95,
-            ConversationScope.GROUP,
-        )])
-        self.assertAlmostEqual(private.target, 0.35)
-        self.assertAlmostEqual(private.delta, 0.0875)
-        self.assertAlmostEqual(group.target, 0.175)
-        self.assertAlmostEqual(group.delta, 0.04375)
-
-    def test_reason_caps_review_every_fresh_artifact_but_count_one_greeting(self) -> None:
-        rows = [
-            observation(
-                artifact_id,
-                RelationshipReason.FRIENDLY_GREETING,
-                RelationshipStrength.MILD,
-                0.95,
-                ConversationScope.PRIVATE,
-            )
-            for artifact_id in ("a", "b", "c")
-        ]
-        plan = plan_relationship_revision(
-            RelationshipSnapshot(subject_id="u1"),
-            rows,
-            created_by_artifact_id={"a": "1", "b": "2", "c": "3"},
-        )
-        self.assertEqual(plan.counted_artifact_ids, ("a",))
-        self.assertEqual(plan.reviewed_artifact_ids, ("a", "b", "c"))
-        self.assertEqual(plan.evidence_count, 1)
-
-    def test_mixed_reasons_use_confidence_weighted_target(self) -> None:
-        gratitude = observation(
-            "g",
-            RelationshipReason.GRATITUDE,
-            RelationshipStrength.STRONG,
-            0.90,
-            ConversationScope.PRIVATE,
-        )
-        insult = observation(
-            "i",
-            RelationshipReason.INSULT,
-            RelationshipStrength.STRONG,
-            0.60,
-            ConversationScope.PRIVATE,
-        )
-        plan = plan_relationship_revision(
-            RelationshipSnapshot(subject_id="u1"), [gratitude, insult]
-        )
-        expected = (0.70 * 0.90 + -0.80 * 0.60) / 1.50
-        self.assertAlmostEqual(plan.target, expected)
-        self.assertAlmostEqual(plan.delta, 0.25 * expected)
-
+from relationship_support import relationship_payload, observation
 
 class RelationshipExtractionTest(unittest.TestCase):
     def setUp(self) -> None:
