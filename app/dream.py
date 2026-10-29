@@ -1,11 +1,8 @@
-"""梦境周期：把人格与印象的进化收成每天一次。
+"""Coordinate daily extraction, maintenance and journal writes through injected ports.
 
-白天只缓冲，不抽取；到了 ``dream_time`` 一次跑完当天积压：
-
-    逐话题抽取 → 合并 / 修订印象 → 沉淀人格 → 落一条 dream 台账
-
-台账主键是日期，所以同一天重跑幂等；中途失败会保留待处理行，下一次从断点续跑。
-这里只做编排，具体抽取与整理由调用方注入，避免重复实现写入逻辑。
+通过注入能力编排每日抽取、维护及台账写入；不创建模型、连接或后台任务。
+Completed dates are skipped; unfinished input can resume on a later run.
+已完成日期跳过，未完成输入可在后续运行续跑。
 """
 
 from __future__ import annotations
@@ -15,9 +12,12 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Protocol
 
 from .console_ports import DreamRunStore
+from .dream_policy import DreamBudget, parse_time, usage_values as _usage_values, usage_delta as _usage_delta
 
 
 class FlushFn(Protocol):
+    """Extract one bounded batch / 执行一次限量抽取。"""
+
     async def __call__(
         self,
         reason: str,
@@ -34,31 +34,9 @@ UsageFn = Callable[[], dict[str, Any]]
 Log = Callable[[str], None]
 
 
-def _usage_values(snapshot: dict[str, Any] | None) -> tuple[int, int, int, int]:
-    data = snapshot if isinstance(snapshot, dict) else {}
-    def number(key: str) -> int:
-        try:
-            return max(0, int(data.get(key, 0) or 0))
-        except (TypeError, ValueError):
-            return 0
-    return number("calls"), number("in"), number("cached"), number("out")
-
-
-def _usage_delta(
-    baseline: tuple[int, int, int, int],
-    current: tuple[int, int, int, int],
-) -> dict[str, int]:
-    return {
-        "calls": max(0, current[0] - baseline[0]),
-        "in": max(0, current[1] - baseline[1]),
-        "cached": max(0, current[2] - baseline[2]),
-        "out": max(0, current[3] - baseline[3]),
-    }
-
-
 @dataclass(frozen=True)
 class DreamResult:
-    """一次梦境的结论，供日志、报表与测试使用。"""
+    """Daily outcome and completed counts / 每日整理结果及已完成数量。"""
 
     date: str
     status: str
@@ -74,7 +52,7 @@ class DreamResult:
 
 
 class DreamCycle:
-    """每天一次的进化周期；不持有模型与存储之外的状态。"""
+    """Own daily orchestration, not extraction rules / 管理每日编排，不实现抽取规则。"""
 
     def __init__(self, dreams: DreamRunStore, conf: Callable[[str, Any], Any],
                  clock: Clock | None = None, log: Log | None = None) -> None:
@@ -91,18 +69,11 @@ class DreamCycle:
             return True
 
     def _at(self) -> tuple[int, int]:
-        """dream 时刻，格式 HH:MM；写错就退回 03:30。"""
-        raw = str(self._c("dream_time", "03:30"))
-        try:
-            hour, minute = (int(x) for x in raw.split(":"))
-            if 0 <= hour <= 23 and 0 <= minute <= 59:
-                return hour, minute
-        except (TypeError, ValueError):
-            pass
-        return 3, 30
+        """Read the configured local time / 读取已配置的本地执行时间。"""
+        return parse_time(str(self._c("dream_time", "03:30")))
 
     def due(self, now: datetime.datetime | None = None) -> bool:
-        """今天该不该做梦：到点了、还没做完。"""
+        """Check enabled, local time and unfinished date / 检查开关、当地时间及当天是否未完成。"""
         if not self.enabled:
             return False
         moment = now or self.clock()
@@ -116,7 +87,10 @@ class DreamCycle:
                   maintain: MaintainFn | None = None,
                   now: datetime.datetime | None = None,
                   usage: UsageFn | None = None) -> DreamResult:
-        """跑一次梦境；幂等、可续跑、失败不丢待处理行。"""
+        """Run bounded extraction then maintenance; preserve completed writes.
+
+        限量抽取后执行维护，保留已经完成的写入。
+        """
         moment = now or self.clock()
         date = moment.date().isoformat()
         if not self.enabled:
@@ -126,15 +100,17 @@ class DreamCycle:
         if not self.dreams.begin(date, now=moment.isoformat(timespec="seconds")):
             return DreamResult(date, "skipped", "already_done")
 
-        limit = max(1, int(self._c("dream_max_batches", 12)))
-        max_calls = max(0, int(self._c("dream_max_calls", 12)))
-        budget_tokens = max(0, int(self._c("dream_token_budget", 60000)))
+        budget = DreamBudget(
+            max(1, int(self._c("dream_max_batches", 12))),
+            max(0, int(self._c("dream_max_calls", 12))),
+            max(0, int(self._c("dream_token_budget", 60000))),
+        )
         baseline = _usage_values(usage() if usage is not None else None)
         current_usage = baseline
         stopped = ""
         batches = written = 0
         errors: list[str] = []
-        while batches < limit:
+        while batches < budget.batches:
             if usage is not None:
                 try:
                     current_usage = _usage_values(usage())
@@ -148,11 +124,8 @@ class DreamCycle:
                 current_usage[1] + current_usage[3]
                 - baseline[1] - baseline[3],
             )
-            if max_calls > 0 and used_calls >= max_calls:
-                stopped = "call_budget"
-                break
-            if budget_tokens > 0 and used_tokens >= budget_tokens:
-                stopped = "token_budget"
+            stopped = budget.stopped(used_calls, used_tokens)
+            if stopped:
                 break
             try:
                 left = int(pending())
@@ -161,12 +134,8 @@ class DreamCycle:
                 break
             if left <= 0:
                 break
-            remaining_calls = (
-                max(0, max_calls - used_calls) if max_calls > 0 else 0
-            )
-            remaining_tokens = (
-                max(0, budget_tokens - used_tokens) if budget_tokens > 0 else 0
-            )
+            remaining_calls = budget.remaining_calls(used_calls)
+            remaining_tokens = budget.remaining_tokens(used_tokens)
             try:
                 got, count = await flush_once(
                     "梦境",
@@ -198,9 +167,9 @@ class DreamCycle:
         used_calls = usage_delta["calls"]
         used_tokens = usage_delta["in"] + usage_delta["out"]
         summary["budget"] = {
-            "calls": max_calls,
+            "calls": budget.calls,
             "calls_used": used_calls,
-            "tokens": budget_tokens,
+            "tokens": budget.tokens,
             "used": used_tokens,
             "stopped": stopped,
         }
@@ -225,7 +194,7 @@ class DreamCycle:
         return result
 
     def status(self, now: datetime.datetime | None = None) -> dict[str, Any]:
-        """给面板/报表看的梦境状态。"""
+        """Read current and recent journal status / 读取当前及近期台账状态。"""
         moment = now or self.clock()
         today = moment.date().isoformat()
         run = self.dreams.get(today)
