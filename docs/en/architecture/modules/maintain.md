@@ -25,3 +25,23 @@ relationship.py consumes original `relationship-v1` observations only after vali
 ## Rules not connected to the production flow
 
 reflect.py can compute wrong/right signals from adjacent user messages, but the current repository has no production caller. It is not an automatic reflection, memory-repair, or reinforcement path. Documentation and configuration must not present it as an enabled online feature.
+
+## Interfaces and plan ownership
+
+`maintain/domain.py` explicitly exports supported maintenance use cases and immutable `RevisionWrite` / `RevisionPlan` data. `maintain/ports.py` reuses existing Artifact/Source/cache protocols. Old imports and return values remain available. A `RevisionPlan` names one group transaction; distinct plans or relationship subjects are not collectively atomic. Resource construction/shutdown belongs to composition.
+
+| Files | Responsibility and effects | Logical complexity and coupling |
+|---|---|---|
+| `decay.py`, `lifecycle.py` | Read active view → prepare group → commit → remove cached entries | Low: ordered I/O, one atomic group |
+| `expiry_policy.py` | Existing retention and expiry revision decisions | Low/medium: supplied data, no repository calls |
+| `merge.py`, `merge_policy.py` | Read subject/scope groups; cluster and prepare one create/retire group; commit and cache | Medium/high: each cluster is atomic; pure clustering/wording separate from I/O |
+| `impression.py`, `impression_policy.py` | Read rivals, match and prepare old/new revisions; one atomic merge | Medium: subject/scope and evidence guards retained |
+| `self_impression.py`, `self_impression_policy.py` | Read original paired evidence and referenced episodes; group observations and prepare revisions; commit then cache | High: exact immutable pairing and independent count ownership |
+| `persona.py`, `persona_policy.py` | Read verified self-candidates, prepare seed-preserving persona and retire duplicates in one group | Medium: no user-private wording promoted to global persona |
+| `relationship.py` | Orchestrate per-subject core plan, validation, CAS commit and cache | Medium: independent subject transactions |
+| `relationship_evidence.py` | Read exact Source evidence and current state | Medium: reads only, rejects invalid identity/scope/confidence |
+| `relationship_policy.py` | Prepare replacement payload/lineage and classify supplied evidence values | Low/medium: no I/O; core owns scoring policy |
+| `link.py` | Optional bounded graph enhancement and legacy CAS persistence | Medium: optional edges separate from memory transactions |
+| `reflect.py`, `promote.py` | Pure reflection signals (no production caller) and verified self-candidate compatibility entry | Low/medium: documented actual wiring |
+
+The matching variants deliberately remain separate: impression Dice, merge/reflect Jaccard and graph-link Dice are not interchangeable. The existing impression dependency on the recall character helper is documented for the later shared-rule migration. No formulas, time conversion, seed contents, prompts or persisted formats change in this pass. Interface/import contracts and existing evidence, persona, identity, relationship and failure scenarios verify the moved stages.

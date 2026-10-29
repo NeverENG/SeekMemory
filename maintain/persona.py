@@ -1,23 +1,27 @@
-"""只从有证据的机器人自我印象沉淀稳定编号的人格。"""
+"""Read trusted self-evidence and commit one prepared persona group before cache updates.
+
+读取可信自身证据，提交一个准备好的人格版本组后更新缓存。
+"""
 from __future__ import annotations
 
 try:
     from ..core.artifact import Artifact, Lineage, Strength, make, revise
     from ..core.bot_behavior import SELF_SUBJECT, compose_behaviors, trusted_self_impression
     from ..core.persona import PERSONA_ORIGIN_DREAM, compose_seed_evolution
-    from ..app.ports import ArtifactCache, ArtifactStore, SourceStore
+    from .ports import ArtifactCache, ArtifactStore, SourceStore
     from .self_impression import promote_self_candidates
 except ImportError:
     from core.artifact import Artifact, Lineage, Strength, make, revise
     from core.bot_behavior import SELF_SUBJECT, compose_behaviors, trusted_self_impression
     from core.persona import PERSONA_ORIGIN_DREAM, compose_seed_evolution
-    from app.ports import ArtifactCache, ArtifactStore, SourceStore
+    from maintain.ports import ArtifactCache, ArtifactStore, SourceStore
     from maintain.self_impression import promote_self_candidates
 
-TOP_N = 3
+from .persona_policy import TOP_N, prepare_persona
 
 
 def compose(impressions: list[Artifact]) -> str:
+    """Compose at most the existing top trusted self-behavior kinds / 组合至多既有上限的可信自身行为类别。"""
     kinds = list(dict.fromkeys(a.payload["bot_behavior"] for a in impressions
                               if trusted_self_impression(a)))[:TOP_N]
     return compose_behaviors(kinds)
@@ -25,74 +29,23 @@ def compose(impressions: list[Artifact]) -> str:
 
 def distill_self_persona(artifacts: ArtifactStore, sources: SourceStore, cache: ArtifactCache,
                         today: str | None = None) -> Artifact | None:
+    """Read verified self-candidates, commit the prepared persona group, then cache / 读取已验证自身候选，提交准备好的人格版本组后更新缓存。"""
     candidates = promote_self_candidates(cache, sources, today)
-    chosen = []
-    seen = set()
-    for art in candidates:
-        kind = art.payload["bot_behavior"]
-        if kind not in seen:
-            seen.add(kind)
-            chosen.append(art)
-        if len(chosen) == TOP_N:
-            break
-    if not chosen:
+    prepared = prepare_persona(candidates, list(cache.active("persona")))
+    persona, plan = prepared.persona, prepared.revisions
+    if persona is None:
         return None
-    kinds = [a.payload["bot_behavior"] for a in chosen]
-    old = sorted(cache.active("persona"), key=lambda a: (
-        a.header.subject_id != SELF_SUBJECT, a.header.time.created, a.header.id))
-    base = old[0] if old else None
-    behavior_text = compose_behaviors(kinds)
-    has_seed_base = base is not None and bool(
-        base.payload.get("origin") or base.payload.get("seed_id")
-    )
-    if has_seed_base:
-        base_text = str(base.payload.get("base_text") or base.payload.get("text") or "")
-        payload = {
-            "text": compose_seed_evolution(base_text, behavior_text),
-            "origin": PERSONA_ORIGIN_DREAM,
-            "base_text": base_text,
-            "behaviors": kinds,
-            "seed_id": str(base.payload.get("seed_id") or ""),
-            "seed_version": str(base.payload.get("seed_version") or ""),
-            "seed_license": str(base.payload.get("seed_license") or ""),
-            "seed_source": str(base.payload.get("seed_source") or ""),
-            "persona_name": str(base.payload.get("persona_name") or ""),
-            "style": dict(base.payload.get("style") or {}),
-            "boundaries": list(base.payload.get("boundaries") or []),
-            "corpus_count": int(base.payload.get("corpus_count") or 0),
-            "corpus_hash": str(base.payload.get("corpus_hash") or ""),
-            "content_rating": str(base.payload.get("content_rating") or ""),
-            "locale": str(base.payload.get("locale") or ""),
-        }
-    else:
-        payload = {"text": behavior_text, "behaviors": kinds}
-    lineage = Lineage(
-        sources=tuple(sorted({s for a in chosen for s in a.header.lineage.sources})),
-        derived_from=tuple(a.header.id for a in chosen),
-    )
-    strength = Strength(weight=max(a.header.strength.weight for a in chosen),
-                        confidence=min(a.header.strength.confidence for a in chosen),
-                        hits=sum(a.header.strength.hits for a in chosen))
-    kw = dict(subject_id=SELF_SUBJECT, scope="shared", shareable="public",
-              said_by="inferred", lineage=lineage, strength=strength)
-    unchanged = (base is not None and base.payload == payload
-                 and all(getattr(base.header, key) == value for key, value in kw.items()
-                         if key != "strength"))
-    persona = base if unchanged else (revise(base, payload, **kw) if base
-                                     else make("persona", payload, **kw))
-    writes = [] if unchanged else [(persona, base.header.revision if base else 0, lineage.sources)]
-    retired = [revise(a, state="merged") for a in old[1:]]
-    writes.extend((a, a.header.revision - 1, a.header.lineage.sources) for a in retired)
-    artifacts.commit_many(writes, op="promote", reason="self-only stable persona and consolidation")
-    if writes:
+    artifacts.commit_many(plan.rows(), op=plan.op, reason=plan.reason)
+    if plan.writes:
         cache.put(persona)
-        for art in retired:
-            cache.remove(art.header.id)
+        for write in plan.writes:
+            if write.artifact.header.state != "active":
+                cache.remove(write.artifact.header.id)
     return persona
 
 
 def distill_persona(artifacts: ArtifactStore, sources: SourceStore, cache: ArtifactCache,
                     today: str | None = None,
                     only_umo: str = "") -> Artifact | None:
-    """保留旧签名，但用户印象不再是人格来源。"""
+    """Preserve the legacy signature; user impressions are never persona evidence / 保留旧签名，用户印象不能成为人格证据。"""
     return distill_self_persona(artifacts, sources, cache, today)

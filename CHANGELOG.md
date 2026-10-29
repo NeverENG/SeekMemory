@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 内部卫生：明确 maintain 的 domain/ports 和有类型版本计划，分开遗忘、聚类、印象、自我证据、人格及关系的准备规则与读写；保留原函数路径、原子范围、证据及算法行为，并标明未接入的反思能力。
+
 - 修复指定记忆已记录但缓存失败后的重复正文注入与重复提交：纯查询检查数据库最新状态，待提交和仅需缓存补偿分别恢复；旧版本不能覆盖新正文，后台及停止前可纯补写。无结构或配置变更。
 
 - 内部卫生：明确 recall 的 domain/ports 及纯查询、上下文记录入口，分开筛选、证据回退、披露和组装；预览不写入，宿主及后台在正文进入模型上下文时明确记录指定记忆，旧 build 默认行为保持兼容。
@@ -27,6 +29,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Internal hygiene: add explicit maintain domain/ports and typed revision plans, separating forgetting, clustering, impression, self-evidence, persona and relationship preparation from I/O while preserving imports, atomicity, evidence and algorithms; document unwired reflection accurately.
 
 - Prevent repeated designated-body injection/commits after cache failure: pure queries check the latest database state, pending commits and cache-only repairs resume separately, stale revisions cannot overwrite new text, and background/shutdown can compensate without model calls. Schema/configuration are unchanged.
 

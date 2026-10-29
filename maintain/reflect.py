@@ -1,4 +1,7 @@
-"""纯规则反思：根据用户前后两轮的反应，判断她上一轮说错还是说对。"""
+"""Compute existing reflection signals without I/O; currently no production caller.
+
+计算既有反思信号，不执行读写，目前没有生产调用方。
+"""
 
 from __future__ import annotations
 
@@ -13,7 +16,8 @@ _NEGATIONS = (
     "理解错了",
     "说错了",
 )
-# 疑问式里也含“不是/不对”，先整体剔掉，避免把反问当成明确否定
+# Remove question forms before checking explicit negation.
+# 先排除疑问形式，再检查明确否定。
 _QUESTION_FORMS = ("是不是", "对不对", "好不好", "行不行", "能不能", "要不要", "有没有")
 _FOLLOWUPS = (
     "然后呢",
@@ -26,7 +30,8 @@ _FOLLOWUPS = (
     "还有",
     "嗯",
 )
-# 否定词必须出现在句首或标点/空白之后；句首允许带一个短主语（我不是这个意思）
+# Negation follows a boundary, with an optional short subject.
+# 否定出现在边界之后，允许短主语。
 _NEGATION_RE = re.compile(
     r"(?:^|[。！？!?；;，,、\s])"
     r"(?:我们|你们|他们|她们|我|你|他|她|它)?"
@@ -35,7 +40,7 @@ _NEGATION_RE = re.compile(
 
 
 def _bigrams(text: str) -> set[str]:
-    """取规范化字符二元组，用于比较两条消息的字面重合。"""
+    """Compute existing punctuation-normalized pairs, preserving short input behavior / 计算既有去标点二元组，保留短输入行为。"""
     plain = re.sub(r"[^\w\u4e00-\u9fff]+", "", text or "").lower()
     if len(plain) < 2:
         return {plain} if plain else set()
@@ -43,7 +48,7 @@ def _bigrams(text: str) -> set[str]:
 
 
 def _overlap(left: str, right: str) -> float:
-    """二元组 Jaccard 重合度，取值 0~1。"""
+    """Compute the existing module-specific pair overlap / 计算既有模块各自的二元组重合度。"""
     a, b = _bigrams(left), _bigrams(right)
     if not a or not b:
         return 0.0
@@ -51,11 +56,7 @@ def _overlap(left: str, right: str) -> float:
 
 
 def _find_negation(text: str) -> str:
-    """返回命中的明确否定词，没命中返回空串。
-
-    先用整句正则匹配：否定词要落在句首或标点之后，且先剔掉“是不是 /
-    对不对”这类疑问式，避免裸子串把反问误判成否定。
-    """
+    """Find existing explicit negation after excluding question forms / 排除疑问形式后查找既有明确否定。"""
     cleaned = text
     for form in _QUESTION_FORMS:
         cleaned = cleaned.replace(form, "")
@@ -64,7 +65,7 @@ def _find_negation(text: str) -> str:
 
 
 def _find_followup(text: str) -> str:
-    """返回命中的追问/接话词；先剔掉否定词，避免否定句里的字面误判。"""
+    """Find existing follow-up cues after excluding negation text / 排除否定文本后查找既有接话线索。"""
     cleaned = text
     for word in _NEGATIONS:
         cleaned = cleaned.replace(word, "")
@@ -75,7 +76,7 @@ def _find_followup(text: str) -> str:
 
 
 def signals(prev_user: str, cur_user: str) -> dict:
-    """按设计第 8 节信号表打分，返回 {"wrong", "right", "reasons"}。"""
+    """Compute existing wrong/right reflection signals without modifying memory / 计算既有错误及正确反思信号，不修改记忆。"""
     prev = prev_user or ""
     cur = cur_user or ""
     wrong = 0
@@ -104,7 +105,7 @@ def signals(prev_user: str, cur_user: str) -> dict:
 
 
 def should_reflect(result: dict) -> bool:
-    """错分 ≥ 2 时触发反思。"""
+    """Apply the existing wrong-score threshold; invalid input returns false / 应用既有错误分阈值，无效输入返回否。"""
     try:
         return int(result.get("wrong", 0)) >= 2
     except (TypeError, ValueError, AttributeError):

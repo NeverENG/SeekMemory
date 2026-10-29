@@ -1,8 +1,6 @@
-"""写入时建联想边：相似边按二元组重合度，时序边按同一天写入。
+"""Add bounded same-scope graph edges as best-effort enrichment; legacy persist commits before cache.
 
-causal 边需要语义判断，暂不自动建；显式接口留在 ``core.graph.Graph.link_causal``。
-本模块是写入路径的便利层：``persist`` 先写库再建边，建边失败只损失边，
-不影响已经完成的写入（fail-open）。
+尽力补充有数量上限的同范围图连接，旧 persist 入口在缓存前提交。
 """
 
 from __future__ import annotations
@@ -10,14 +8,14 @@ from __future__ import annotations
 import re
 from typing import Any
 
-try:  # 作为 astrbot 插件包的一部分导入
+try:  # Plugin namespace / 插件命名空间。
     from ..core.artifact import Artifact, content_of, revise
     from ..core.graph import Graph
-    from ..app.ports import ArtifactCache, ArtifactStore
-except ImportError:  # 作为顶层包导入（脚本 / 测试）
+    from .ports import ArtifactCache, ArtifactStore
+except ImportError:  # Top-level package / 顶层包。
     from core.artifact import Artifact, content_of, revise
     from core.graph import Graph
-    from app.ports import ArtifactCache, ArtifactStore
+    from maintain.ports import ArtifactCache, ArtifactStore
 
 SIMILAR_BAR = 0.45
 MAX_SIMILAR = 3
@@ -29,16 +27,16 @@ _PUNCT = re.compile(r"[^\w\u4e00-\u9fff]+")
 
 
 def _text(art: Artifact) -> str:
-    """取可读文本；坏节点回退 payload["text"]，再不行返回空串。"""
+    """Read memory text with existing malformed-row fallback / 按既有坏行回退读取记忆正文。"""
     try:
         text = content_of(art)
-    except Exception:  # noqa: BLE001 - 单条坏记忆不能中断建边
+    except Exception:  # noqa: BLE001 - Isolate malformed memories / 隔离格式错误的记忆。
         text = ""
     return str(text or art.payload.get("text") or "")
 
 
 def _bigrams(text: str) -> set[str]:
-    """规范化字符二元组：去标点、转小写，中文不再分词。"""
+    """Compute existing punctuation-normalized pairs, preserving short input behavior / 计算既有去标点二元组，保留短输入行为。"""
     plain = _PUNCT.sub("", str(text or "")).lower()
     if len(plain) < 2:
         return {plain} if plain else set()
@@ -46,7 +44,7 @@ def _bigrams(text: str) -> set[str]:
 
 
 def _overlap(left: str, right: str) -> float:
-    """二元组 Dice 重合度，0 表示无关、1 表示完全重合。"""
+    """Compute the existing module-specific pair overlap / 计算既有模块各自的二元组重合度。"""
     a, b = _bigrams(left), _bigrams(right)
     if not a or not b:
         return 0.0
@@ -54,13 +52,13 @@ def _overlap(left: str, right: str) -> float:
 
 
 def _day(value: Any) -> str:
-    """取 ISO 时间的日期部分（前 10 位）；空值或短串返回空串。"""
+    """Parse the existing date prefix or return None / 解析既有日期前缀，无效时返回空。"""
     text = str(value or "")
     return text[:10] if len(text) >= 10 else ""
 
 
 def _edges(artifacts: ArtifactStore, node_id: str) -> list[tuple[str, str, float]]:
-    """读取节点的全部边；存储异常时按无边处理，保证 fail-open。"""
+    """Read graph edges; unavailable reads yield an empty optional enhancement view / 读取图连接，读取不可用时可选增强视图为空。"""
     try:
         return list(artifacts.edges_of(node_id))
     except Exception:  # noqa: BLE001
@@ -68,7 +66,7 @@ def _edges(artifacts: ArtifactStore, node_id: str) -> list[tuple[str, str, float
 
 
 def _has_edge(artifacts: ArtifactStore, src: str, dst: str, kind: str | None = None) -> bool:
-    """判断 src 与 dst 之间是否已有边；kind 为 None 时任意类型都算。"""
+    """Read whether an existing connection matches the requested kind / 读取已有连接是否匹配请求类型。"""
     for edge in _edges(artifacts, src):
         if len(edge) < 3 or edge[0] != dst:
             continue
@@ -78,7 +76,7 @@ def _has_edge(artifacts: ArtifactStore, src: str, dst: str, kind: str | None = N
 
 
 def _candidate_pool(art: Artifact, cache: ArtifactCache) -> list[Artifact]:
-    """同 scope 的 active memory；不跨 scope 连边，避免私聊关系进群聊。"""
+    """Read other active ordinary memories with the same scope / 读取相同范围内其他有效普通记忆。"""
     scope = str(art.header.scope or "private")
     return [
         other
@@ -91,7 +89,7 @@ def _candidate_pool(art: Artifact, cache: ArtifactCache) -> list[Artifact]:
 
 def _link(art: Artifact, graph: Graph, cache: ArtifactCache,
           created: str | None = None) -> int:
-    """在出度预算内建 similar / temporal 边，返回实际新增的边数。"""
+    """Create existing bounded similar/temporal edges without changing memory revisions / 创建既有有限相似及时间连接，不改变记忆版本。"""
     artifacts = getattr(graph, "artifacts", None)
     if artifacts is None:
         return 0
@@ -121,7 +119,7 @@ def _link(art: Artifact, graph: Graph, cache: ArtifactCache,
             continue
         try:
             graph.link(art.header.id, other_id, "similar", score)
-        except Exception:  # noqa: BLE001 - 单条边失败不能拖垮其余边
+        except Exception:  # noqa: BLE001 - Isolate one failed edge / 隔离一条失败连接。
             continue
         added += 1
 
@@ -154,18 +152,19 @@ def _link(art: Artifact, graph: Graph, cache: ArtifactCache,
 
 def link_new(art: Artifact, graph: Graph | None, cache: ArtifactCache | None,
              created: str | None = None) -> int:
-    """为新写入的记忆建边；任何失败都返回 0，调用方可以安全忽略。"""
+    """Attempt optional graph linking; failure never negates committed memory / 尝试可选图建联，失败不否定已提交记忆。"""
     if graph is None or cache is None:
         return 0
     try:
         return _link(art, graph, cache, created)
-    except Exception:  # noqa: BLE001 - 建边是增强，失败不能影响写入
+    except Exception:  # noqa: BLE001 - Optional linking never negates persistence / 可选建联不能否定持久化。
         return 0
 
 
 def persist(art: Artifact, artifacts: ArtifactStore,
             cache: ArtifactCache | None, graph: Graph | None) -> int:
-    # Compatibility writer: route every write through the CAS commit path.
+    # Compatibility writer uses CAS / 兼容写入使用预期版本提交。
+    """Keep legacy CAS persistence, followed by cache and optional graph linking / 保留旧预期版本持久化，随后更新缓存及可选图建联。"""
     existing = artifacts.get(art.header.id)
     if existing is None:
         op = "create"
