@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 跨模块卫生：统一已提交编号的最新版本缓存补偿并保留各用例计划和检查点计数；补偿中同编号新工作不会丢失。复用已证明等价的文本、JSON、版本准备及真实重复默认值，移除维护对召回实现的依赖，保留不同匹配语义及时间行为。
+
 - 将观察到的机器人身份保存到真正拥有后台上下文的宿主对象，并在停止后清理钩子内部工具尝试关联，避免重启沿用旧回执；保留已有取消与清理顺序。
 
 - 内部卫生：明确共享及 AstrBot 适配器 domain/ports，将钩子任意属性转发改为有限有类型宿主依赖，注册逻辑独立并保留旧别名、回调身份与顺序；规范双语职责说明，UTC+8 逻辑不变。
@@ -35,6 +37,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Cross-module hygiene: share latest-head committed-ID cache repair while retaining use-case plans and checkpoint accounting, preserving same-ID work arriving during repair. Reuse equivalent text/JSON/revision preparation and actual duplicate defaults; remove maintenance imports of recall implementations without changing distinct matching or time semantics.
 
 - Store the observed bot identity on the host that owns background contexts and clear hook-local tool attempt correlations after shutdown, preventing old receipts from surviving restart while preserving cancellation and cleanup order.
 

@@ -11,10 +11,12 @@ try:
     from .ports import ArtifactCache, ArtifactStore, SourceStore
     from ..core.graph import Graph
     from ..app.budget import ContextBudget
+    from ..app.cache_repair import CacheRepairs
 except ImportError:
     from services.ports import ArtifactCache, ArtifactStore, SourceStore
     from core.graph import Graph
     from app.budget import ContextBudget
+    from app.cache_repair import CacheRepairs
 
 try:
     from ..recall.designated import deliverable
@@ -43,6 +45,7 @@ class RecallService:
         owner_umo: Callable[[], str],
         hybrid_retriever=None,
         log: Callable[[str], None] | None = None,
+        cache_repairs: CacheRepairs | None = None,
     ) -> None:
         self.cache = cache
         self.graph = graph
@@ -53,7 +56,7 @@ class RecallService:
         self.owner_umo = owner_umo
         self.hybrid_retriever = hybrid_retriever
         self.log = log or (lambda _msg: None)
-        self._context_writer = ContextRecorder(artifacts, cache)
+        self._context_writer = ContextRecorder(artifacts, cache, cache_repairs=cache_repairs)
 
     def query(
         self,

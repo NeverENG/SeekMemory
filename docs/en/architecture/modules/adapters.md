@@ -68,3 +68,5 @@ Hooks/attention no longer forward arbitrary unknown attributes. Their `_bindings
 `tests/test_adapter_interface_contract.py` protects shared exports/protocols; runtime plugin tests protect finite dependencies and callback identity/order. Existing host lifecycle, cancellation, context, action and time-hook checks remain required. The UTC+8 implementation was compared as an AST with docstrings removed and is unchanged. Management routes and Node/frontend implementations are outside restructuring scope.
 
 The host owns the observed bot identity used by background RunContext. Callback-only tool attempts belong to AstrBotHooks and are cleared after resource cleanup, so restart cannot complete an old tool receipt against a new executor. The host lifecycle regression covers identity capture, shutdown clearing and restart.
+
+Committed-ID cache repair is shared through `app.CacheRepairs`; the composition root injects the same instance into checkpoint, extraction, context and maintenance writers. Business plans remain with each use case, and per-owner counts keep unrelated repairs out of checkpoint pending totals.

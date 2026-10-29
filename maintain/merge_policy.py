@@ -34,26 +34,18 @@ except ImportError:  # Top-level package / 顶层包。
 
 from .plans import RevisionPlan, RevisionWrite
 
+DEFAULT_MERGE_THRESHOLD = 0.6
+
 
 def _clean(text: str) -> str:
     """Normalize existing whitespace for literal clustering / 规范化既有空白以进行字面聚类。"""
     return re.sub(r"\s+", " ", text or "").strip()
 
 
-def _bigrams(text: str) -> set[str]:
-    """Compute existing punctuation-normalized pairs, preserving short input behavior / 计算既有去标点二元组，保留短输入行为。"""
-    plain = re.sub(r"[^\w\u4e00-\u9fff]+", "", text or "").lower()
-    if len(plain) < 2:
-        return {plain} if plain else set()
-    return {plain[i : i + 2] for i in range(len(plain) - 1)}
-
-
-def _similarity(left: str, right: str) -> float:
-    """Compute existing character-pair Jaccard similarity / 计算既有字符二元组 Jaccard 相似度。"""
-    a, b = _bigrams(left), _bigrams(right)
-    if not a or not b:
-        return 0.0
-    return len(a & b) / len(a | b)
+try:
+    from ..app.text_rules import word_bigrams as _bigrams, word_jaccard as _similarity
+except ImportError:
+    from app.text_rules import word_bigrams as _bigrams, word_jaccard as _similarity
 
 
 def _text_of(art: Artifact) -> str:

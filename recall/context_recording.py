@@ -9,10 +9,12 @@ from datetime import datetime
 
 try:
     from ..app.ports import ArtifactStore, ArtifactCache
+    from ..app.cache_repair import CacheRepairs
     from ..core.artifact import Artifact, revise
     from ..core.versioning import VersionError
 except ImportError:
     from app.ports import ArtifactStore, ArtifactCache
+    from app.cache_repair import CacheRepairs
     from core.artifact import Artifact, revise
     from core.versioning import VersionError
 from .designated import already_given
@@ -33,11 +35,12 @@ class ContextRecorder:
     管理待提交包含记录及仅需缓存补偿的工作，不负责模型或发送重试；突然退出不保证补偿。
     """
 
-    def __init__(self, artifacts: ArtifactStore, cache: ArtifactCache | None) -> None:
+    def __init__(self, artifacts: ArtifactStore, cache: ArtifactCache | None,
+                 *, cache_repairs: CacheRepairs | None = None) -> None:
         self.artifacts = artifacts
         self.cache = cache
         self._pending: dict[str, _Inclusion] = {}
-        self._repairs: set[str] = set()
+        self.cache_repairs = cache_repairs or CacheRepairs(artifacts, cache)
         self._retrying = False
 
     def record(self, block: str, info: dict, now: str | None = None) -> int:
@@ -82,13 +85,7 @@ class ContextRecorder:
 
         缓存刷新前读取最新版本，失败时保留工作归属，不发布旧快照。
         """
-        if self.cache is not None:
-            latest = self.artifacts.get(entity)
-            if latest is None:
-                self.cache.remove(entity)
-            else:
-                self.cache.put(latest)
-        self._repairs.discard(entity)
+        self.cache_repairs.repair(entity)
 
     def _retry(self) -> int:
         """Resume unfinished persistence; never rebase a conflicting inclusion onto new text.
@@ -108,7 +105,7 @@ class ContextRecorder:
                         continue
                     if already_given(current):
                         self._pending.pop(entity, None)
-                        self._repairs.add(entity)
+                        self.cache_repairs.mark(entity, self)
                         continue
                     if current.header.revision != inclusion.revision:
                         self._pending.pop(entity, None)
@@ -130,9 +127,9 @@ class ContextRecorder:
                 # Durability is final before any fallible cache operation.
                 # 在任何可能失败的缓存操作之前，持久提交已确认为完成。
                 self._pending.pop(entity, None)
-                self._repairs.add(entity)
+                self.cache_repairs.mark(entity, self)
                 committed += 1
-            for entity in tuple(self._repairs):
+            for entity in tuple(self.cache_repairs.ids(self)):
                 try:
                     self._repair(entity)
                 except Exception:
@@ -146,9 +143,9 @@ class ContextRecorder:
 
         返回完成的不同操作数量，不调用模型或召回查询。
         """
-        before = set(self._pending) | self._repairs
+        before = set(self._pending) | set(self.cache_repairs.ids(self))
         self._retry()
-        return len(before - (set(self._pending) | self._repairs))
+        return len(before - (set(self._pending) | set(self.cache_repairs.ids(self))))
 
 
 def record_context(artifacts: ArtifactStore, cache: ArtifactCache,

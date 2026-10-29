@@ -321,7 +321,7 @@ class LayerDependencyTest(unittest.TestCase):
         )
         for fragment in (
             "async def extract(", "build_plan(", ".commit(",
-            "cache.put(", "link_new(", "revise_impression(", "self._supersede(",
+            "_cache_repairs.repair(", "link_new(", "revise_impression(", "self._supersede(",
         ):
             self.assertIn(fragment, source)
 

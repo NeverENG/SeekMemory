@@ -12,10 +12,12 @@ try:  # Plugin namespace / 插件命名空间。
     from ..core.artifact import Artifact, content_of, revise
     from ..core.graph import Graph
     from .ports import ArtifactCache, ArtifactStore
+    from ..app.revision_plan import prepare_revision
 except ImportError:  # Top-level package / 顶层包。
     from core.artifact import Artifact, content_of, revise
     from core.graph import Graph
     from maintain.ports import ArtifactCache, ArtifactStore
+    from app.revision_plan import prepare_revision
 
 SIMILAR_BAR = 0.45
 MAX_SIMILAR = 3
@@ -165,25 +167,8 @@ def persist(art: Artifact, artifacts: ArtifactStore,
             cache: ArtifactCache | None, graph: Graph | None) -> int:
     # Compatibility writer uses CAS / 兼容写入使用预期版本提交。
     """Keep legacy CAS persistence, followed by cache and optional graph linking / 保留旧预期版本持久化，随后更新缓存及可选图建联。"""
-    existing = artifacts.get(art.header.id)
-    if existing is None:
-        op = "create"
-        expected = 0
-    else:
-        op = "revise"
-        expected = existing.header.revision
-        if art.header.revision <= existing.header.revision:
-            art = revise(
-                existing,
-                payload=art.payload,
-                state=art.header.state,
-                scope=art.header.scope,
-                strength=art.header.strength,
-                lineage=art.header.lineage,
-                said_by=art.header.said_by,
-                shareable=art.header.shareable,
-                subject_id=art.header.subject_id,
-            )
+    prepared = prepare_revision(art, artifacts)
+    art, expected, op = prepared.artifact, prepared.expected_revision, prepared.op
     artifacts.commit(art, expected_revision=expected, op=op, reason="persist",
               source_ids=tuple(art.header.lineage.sources))
     if cache is not None:

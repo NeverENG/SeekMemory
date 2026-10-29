@@ -30,10 +30,14 @@ except ImportError:  # Standalone root / 独立测试以仓库为导入根。
 
 try:
     from ..maintain.writer import MaintenanceWriter
+    from ..app.cache_repair import CacheRepairs
     from ..maintain.plans import RevisionPlan, RevisionWrite
+    from ..maintain.merge_policy import DEFAULT_MERGE_THRESHOLD
 except ImportError:
     from maintain.writer import MaintenanceWriter
+    from app.cache_repair import CacheRepairs
     from maintain.plans import RevisionPlan, RevisionWrite
+    from maintain.merge_policy import DEFAULT_MERGE_THRESHOLD
 
 from .persona_policy import persona_evidence, persona_revision, relationship_weight
 
@@ -53,6 +57,7 @@ class MaintenanceService:
         config: Callable[[str, Any], Any] | None = None,
         persona_model: PersonaModelFactory | None = None,
         clock: Callable[[], datetime.datetime] | None = None,
+        cache_repairs: CacheRepairs | None = None,
     ) -> None:
         self.artifacts = artifacts
         self.sources = sources
@@ -63,7 +68,7 @@ class MaintenanceService:
         self._c = config or (lambda _key, default: default)
         self.persona_model = persona_model
         self.clock = clock or datetime.datetime.now
-        self._writer = MaintenanceWriter(artifacts, cache, defer_cache_errors=True)
+        self._writer = MaintenanceWriter(artifacts, cache, defer_cache_errors=True, cache_repairs=cache_repairs)
 
     @property
     def _writes(self) -> MaintenanceWriter:
@@ -150,8 +155,8 @@ class MaintenanceService:
         with self.journal.span("weekly", "decay") as metrics:
             dropped = decay_all(self.artifacts, self.cache, today, writer=self._writes)
             metrics["forgotten"] = dropped
-        with self.journal.span("weekly", "merge", threshold=0.6) as metrics:
-            merged = merge_similar(self.artifacts, self.cache, threshold=0.6, writer=self._writes)
+        with self.journal.span("weekly", "merge", threshold=DEFAULT_MERGE_THRESHOLD) as metrics:
+            merged = merge_similar(self.artifacts, self.cache, threshold=DEFAULT_MERGE_THRESHOLD, writer=self._writes)
             metrics["merged"] = merged
         with self.journal.span("weekly", "persona") as metrics:
             if self.persona_model is None:
@@ -316,7 +321,7 @@ class MaintenanceService:
         if self.artifacts is None or self.cache is None:
             return 0
         with self.journal.span("capacity", "compact_artifacts") as metrics:
-            merged = merge_similar(self.artifacts, self.cache, threshold=0.6, writer=self._writes)
+            merged = merge_similar(self.artifacts, self.cache, threshold=DEFAULT_MERGE_THRESHOLD, writer=self._writes)
             metrics["merged"] = merged
         return merged
 

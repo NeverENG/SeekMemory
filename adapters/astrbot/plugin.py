@@ -16,6 +16,7 @@ from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 
 from ...app.budget import budget_from_config
 from ...app.checkpoint import CheckpointManager
+from ...app.cache_repair import CacheRepairs
 from ...app.dream import DreamCycle
 from ...app.runtime import (
     AgentRuntime,
@@ -95,6 +96,7 @@ class AstrBotPlugin(star.Star):
         self.hybrid_retriever: HybridRetriever | None = None
         self.buffer: AstrBotBuffer | None = None
         self.checkpoint: CheckpointManager | None = None
+        self.cache_repairs: CacheRepairs | None = None
         self.budget = budget_from_config(self._c)
         self.dream: DreamCycle | None = None
         self.journal: Journal | None = None
@@ -167,6 +169,7 @@ class AstrBotPlugin(star.Star):
             await self._stop()
             return
         recall = RecallService(
+            cache_repairs=self.cache_repairs,
             cache=self.cache,
             graph=self.graph,
             artifacts=self.store.artifacts if self.store is not None else None,
@@ -253,6 +256,7 @@ class AstrBotPlugin(star.Star):
                 log=lambda msg: logger.info(f"[seekmemory] {msg}"),
             )
         maintenance = MaintenanceService(
+            cache_repairs=self.cache_repairs,
             artifacts=self.store.artifacts if self.store is not None else None,
             sources=self.store.sources if self.store is not None else None,
             cache=self.cache,
@@ -275,6 +279,7 @@ class AstrBotPlugin(star.Star):
             on_release=self._reload_buffer,
         )
         ingest = IngestService(
+            cache_repairs=self.cache_repairs,
             buffer=self.buffer,
             artifacts=self.store.artifacts if self.store is not None else None,
             sources=AstrBotSourceView(self.store.sources) if self.store is not None else None,
@@ -416,8 +421,10 @@ class AstrBotPlugin(star.Star):
                     context={"error": self.buffer.load_error},
                 )
             self.ready = True
+            self.cache_repairs = CacheRepairs(self.store.artifacts, self.cache)
             self.checkpoint = CheckpointManager(
-                self.store.artifacts, self.cache, int(self._c("checkpoint_seconds", 1800))
+                self.store.artifacts, self.cache, int(self._c("checkpoint_seconds", 1800)),
+                cache_repairs=self.cache_repairs
             )
             self.journal.record(
                 "plugin", "ready", f"已加载 {self.cache.size()} 条有效记忆"
@@ -509,7 +516,7 @@ class AstrBotPlugin(star.Star):
             self.journal.record("plugin", "stopped", "plugin resources released")
         for name in (
             "services", "store", "cache", "tree", "graph", "hybrid_retriever",
-            "buffer", "checkpoint", "dream", "jobs", "web", "actions",
+            "buffer", "checkpoint", "cache_repairs", "dream", "jobs", "web", "actions",
             "episode_recorder", "action_ledger", "action_executor",
             "tool_policy", "capacity", "run_traces", "run_tracer", "trace",
         ):

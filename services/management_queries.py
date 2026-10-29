@@ -174,12 +174,7 @@ def pack_digest(seed: dict) -> str:
                                      separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
-def json_object(raw: object) -> dict:
-    """Decode an object or return an empty object for invalid legacy data / 解析对象，对无效的旧数据返回空对象。"""
-    value = raw
-    if isinstance(value, str):
-        try:
-            value = json.loads(value)
-        except (TypeError, ValueError):
-            return {}
-    return value if isinstance(value, dict) else {}
+try:
+    from ..app.value_codec import json_object
+except ImportError:
+    from app.value_codec import json_object

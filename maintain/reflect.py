@@ -39,20 +39,10 @@ _NEGATION_RE = re.compile(
 )
 
 
-def _bigrams(text: str) -> set[str]:
-    """Compute existing punctuation-normalized pairs, preserving short input behavior / 计算既有去标点二元组，保留短输入行为。"""
-    plain = re.sub(r"[^\w\u4e00-\u9fff]+", "", text or "").lower()
-    if len(plain) < 2:
-        return {plain} if plain else set()
-    return {plain[i : i + 2] for i in range(len(plain) - 1)}
-
-
-def _overlap(left: str, right: str) -> float:
-    """Compute the existing module-specific pair overlap / 计算既有模块各自的二元组重合度。"""
-    a, b = _bigrams(left), _bigrams(right)
-    if not a or not b:
-        return 0.0
-    return len(a & b) / len(a | b)
+try:
+    from ..app.text_rules import word_bigrams as _bigrams, word_jaccard as _overlap
+except ImportError:
+    from app.text_rules import word_bigrams as _bigrams, word_jaccard as _overlap
 
 
 def _find_negation(text: str) -> str:

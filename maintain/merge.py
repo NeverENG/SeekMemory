@@ -39,12 +39,12 @@ MERGE_LEVELS = ("scene", "detail")
 
 
 from .merge_policy import (
-    _clean, _bigrams, _similarity, _text_of, _summarize_texts, _cluster_indices, _majority, cluster_plan,
+    DEFAULT_MERGE_THRESHOLD, _clean, _bigrams, _similarity, _text_of, _summarize_texts, _cluster_indices, _majority, cluster_plan,
 )
 
 
 def merge_similar(
-    artifacts: ArtifactStore, cache: ArtifactCache, threshold: float = 0.6, limit: int = 50,
+    artifacts: ArtifactStore, cache: ArtifactCache, threshold: float = DEFAULT_MERGE_THRESHOLD, limit: int = 50,
     *, writer: MaintenanceWriter | None = None,
 ) -> int:
     """Commit each eligible same-subject/scope cluster atomically; clusters are independent / 原子提交每个符合条件的同主体及范围聚类，各聚类彼此独立。"""

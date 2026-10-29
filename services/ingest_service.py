@@ -16,6 +16,7 @@ from collections.abc import Iterable
 
 try:
     from ..app.budget import estimate_tokens
+    from ..app.cache_repair import CacheRepairs
     from ..app.contracts import ChatRequest, DialogueTurn, WriteOutcome, ExtractionFailure
     from ..app.flush_policy import (
         decide_flush,
@@ -26,6 +27,7 @@ try:
     from ..core.artifact import content_of, revise
     from ..core.capacity import PROTECTIVE, SATURATED
     from ..maintain.impression import revise_impression
+    from ..maintain.writer import MaintenanceWriter
     from ..maintain.link import link_new
     from ..perceive.absorb import ExtractionPlan, build_plan, dialogue_of, recover_parents, worth_now
     from ..perceive.extract import build_prompt
@@ -39,6 +41,7 @@ try:
     from ..perceive.model import ProviderChatModel
 except ImportError:
     from app.budget import estimate_tokens
+    from app.cache_repair import CacheRepairs
     from app.contracts import ChatRequest, DialogueTurn, WriteOutcome, ExtractionFailure
     from app.flush_policy import (
         decide_flush,
@@ -49,6 +52,7 @@ except ImportError:
     from core.artifact import content_of, revise
     from core.capacity import PROTECTIVE, SATURATED
     from maintain.impression import revise_impression
+    from maintain.writer import MaintenanceWriter
     from maintain.link import link_new
     from perceive.absorb import ExtractionPlan, build_plan, dialogue_of, recover_parents, worth_now
     from perceive.extract import build_prompt
@@ -84,6 +88,7 @@ class IngestService:
         provider_for: ProviderFactory,
         owner_id: Callable[[], str],
         logger: ServiceLogger,
+        cache_repairs: CacheRepairs | None = None,
     ) -> None:
         self.buffer = buffer
         self.artifacts = artifacts
@@ -107,6 +112,9 @@ class IngestService:
         self._extract_lock = asyncio.Lock()
         self._retrying = False
         self._committed_total = 0
+        self._cache_repairs = cache_repairs or CacheRepairs(artifacts, cache)
+        self._impression_writer = MaintenanceWriter(artifacts, cache, defer_cache_errors=True,
+                                                    cache_repairs=self._cache_repairs)
 
     def usage_snapshot(self) -> dict[str, int]:
         """Read cumulative content-free model usage counters / 读取不含正文的累计模型用量。"""
@@ -491,6 +499,7 @@ class IngestService:
                         # Record durability before diagnostics/cache can fail.
                         # 在诊断或缓存可能失败之前记录持久提交。
                         receipt.committed.add(entity)
+                        self._cache_repairs.mark(entity, self)
                         written_ids.append(entity)
                         self._committed_total += 1
                 except Exception as exc:
@@ -502,13 +511,10 @@ class IngestService:
                 try:
                     # Read the head on every retry; never publish the old prepared snapshot.
                     # 每次补偿读取当前版本，绝不发布旧的计划快照。
-                    if self.cache is not None:
-                        latest = self.artifacts.get(entity)
-                        if latest is None:
-                            self.cache.remove(entity)
-                        else:
-                            self.cache.put(latest)
-                    receipt.cached.add(entity)
+                    if self._cache_repairs.repair(entity):
+                        receipt.cached.add(entity)
+                    else:
+                        continue
                 except Exception as exc:
                     errors.append(f"cache: {type(exc).__name__}")
                     continue
@@ -527,7 +533,7 @@ class IngestService:
                 try:
                     if self.cache is not None and str(art.payload.get("level") or "") == "impression":
                         with stage("impression.revise"):
-                            revise_impression(self.artifacts, self.cache, art)
+                            revise_impression(self.artifacts, self.cache, art, writer=self._impression_writer)
                 except Exception as exc:
                     errors.append(f"impression: {type(exc).__name__}")
         complete = len(receipt.cached) == len(plan.artifacts)
@@ -569,12 +575,17 @@ class IngestService:
         if self._retrying:
             return 0
         self._retrying = True
-        completed = 0
+        completed = self._impression_writer.retry_writebacks()
         try:
             for receipt in tuple(self._prepared.values()):
                 outcome = self._persist_plan(receipt, lambda _name: nullcontext(), lambda _msg: None)
                 if not outcome.retryable:
                     completed += 1
+            for entity in self._cache_repairs.ids(self):
+                try:
+                    self._cache_repairs.repair(entity)
+                except Exception:
+                    continue
         finally:
             self._retrying = False
         return completed
@@ -606,6 +617,7 @@ class IngestService:
                 reason="superseded by extraction",
                 source_ids=tuple(old.header.lineage.sources),
             )
-            self.cache.put(updated)
+            self._cache_repairs.mark(updated.header.id, self)
+            self._cache_repairs.repair(updated.header.id)
             changed += 1
         return changed

@@ -39,6 +39,10 @@ from .flush_policy import (
 )
 
 # Write coordinators / 写入协调；these capabilities have side effects / 下列能力有副作用。
+from .cache_repair import CacheRepairs
+from .text_rules import alphanumeric_bigrams, word_bigrams, word_jaccard
+from .value_codec import json_object
+from .revision_plan import PreparedRevision, prepare_revision
 from .checkpoint import CheckpointManager  # Coalesce hits, commit, then update cache / 合并命中、提交后更新缓存。
 from .dream import (
     DreamCycle,   # Coordinate daily extraction, maintenance and journal / 编排每日抽取、维护及台账。
@@ -110,7 +114,8 @@ __all__ = [
     "ContextBudget", "budget_from_config", "clamp_chars", "estimate_messages", "estimate_tokens",
     "ExtractionBatch", "FlushDecision", "chunk_turns", "decide_flush",
     "pack_same_session_batches", "select_topic_batches",
-    "CheckpointManager", "DreamCycle", "DreamResult",
+    "alphanumeric_bigrams", "word_bigrams", "word_jaccard", "json_object",
+    "PreparedRevision", "prepare_revision", "CacheRepairs", "CheckpointManager", "DreamCycle", "DreamResult",
     "PersonaEvidence", "build_persona_request", "parse_persona_draft",
     "ActionKind", "ActionRecord", "ActionRequest", "ActionResult", "ActionStatus",
     "AttentionDecision", "AttentionLevel", "MemoryContext", "MemoryContextRequest",

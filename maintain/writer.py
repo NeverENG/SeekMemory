@@ -8,8 +8,10 @@ from dataclasses import dataclass
 
 try:
     from ..core.versioning import VersionError
+    from ..app.cache_repair import CacheRepairs
 except ImportError:
     from core.versioning import VersionError
+    from app.cache_repair import CacheRepairs
 from .plans import RevisionPlan
 from .ports import ArtifactStore, ArtifactCache
 
@@ -32,19 +34,20 @@ class MaintenanceWriter:
     """
 
     def __init__(self, artifacts: ArtifactStore, cache: ArtifactCache | None,
-                 *, defer_cache_errors: bool = False) -> None:
+                 *, defer_cache_errors: bool = False,
+                 cache_repairs: CacheRepairs | None = None) -> None:
         self.artifacts = artifacts
         self.cache = cache
         self.defer_cache_errors = defer_cache_errors
         self._pending: dict[tuple, _PreparedWrite] = {}
-        self._repairs: set[str] = set()
+        self.cache_repairs = cache_repairs or CacheRepairs(artifacts, cache)
         self._retrying = False
         self.committed = 0
 
     def pending(self) -> int:
         """Count distinct IDs awaiting a commit or cache repair / 按编号去重统计待提交或待缓存补偿的项。"""
         ids = {write.artifact.header.id for item in self._pending.values() for write in item.plan.writes}
-        return len(ids | self._repairs)
+        return len(ids | self.cache_repairs.ids(self))
 
     def execute(self, plan: RevisionPlan, *, grouped: bool = True) -> int:
         """Commit the exact plan, then repair cache; return newly committed memories.
@@ -82,7 +85,8 @@ class MaintenanceWriter:
             self._pending.pop(key, None)
             raise
         self._pending.pop(key, None)
-        self._repairs.update(write.artifact.header.id for write in plan.writes)
+        for write in plan.writes:
+            self.cache_repairs.mark(write.artifact.header.id, self)
         self.committed += len(plan.writes)
         return len(plan.writes)
 
@@ -91,19 +95,14 @@ class MaintenanceWriter:
 
         从数据库最新版本补偿，失败时保留编号；不发布旧计划中的快照。
         """
+        self.cache_repairs.artifacts = self.artifacts
+        self.cache_repairs.cache = self.cache
         failure: Exception | None = None
-        for entity in tuple(self._repairs):
+        for entity in tuple(self.cache_repairs.ids(self)):
             try:
-                if self.cache is not None:
-                    latest = self.artifacts.get(entity)
-                    if latest is None or latest.header.state != "active":
-                        self.cache.remove(entity)
-                    else:
-                        self.cache.put(latest)
+                self.cache_repairs.repair(entity)
             except Exception as exc:
                 failure = failure or exc
-                continue
-            self._repairs.discard(entity)
         if failure is not None and not self.defer_cache_errors:
             raise failure
 
@@ -136,5 +135,6 @@ class MaintenanceWriter:
         在根据缓存推导新计划前完成旧工作，避免旧视图导致重复生成记忆。
         """
         self.retry_writebacks()
-        if self.pending():
+        self.cache_repairs.retry()
+        if self.pending() or self.cache_repairs.ids():
             raise RuntimeError("maintenance_writeback_pending")

@@ -25,24 +25,10 @@ _INDEX_CACHE: OrderedDict[tuple, tuple[list, dict, dict, list]] = OrderedDict()
 _ART_CACHE: OrderedDict[int, tuple[Artifact, frozenset[str], tuple[str, ...]]] = OrderedDict()
 
 
-_PUNCT = str.maketrans(
-    "", "",
-    " \t\r\n，。！？；：、,.!?;:'\"()[]{}<>…—-_/\\·“”‘’（）《》【】「」『』",
-)
-
-
-def bigrams(text: str) -> set[str]:
-    """Normalize alphanumeric character pairs, preserving one-character input / 规范化字母数字二元组，保留单字符输入。"""
-    # Fast-path alphanumeric text, then translate known punctuation before filtering.
-    # 字母数字文本直接处理，否则先移除已知标点再逐字符筛选。
-    chars = str(text).lower()
-    if not chars.isalnum():
-        chars = chars.translate(_PUNCT)
-        if not chars.isalnum():
-            chars = "".join(c for c in chars if c.isalnum())
-    if len(chars) < 2:
-        return set(chars)
-    return {a + b for a, b in zip(chars, chars[1:])}
+try:
+    from ..app.text_rules import alphanumeric_bigrams as bigrams, _PUNCT
+except ImportError:
+    from app.text_rules import alphanumeric_bigrams as bigrams, _PUNCT
 
 
 def overlap(text: str, content: str) -> float:

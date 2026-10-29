@@ -15,9 +15,13 @@ if TYPE_CHECKING:
 try:
     from ..core.artifact import Artifact, revise
     from ..core.versioning import StateEvent
+    from ..core.strength import HIT_STEP
 except ImportError:
     from core.artifact import Artifact, revise
     from core.versioning import StateEvent
+    from core.strength import HIT_STEP
+
+from .cache_repair import CacheRepairs
 
 MAX_WEIGHT = 3.0
 
@@ -37,14 +41,15 @@ class CheckpointManager:
     """
 
     def __init__(self, artifacts: ArtifactStore, cache: ArtifactCache,
-                 interval: int = 1800, cooldown_seconds: int | None = None) -> None:
+                 interval: int = 1800, cooldown_seconds: int | None = None,
+                 *, cache_repairs: CacheRepairs | None = None) -> None:
         self.artifacts = artifacts
         self.cache = cache
         self.interval = max(1, int(interval))
         self.cooldown_seconds = max(0, int(interval if cooldown_seconds is None else cooldown_seconds))
         self.last_flush = time.monotonic()
         self._dirty: dict[str, _PendingHits] = {}
-        self._repairs: set[str] = set()
+        self._cache_repairs = cache_repairs or CacheRepairs(artifacts, cache)
         self._last_hit: dict[str, float] = {}
 
     def record(self, art: Artifact, at: str = "") -> bool:
@@ -67,19 +72,14 @@ class CheckpointManager:
 
     def pending(self) -> int:
         """Count distinct IDs awaiting commit or cache repair / 按编号去重统计待提交或待补缓存的记忆。"""
-        return len(self._dirty.keys() | self._repairs)
+        return len(self._dirty.keys() | self._cache_repairs.ids(self))
 
     def _repair(self, entity: str) -> None:
         """Refresh from the latest head; failures retain the repair marker.
 
         从最新版本刷新；失败时保留补偿标记，不再次强化。
         """
-        latest = self.artifacts.get(entity)
-        if latest is None:
-            self.cache.remove(entity)
-        else:
-            self.cache.put(latest)
-        self._repairs.discard(entity)
+        self._cache_repairs.repair(entity)
 
     def flush(self, now: str = "") -> int:
         """Return newly committed IDs; cache failures remain pending separately.
@@ -87,13 +87,13 @@ class CheckpointManager:
         返回新成功提交的记忆数；缓存失败独立等待补偿。
         """
         flushed = 0
-        for entity in tuple(self._repairs):
+        for entity in tuple(self._cache_repairs.ids(self)):
             try:
                 self._repair(entity)
             except Exception:
                 continue
         for entity, delta in list(self._dirty.items()):
-            if entity in self._repairs:
+            if entity in self._cache_repairs.ids(self):
                 continue
             try:
                 # Storage owns the head; cache absence is not proof of deletion.
@@ -106,10 +106,10 @@ class CheckpointManager:
                 event = StateEvent(
                     id=f"ev_{time.time_ns()}_{entity}", entity_id=entity,
                     revision_seen=art.header.revision, op="reinforce",
-                    delta={"hits": delta.hits, "weight": round(0.1 * delta.hits, 6)}, at=stamp)
+                    delta={"hits": delta.hits, "weight": round(HIT_STEP * delta.hits, 6)}, at=stamp)
                 old = art.header.strength
                 strength = replace(old, hits=int(old.hits or 0) + delta.hits,
-                                   weight=min(MAX_WEIGHT, float(old.weight) + 0.1 * delta.hits))
+                                   weight=min(MAX_WEIGHT, float(old.weight) + HIT_STEP * delta.hits))
                 new = revise(art, strength=strength)
                 self.artifacts.commit(new, expected_revision=art.header.revision,
                                       op="reinforce", reason="checkpoint",
@@ -125,7 +125,7 @@ class CheckpointManager:
             else:
                 self._dirty.pop(entity, None)
             flushed += 1
-            self._repairs.add(entity)
+            self._cache_repairs.mark(entity, self)
             try:
                 self._repair(entity)
             except Exception:

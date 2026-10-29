@@ -6,6 +6,10 @@
 from __future__ import annotations
 
 import json
+try:
+    from ..app.value_codec import json_object
+except ImportError:
+    from app.value_codec import json_object
 
 try:
     from ..app.ports import ArtifactStore, LedgerStore
@@ -21,16 +25,7 @@ class StatusService:
         self.artifacts = artifacts
         self.ledger = ledger
 
-    @staticmethod
-    def json_object(raw: object) -> dict:
-        """Decode an object or return an empty object for invalid legacy data / 解析对象，对无效的旧数据返回空对象。"""
-        value = raw
-        if isinstance(value, str):
-            try:
-                value = json.loads(value)
-            except (TypeError, ValueError):
-                return {}
-        return value if isinstance(value, dict) else {}
+    json_object = staticmethod(json_object)
 
     @classmethod
     def header_evidence(cls, raw_header: object) -> tuple[list[str], list[str]]:

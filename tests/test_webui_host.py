@@ -214,6 +214,14 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         await self.plugin.initialize()
         self.assertEqual(self.plugin.hooks._action_attempts, {})
 
+    async def test_composition_shares_one_committed_id_repair_owner(self) -> None:
+        repairs = self.plugin.cache_repairs
+        services = self.plugin.services
+        self.assertIs(self.plugin.checkpoint._cache_repairs, repairs)
+        self.assertIs(services.ingest_service._cache_repairs, repairs)
+        self.assertIs(services.recall_service._context_writer.cache_repairs, repairs)
+        self.assertIs(services.maintenance_service._writes.cache_repairs, repairs)
+
     async def test_initialization_is_idempotent_and_shutdown_owns_resources(
         self,
     ) -> None:

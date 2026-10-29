@@ -7,9 +7,11 @@ from __future__ import annotations
 
 try:
     from ..app.ports import TreeArtifactStore, TreeCache
+    from ..app.revision_plan import prepare_revision
     from ..core.artifact import Artifact, revise
 except ImportError:
     from app.ports import TreeArtifactStore, TreeCache
+    from app.revision_plan import prepare_revision
     from core.artifact import Artifact, revise
 
 EDGE_PREFIX = "tree_child:"
@@ -33,25 +35,8 @@ class TreeService:
 
     def _persist(self, art: Artifact) -> None:
         """Prepare and commit a revision, then update optional cache / 准备并提交版本，再更新可选缓存。"""
-        existing = self.artifacts.get(art.header.id)
-        if existing is None:
-            expected = 0
-            op = "create"
-        else:
-            expected = existing.header.revision
-            op = "revise"
-            if art.header.revision <= existing.header.revision:
-                art = revise(
-                    existing,
-                    payload=art.payload,
-                    state=art.header.state,
-                    scope=art.header.scope,
-                    strength=art.header.strength,
-                    lineage=art.header.lineage,
-                    said_by=art.header.said_by,
-                    shareable=art.header.shareable,
-                    subject_id=art.header.subject_id,
-                )
+        prepared = prepare_revision(art, self.artifacts)
+        art, expected, op = prepared.artifact, prepared.expected_revision, prepared.op
         self.artifacts.commit(
             art,
             expected_revision=expected,

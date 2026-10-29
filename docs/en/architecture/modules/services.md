@@ -73,3 +73,5 @@ Memory context construction uses the pure `RecallService.query()`. Explicit incl
 Background compensation also delegates the context-inclusion writer, so pending designated commits/cache repairs can finish while extraction/speaking are disabled and before database shutdown.
 
 MaintenanceService retains its maintenance writer for exact prepared commits and latest-head cache repairs. Background compensation delegates it even with extraction/speaking disabled and before database shutdown. Pending repairs block derivation of further maintenance plans from a stale view.
+
+Committed-ID cache repair is shared through `app.CacheRepairs`; the composition root injects the same instance into checkpoint, extraction, context and maintenance writers. Business plans remain with each use case, and per-owner counts keep unrelated repairs out of checkpoint pending totals.
