@@ -164,11 +164,35 @@ class JsonlEpisodeStore:
         self.path = Path(path)
         self._lock = threading.RLock()
         self.last_error = ""
+        self._seen_runs: set[tuple[str, str]] | None = None
+
+    def _runs(self) -> set[tuple[str, str]]:
+        """Load completed run identities once; reload after an uncertain append.
+
+        首次读取已保存运行编号，追加结果不确定时重新读取；不增加文件字段。
+        """
+        if self._seen_runs is None:
+            seen: set[tuple[str, str]] = set()
+            if self.path.exists():
+                with self.path.open(encoding="utf-8") as handle:
+                    for line in handle:
+                        try:
+                            row = json.loads(line)
+                        except ValueError:
+                            continue
+                        if isinstance(row, dict) and row.get("run_id"):
+                            seen.add((str(row.get("session_id") or ""), str(row["run_id"])))
+            self._seen_runs = seen
+        return self._seen_runs
 
     def append(self, episode: EpisodeRecord) -> None:
         """Append safe metadata under the instance lock; do not swallow failed writes / 在实例锁内追加安全信息，不吞掉写入失败。"""
         with self._lock:
             try:
+                key = (episode.session_id, episode.run_id)
+                if episode.run_id and key in self._runs():
+                    self.last_error = ""
+                    return
                 self.path.parent.mkdir(parents=True, exist_ok=True)
                 payload = asdict(episode)
                 payload["tool_calls"] = list(normalize_tool_calls(episode.tool_calls))
@@ -176,7 +200,10 @@ class JsonlEpisodeStore:
                     handle.write(json.dumps(payload, ensure_ascii=False,
                                             sort_keys=True) + "\n")
                 self.last_error = ""
+                if episode.run_id:
+                    self._runs().add(key)
             except Exception as exc:  # noqa: BLE001 - let the recorder retry / 交给记录器重试
+                self._seen_runs = None
                 self.last_error = type(exc).__name__
                 raise
 

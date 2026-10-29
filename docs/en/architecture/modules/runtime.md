@@ -52,3 +52,5 @@ Receipts and compensation are not durable across processes. Crashes and unknown 
 ## Internal files and resources
 
 The facade remains in runtime.py; transitions.py computes detached state only, dispatch.py executes background work through ports, and writeback.py manages confirmed-delivery recovery. These do not import AgentRuntime. recorder.py remains the single Source/projection/reinforcement/audit coordinator. Existing state/episode/action storage adapters, host tracing and tool filtering remain in place. Source comments use English followed by equivalent Chinese; the app module page inventories interfaces.
+
+File audit retries recognize complete saved rows through existing `session_id/run_id` fields. An uncertain append reloads persisted identities before retrying. This covers a single instance and complete rows seen by a new instance, not cross-process file locking, and adds no file fields.

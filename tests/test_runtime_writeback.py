@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from contextlib import contextmanager
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -261,6 +262,26 @@ class StorageFailureTest(unittest.TestCase):
             with self.assertRaises(OSError):
                 sink.append(EpisodeRecord("s1", "t", "x", "y", "reply", True))
             self.assertTrue(sink.last_error)
+
+    def test_jsonl_uncertain_append_and_new_instance_keep_one_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "runs.jsonl"
+            sink = JsonlEpisodeStore(str(path))
+            episode = EpisodeRecord("s1", "t", "reply", "direct", "reply", True, run_id="r1")
+            original = Path.open
+            @contextmanager
+            def uncertain(file, *args, **kwargs):
+                with original(file, *args, **kwargs) as handle:
+                    yield handle
+                if args and args[0] == "a":
+                    raise OSError("ack lost after append")
+            with patch.object(Path, "open", uncertain):
+                with self.assertRaises(OSError):
+                    sink.append(episode)
+            sink.append(episode)
+            JsonlEpisodeStore(str(path)).append(episode)
+            self.assertEqual(len(path.read_text(encoding="utf-8").splitlines()), 1)
+            self.assertEqual(sink.last_error, "")
 
 
 if __name__ == "__main__":
