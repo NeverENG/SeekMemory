@@ -66,3 +66,5 @@ jobs:
           node mock/kernel.mjs --data-dir .tmp/mock > .tmp/mock.log 2>&1 &
           sleep 2
           node scripts/smoke-contract.mjs --runtime .tmp/mock/runtime.json
+          # 内核端点契约符合性（同一个 mock 实例，验的是契约而不是适配器行为）
+          node scripts/check-kernel-contract.mjs --runtime .tmp/mock/runtime.json
