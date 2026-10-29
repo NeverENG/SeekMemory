@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 import datetime
-from dataclasses import replace
 from typing import Callable
 
 from . import transitions
@@ -79,15 +78,19 @@ class Dispatch:
         return build_context(self.memory_context, event, now, reason)
 
     def clear_wait(self, session_id: str, now: float | None) -> SessionState:
+        """Persist cleared wait/retry deadlines / 保存已清理的等待及重试期限。"""
         return self.states.apply(session_id, transitions.clear_wait, self.clock() if now is None else now)
 
     def claim_dispatch(self, session_id: str, source_id: str, now: float) -> int:
+        """Persist an attempt before asynchronous work / 异步执行前保存尝试次数。"""
         return self.states.apply(session_id, transitions.claim_dispatch, source_id, now).dispatch_attempts
 
     def schedule_retry(self, session_id: str, now: float, attempts: int, **kwargs) -> SessionState:
+        """Persist bounded retry without overwriting newer work / 保存有界重试，不覆盖新任务。"""
         return self.states.apply(session_id, transitions.schedule_retry, now, attempts, **kwargs)
 
     def mark_delivered(self, session_id: str, now: float, **kwargs) -> SessionState:
+        """Persist a bounded delivery acknowledgement / 保存有界交付确认。"""
         return self.states.apply(session_id, transitions.mark_delivered, now, **kwargs)
 
     def _save(self, state: SessionState) -> None:
@@ -126,11 +129,9 @@ class Dispatch:
         max_attempts: int = 3,
         base_seconds: float = 2.0,
     ) -> RunResult:
-        """Claim, generate, send and record one deferred run.
+        """Claim, generate and send; retain a receipt before fallible write-back. Model/send failures retain bounded retries and cancellation propagation.
 
-        Host adapters provide the model and sender ports. The runtime owns the
-        lifecycle and bounded retry; callers only map the latest Source into a
-        RunContext.
+        领取、生成及发送，在可能失败的写回前保留凭据；模型或发送失败保留有界重试和取消传播。
         """
         session_id = str(context.session_id or "")
         source_id = str(context.source_id or "")
@@ -164,9 +165,9 @@ class Dispatch:
                                 max_attempts=max_attempts)
             return RunResult(run_id, session_id, False, error="dispatch_dead")
         attempts = self.claim_dispatch(session_id, source_id, moment)
-        # Stores may return a live object. Keep a stable, run-local snapshot so
-        # old pending markers can be distinguished from newer scheduled work.
-        claimed = replace(self.store.get(session_id))
+        # Snapshot live store values to distinguish old claims from newer work.
+        # 对存储原对象建立快照，以区分旧领取与新任务。
+        claimed = transitions.snapshot(self.store.get(session_id))
         runtime_input = RuntimeInput(
             session_id=session_id,
             text=text,
@@ -191,8 +192,8 @@ class Dispatch:
             )
         except (Exception, asyncio.CancelledError) as exc:
             try:
-                # Refresh after awaited model/send work; explicit start time
-                # remains a lower bound without an advancing injected clock.
+                # Refresh after model/send; explicit start time remains the lower bound.
+                # 模型或发送结束后刷新时间，显式开始时间仍为下界。
                 moment = max(moment, float(self.clock()))
                 self.schedule_retry(
                     session_id,
@@ -252,7 +253,10 @@ class Dispatch:
         topic: TopicCandidate | None = None,
         now: float | None = None,
     ) -> RunResult:
-        """Generate, send and record one due proactive turn."""
+        """Generate a due proactive reply using its own prompt; retain confirmed delivery for write-back.
+
+        使用独立提示生成到期主动回复，保留已确认交付以便补写。
+        """
         moment = self.clock() if now is None else float(now)
         session_id = str(context.session_id or "")
         run_id = str(context.run_id or "")
@@ -293,16 +297,16 @@ class Dispatch:
                 callback_key=f"proactive:{run_id}",
             )
         except (Exception, asyncio.CancelledError) as exc:
-            state = transitions.snapshot(self.store.get(session_id))
-            state.last_proactive_at = moment
-            state.proactive_attempts = int(state.proactive_attempts or 0) + 1
-            state.last_action = "wait"
-            state.last_reason = decision.reason
-            self._save(state)
-            at = datetime.datetime.fromtimestamp(
-                moment, datetime.timezone.utc
-            ).isoformat(timespec="seconds")
             try:
+                state = transitions.snapshot(self.store.get(session_id))
+                state.last_proactive_at = moment
+                state.proactive_attempts = int(state.proactive_attempts or 0) + 1
+                state.last_action = "wait"
+                state.last_reason = decision.reason
+                self._save(state)
+                at = datetime.datetime.fromtimestamp(
+                    moment, datetime.timezone.utc
+                ).isoformat(timespec="seconds")
                 self.recorder.record_deferred_error(
                     run_id=run_id,
                     session_id=session_id,

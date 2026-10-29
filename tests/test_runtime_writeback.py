@@ -192,6 +192,15 @@ class WritebackTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.delivered)
         self.assertEqual(result.error, "")
 
+    async def test_proactive_cancel_propagates_when_state_write_fails(self):
+        async def cancel(*args):
+            self.store.put = lambda state: (_ for _ in ()).throw(OSError("state busy"))
+            raise asyncio.CancelledError()
+        self.runtime.model_gateway.complete = cancel
+        with self.assertRaises(asyncio.CancelledError):
+            await self.runtime.dispatch_proactive(self.context, ProactiveDecision(True, "due"))
+        self.assertEqual(self.sends, 0)
+
 
 class StorageFailureTest(unittest.TestCase):
     def test_json_replace_failure_preserves_disk_and_loaded_state(self):
