@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -38,8 +39,16 @@ def _mk(level: str, text: str, parent: str | None = None, weight: float = 1.0) -
 
 
 def main() -> None:
-    tmpdir = tempfile.mkdtemp()
-    db = open_store(os.path.join(tmpdir, "t.db"))
+    with tempfile.TemporaryDirectory() as directory:
+        db = open_store(os.path.join(directory, "t.db"))
+        try:
+            _exercise(db)
+        finally:
+            db.close()
+
+
+def _exercise(db) -> None:
+    """Exercise the original smoke assertions with a caller-owned store / 使用调用方管理的存储执行原冒烟断言。"""
     cache = Cache(db.artifacts)
     tree = TreeService(db.artifacts, cache)
     graph = Graph(db.artifacts)
@@ -89,8 +98,12 @@ def main() -> None:
     assert 0 < retention(detail.header.strength, "point", 3) < 1
 
     print("\nOK 全部通过")
-    db.close()
+
+
+class SmokeTest(unittest.TestCase):
+    def test_memory_path(self) -> None:
+        main()
 
 
 if __name__ == "__main__":
-    main()
+    unittest.main()

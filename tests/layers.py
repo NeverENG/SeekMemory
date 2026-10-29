@@ -1,7 +1,6 @@
-"""Automatic test-layer discovery for local runs and CI.
+"""Discover flat test files; explicit layer suffixes override legacy names.
 
-Test files stay flat for unittest compatibility. New tests are classified by
-name conventions so adding a test no longer requires editing a central map.
+发现平铺测试文件；显式层级后缀优先于旧名称规则。
 """
 
 from __future__ import annotations
@@ -25,6 +24,9 @@ def _test_files() -> list[Path]:
 
 def _layer_for(path: Path) -> str:
     name = path.name
+    for layer in ALL_LAYERS:
+        if name.endswith(f"_{layer}.py"):
+            return layer
     if name in SMOKE:
         return "smoke"
     if name in CONTRACT or name.endswith("_contract.py"):
@@ -39,7 +41,7 @@ def _layer_for(path: Path) -> str:
 
 
 def files_for(layer: str) -> tuple[str, ...]:
-    """Return test file names for one layer; all means every discovered test."""
+    """Return one layer's files, or all files exactly once / 返回一层或全部文件，每个文件一次。"""
     files = _test_files()
     if layer == "all":
         return tuple(path.name for path in files)

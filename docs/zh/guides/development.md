@@ -33,7 +33,7 @@
 
 ## 后端验证层
 
-脚本依据 tests/layers.py 按文件名把平铺的 unittest 文件分层；当前部分文件同时含纯规则和跨模块流程，层名不保证依赖完全隔离。以下命令执行全仓对应层，不是只执行某个模块。按改动选择适当范围：
+脚本依据 tests/layers.py 把平铺的 unittest 文件分层，显式 `_unit.py`、`_integration.py` 等后缀优先于旧名称规则。每个文件在独立进程中通过 unittest 发现执行，包含 `__main__` 之后的测试定义，宿主替身不会在文件间传播；全部文件执行后，任一失败均使脚本返回失败。旧文件仍可能跨模块，层名不保证所有依赖完全隔离。按改动选择适当范围：
 
     python3 scripts/run_tests.py --layer unit
     python3 scripts/run_tests.py --layer contract
@@ -43,7 +43,7 @@
     python3 scripts/run_tests.py --layer smoke
     python3 scripts/run_tests.py --layer all
 
-也可直接运行全部兼容测试文件：
+也可在一个进程中发现全部文件；宿主替身可能影响同进程中的可选宿主测试，宿主验收应使用上面的独立进程入口：
 
     python3 -m unittest discover -s tests -p 'test_*.py' -q
 

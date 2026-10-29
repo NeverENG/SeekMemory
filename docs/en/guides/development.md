@@ -33,7 +33,7 @@ The structure check validates navigation, mirrored page sets and relative Markdo
 
 ## Backend test layers
 
-The runner uses tests/layers.py to classify flat unittest files by name. Some files currently mix pure rules and cross-module flows, so layer names do not guarantee isolated dependencies. These commands run a repository-wide layer, not a single module. Choose the needed scope for a change:
+The runner uses tests/layers.py to classify flat unittest files; explicit `_unit.py`, `_integration.py` and other layer suffixes override legacy names. Each file runs through unittest discovery in an isolated process, including definitions after `__main__`, so host fakes do not leak between files. All files run and any failure makes the command fail. Legacy files can still span modules; layer names do not guarantee fully isolated dependencies. Choose the needed scope for a change:
 
     python3 scripts/run_tests.py --layer unit
     python3 scripts/run_tests.py --layer contract
@@ -43,7 +43,7 @@ The runner uses tests/layers.py to classify flat unittest files by name. Some fi
     python3 scripts/run_tests.py --layer smoke
     python3 scripts/run_tests.py --layer all
 
-The compatibility command for all test files is:
+All files can also be discovered in one process; host fakes may affect optional host tests in that process, so use the isolated runner above for host acceptance:
 
     python3 -m unittest discover -s tests -p 'test_*.py' -q
 
