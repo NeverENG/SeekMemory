@@ -1,4 +1,4 @@
-"""Pure proactive scheduling policy for the host-neutral runtime."""
+"""Pure proactive selection and timing rules; no clock reads or persistence / 纯主动选择及时间规则，不读取时钟或持久化。"""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from .contracts import ProactiveDecision, ProactivePolicy, SessionState
 
 @dataclass(frozen=True)
 class ProactiveCandidate:
-    """One due session selected by the pure proactive policy."""
+    """One eligible session and its pure policy decision / 一个合格会话及其纯策略决策。"""
 
     session_id: str
     decision: ProactiveDecision
@@ -19,13 +19,14 @@ class ProactiveCandidate:
 
 @dataclass(frozen=True)
 class ProactiveDispatchPlan:
-    """A bounded batch and the still-due sessions deferred to later ticks."""
+    """Selected bounded work and still-due deferred sessions / 选中的有界任务及仍到期的延后会话。"""
 
     selected: tuple[ProactiveCandidate, ...] = ()
     deferred: tuple[ProactiveCandidate, ...] = ()
 
     @property
     def eligible_count(self) -> int:
+        """Count selected and deferred eligible sessions / 统计已选及延后合格会话。"""
         return len(self.selected) + len(self.deferred)
 
 
@@ -36,7 +37,7 @@ def plan_proactive_dispatch(
     now: float,
     max_fanout: int,
 ) -> ProactiveDispatchPlan:
-    """Select due sessions deterministically without consuming deferred work."""
+    """Sort eligible sessions deterministically, without consuming deferred work / 确定性排序合格会话，不消费延后任务。"""
     limit = int(max_fanout)
     if limit < 0:
         raise ValueError("max_fanout must be non-negative")
@@ -78,12 +79,7 @@ def _count(value: object) -> int:
 
 
 class DefaultProactivePolicy:
-    """Evaluate a persisted due time without I/O or state mutation.
-
-    Proactive behavior is disabled unless the composition root opts in after
-    host-boundary verification. All timing inputs come from ``SessionState``
-    and the explicit decision time; this policy never reads a clock itself.
-    """
+    """Pure cooldown/retry/quiet rules; disabled by default and never reads a clock / 纯冷却、重试、安静期规则，默认关闭且不读取时钟。"""
 
     _MAX_BACKOFF_EXPONENT = 20
 
@@ -112,7 +108,7 @@ class DefaultProactivePolicy:
         return duration
 
     def evaluate(self, state: SessionState, *, now: float) -> ProactiveDecision:
-        """Return the next eligibility time and whether a proactive attempt is due."""
+        """Return eligibility and next due time without mutating state / 返回资格及下次到期时间，不修改状态。"""
         try:
             moment = float(now)
         except (TypeError, ValueError, OverflowError):

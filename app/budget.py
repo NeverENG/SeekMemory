@@ -1,56 +1,52 @@
-"""上下文预算：单轮请求该带多少字。
-
-模型的账几乎全在输入：语料 few-shot、群聊上下文、记忆注入、对话历史。
-这里把这几项收成一处策略，算出一个"这一轮大概多少 token"的估计，
-给注入、日志和报表共用；不改变任何业务语义。
-"""
+"""Pure character/message budgets and usage estimates; no tokenizer, model or storage / 纯字数及消息预算与用量估算，不访问分词器、模型或存储。"""
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from typing import Callable
 
-# 中文按 1.6 字/token 估；每条消息另有 role 开销。
+# Estimate 1.6 characters/token plus role overhead / 按 1.6 字/token 估算，另计角色开销。
 CHARS_PER_TOKEN = 1.6
 MESSAGE_OVERHEAD = 4
 
 
 @dataclass(frozen=True)
 class ContextBudget:
-    """一套请求侧的预算数字，单位都是字/条。"""
+    """Request character/message limits and estimated usage / 请求的字数、消息数限额及估算用量。"""
 
-    injection_chars: int = 600      # 记忆注入上限
-    system_chars: int = 1600        # 人格提示词 + 系统说明
-    group_context_messages: int = 20  # 群聊流水最多注入多少条
-    history_messages: int = 24      # 会话历史保留条数
+    injection_chars: int = 600      # Injection limit / 记忆注入上限
+    system_chars: int = 1600        # Persona and system text / 人格提示词及系统说明
+    group_context_messages: int = 20  # Group message limit / 群聊流水条数上限
+    history_messages: int = 24      # History message limit / 历史消息条数上限
     source_recall_enabled: bool = True
     source_recall_hours: int = 12
     source_recall_max_candidates: int = 80
 
     @property
     def estimate_tokens(self) -> int:
-        """不含对话历史时的保守估计。"""
+        """Estimate system and injection usage, excluding history / 估算系统及记忆注入用量，不含对话历史。"""
         return estimate_tokens(self.system_chars + self.injection_chars)
 
     def as_dict(self) -> dict:
+        """Return limits and estimated usage for display / 返回供展示使用的限额及估算用量。"""
         data = asdict(self)
         data["estimate_tokens"] = self.estimate_tokens
         return data
 
 
 def estimate_tokens(chars: int, messages: int = 0) -> int:
-    """按字数估 token；文本越长越接近 1.6 字/token。"""
+    """Estimate tokens from characters and per-message overhead; no tokenizer is used / 按字数及每条消息开销估算用量，不调用分词器。"""
     body = int(max(0, int(chars)) / CHARS_PER_TOKEN)
     return body + MESSAGE_OVERHEAD * max(0, int(messages))
 
 
 def estimate_messages(texts: list[str]) -> int:
-    """按消息列表估 token，用于语料与群聊流水。"""
+    """Estimate combined message usage / 估算一组消息的总用量。"""
     return estimate_tokens(sum(len(str(t)) for t in texts), len(texts))
 
 
 def budget_from_config(conf: Callable[[str, object], object]) -> ContextBudget:
-    """从插件配置读取预算；缺省值就是默认策略。"""
+    """Normalize supplied config with existing defaults; no host config access / 按既有默认值规整提供的配置，不访问宿主配置对象。"""
     default = ContextBudget()
 
     def _num(key: str, fallback: int, minimum: int = 1) -> int:
@@ -89,7 +85,7 @@ def budget_from_config(conf: Callable[[str, object], object]) -> ContextBudget:
 
 
 def clamp_chars(text: str, limit: int) -> tuple[str, int]:
-    """把文本裁到预算内；优先在标点处断开，返回 (文本, 原长度)。"""
+    """Trim near punctuation; return text and original length / 尽量在标点处裁剪，返回文本及原长度。"""
     body = str(text or "")
     size = len(body)
     limit = max(0, int(limit))

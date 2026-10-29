@@ -1,7 +1,6 @@
-"""Pure persona-synthesis request/response helpers.
+"""Pure persona requests and validation; MaintenanceService owns evidence selection, model calls and commits.
 
-This module has no storage, host or model imports beyond the shared ChatRequest
-DTO.  MaintenanceService owns when to call it and the persona Artifact write.
+纯人格请求及校验，MaintenanceService 负责证据选择、模型调用和提交。
 """
 from __future__ import annotations
 
@@ -11,7 +10,7 @@ from typing import Any
 
 try:
     from .contracts import ChatRequest
-except ImportError:  # Standalone tests use the repository as the import root.
+except ImportError:  # Standalone import / 独立测试以仓库为导入根目录。
     from app.contracts import ChatRequest
 
 MAX_PERSONA_CHARS = 20000
@@ -30,7 +29,7 @@ Do not output Markdown or any text outside the JSON object."""
 
 @dataclass(frozen=True)
 class PersonaEvidence:
-    """One content-safe artifact summary used for persona synthesis."""
+    """Caller-supplied evidence summary; selection and disclosure happen upstream / 调用方提供的证据概述，筛选和披露在上游完成。"""
 
     id: str
     kind: str
@@ -48,7 +47,7 @@ def build_persona_request(
     *,
     max_evidence_chars: int = 2400,
 ) -> ChatRequest:
-    """Build one bounded, evidence-summary-only persona synthesis request."""
+    """Build a bounded request from persona and evidence summaries; do not call a model / 按人格及证据概述构造有界请求，不调用模型。"""
     evidence_lines: list[str] = []
     used = 0
     for item in evidence:
@@ -96,10 +95,9 @@ def _strip_fence(text: str) -> str:
 
 
 def parse_persona_draft(raw: str, current_payload: dict[str, Any]) -> dict[str, Any] | None:
-    """Parse and validate one synthesis response.
+    """Validate JSON and safety bounds; unchanged text returns None, invalid output raises ValueError.
 
-    Returns ``None`` when the model returned the same persona text (no write).
-    Raises ValueError for malformed or unsafe output.
+    校验 JSON 和安全限额，文本未变返回空，非法输出抛 ValueError。
     """
     try:
         data = json.loads(_strip_fence(raw))

@@ -1,8 +1,4 @@
-"""Due-time selection for runtime sessions.
-
-TimingPolicy is pure. Scheduler only reads persisted state and reports which
-sessions have due work; it never sends, generates or mutates state.
-"""
+"""Read due session state through a port; policies are pure and no tasks are consumed / 通过端口读取到期会话状态，策略纯计算且不消费任务。"""
 
 from __future__ import annotations
 
@@ -15,15 +11,17 @@ from .proactive import ProactiveDispatchPlan, plan_proactive_dispatch
 
 @dataclass(frozen=True)
 class DueRun:
+    """One due session, its reason and deadline / 一个到期会话及其原因和期限。"""
     session_id: str
     reason: str
     due_at: float
 
 
 class TimingPolicy:
-    """Pure wait/retry timing policy over SessionState."""
+    """Pure wait/retry deadline selection / 纯等待及重试期限判断。"""
 
     def evaluate(self, state: SessionState, now: float) -> DueRun | None:
+        """Select a due retry before a due wait; return None when not due / 优先选到期重试，其次到期等待，未到期返回空。"""
         wait_until = float(state.wait_until or 0.0)
         retry_at = float(state.next_retry_at or 0.0)
         if retry_at > 0 and retry_at <= now:
@@ -34,13 +32,14 @@ class TimingPolicy:
 
 
 class Scheduler:
-    """Read-only due-session selector backed by a SessionStateStore."""
+    """Read due sessions through the injected store; never mutate or send / 通过注入存储读取到期会话，不修改或发送。"""
 
     def __init__(self, store: SessionStateStore, policy: TimingPolicy | None = None) -> None:
         self.store = store
         self.policy = policy or TimingPolicy()
 
     def due(self, session_ids: Iterable[str], now: float) -> tuple[DueRun, ...]:
+        """Read due tasks, isolating broken sessions / 读取到期任务，隔离异常会话。"""
         due: list[DueRun] = []
         for session_id in session_ids:
             try:
@@ -48,7 +47,7 @@ class Scheduler:
                 item = self.policy.evaluate(state, now)
                 if item is not None:
                     due.append(item)
-            except Exception:  # noqa: BLE001 - one broken session must not block others
+            except Exception:  # noqa: BLE001 - isolate broken sessions / 隔离异常会话
                 continue
         return tuple(due)
 
@@ -60,12 +59,12 @@ class Scheduler:
         *,
         max_fanout: int = 5,
     ) -> ProactiveDispatchPlan:
-        """Read-only proactive fan-out selection on the same scheduler."""
+        """Read and select proactive candidates without consuming their state / 读取并选择主动候选，不消费状态。"""
         states: list[SessionState] = []
         for session_id in session_ids:
             try:
                 states.append(self.store.get(str(session_id)))
-            except Exception:  # noqa: BLE001 - one broken session must not block others
+            except Exception:  # noqa: BLE001 - isolate broken sessions / 隔离异常会话
                 continue
         return plan_proactive_dispatch(
             states, policy, now=now, max_fanout=max_fanout

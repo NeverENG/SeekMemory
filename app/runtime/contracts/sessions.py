@@ -1,4 +1,4 @@
-"""Per-session runtime state and its persistence port."""
+"""Session scheduling data and its storage declaration; distinct from memory truth / 会话调度数据及存储声明，与记忆事实区分。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 @dataclass
 class SessionState:
-    """Per-session timing and attention state. This is not memory."""
+    """Mutable per-session scheduling state, separate from Source and memory / 按会话保存的可变调度状态，与原始消息及记忆分开。"""
 
     session_id: str
     revision: int = 0
@@ -31,5 +31,10 @@ class SessionState:
 
 
 class SessionStateStore(Protocol):
-    def get(self, session_id: str) -> SessionState: ...
-    def put(self, state: SessionState) -> None: ...
+    """Session persistence supplied by composition; operations may raise / 组装方提供的会话存储，操作可能抛异常。"""
+    def get(self, session_id: str) -> SessionState:
+        """Read session state, defaulting only when genuinely absent / 读取会话状态，仅确实不存在时使用默认值。"""
+        ...
+    def put(self, state: SessionState) -> None:
+        """Persist state before success; failures must be observable / 保存成功后再返回，失败必须可被识别。"""
+        ...

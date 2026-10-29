@@ -1,4 +1,7 @@
-"""Runtime episode recording."""
+"""Safe audit classification and existing file/repository adapters; no SQL or model calls.
+
+安全审计归类及既有文件、仓储转接，不包含 SQL 或模型调用。
+"""
 
 from __future__ import annotations
 
@@ -21,6 +24,7 @@ _SAFE_ERROR_CODE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.:-]{0,63}$")
 
 @dataclass(frozen=True)
 class EpisodeRecord:
+    """Content-free runtime audit correlated with Source and run IDs / 通过原始消息及运行编号关联的不含正文审计。"""
     session_id: str
     at: str
     decision: str
@@ -38,7 +42,7 @@ class EpisodeRecord:
 
 @dataclass(frozen=True)
 class EpisodeOutcome:
-    """Safe outcome metadata for one runtime episode row."""
+    """Safe delivery/tool outcome metadata / 安全的交付及工具结果信息。"""
 
     outcome: str
     error: str = ""
@@ -47,10 +51,11 @@ class EpisodeOutcome:
 
     @property
     def ok(self) -> bool:
+        """Whether the classified outcome is successful / 归类结果是否成功。"""
         return self.outcome == "ok"
 
     def fields(self) -> dict[str, Any]:
-        """Return episode columns without message-body or argument values."""
+        """Return audit fields without message or tool payloads / 返回不含消息或工具正文的审计字段。"""
 
         return {
             "delivered": self.delivered,
@@ -61,12 +66,7 @@ class EpisodeOutcome:
 
 
 def safe_error_code(error: Any) -> str:
-    """Reduce an exception/value to a bounded, body-free error code.
-
-    Exception messages can contain user text, prompts, tool arguments or
-    credentials. Only the exception class name is retained for exceptions.
-    String values are retained only when they already look like a stable code.
-    """
+    """Keep exception class names or bounded stable codes; discard exception bodies / 仅保留异常类型或有界稳定错误码，去掉异常正文。"""
 
     if error is None:
         return ""
@@ -78,7 +78,7 @@ def safe_error_code(error: Any) -> str:
 
 
 def normalize_tool_calls(tool_calls: Iterable[str | ToolCall] | None) -> tuple[str, ...]:
-    """Return tool names only; never persist arguments or result content."""
+    """Retain tool names only, excluding arguments and results / 仅保留工具名，不保存参数和结果。"""
 
     if not tool_calls:
         return ()
@@ -101,12 +101,7 @@ def episode_outcome(
     tool_failed: bool = False,
     error: Any = None,
 ) -> EpisodeOutcome:
-    """Classify one episode using metadata only.
-
-    Delivery failure takes precedence over tool failure because it describes
-    whether the user actually received the reply. Generic errors still preserve
-    a stable error code without storing the exception message.
-    """
+    """Classify metadata; delivery failure precedes tool failure, then other errors / 按信息归类，交付失败优先，其次工具失败及其他错误。"""
 
     calls = normalize_tool_calls(tool_calls)
     code = safe_error_code(error)
@@ -130,7 +125,7 @@ def episode_outcome(
 
 
 def delivery_failure_outcome(error: Any = None) -> EpisodeOutcome:
-    """Build safe episode metadata for a known delivery failure."""
+    """Build a safe known-delivery-failure outcome / 构造安全的已知交付失败结果。"""
 
     return EpisodeOutcome(
         outcome="delivery_failed",
@@ -140,25 +135,30 @@ def delivery_failure_outcome(error: Any = None) -> EpisodeOutcome:
 
 
 def delivery_failure_metadata(error: Any = None) -> dict[str, Any]:
-    """Return episode-field metadata for a delivery failure."""
+    """Project safe delivery-failure audit fields / 投影安全的交付失败审计字段。"""
 
     return delivery_failure_outcome(error).fields()
 
 
 class EpisodeSink(Protocol):
-    def append(self, episode: EpisodeRecord) -> None: ...
+    """Persistence slot for one content-free runtime record / 一条不含正文运行记录的存储接口。"""
+    def append(self, episode: EpisodeRecord) -> None:
+        """Persist one record; raise on failure / 保存一条记录，失败抛异常。"""
+        ...
 
 
 class EpisodeRecorder:
+    """Compatibility record-to-append adapter without independent rules / 兼容的记录到追加转接，不单独实现规则。"""
     def __init__(self, sink: EpisodeSink) -> None:
         self.sink = sink
 
     def record(self, episode: EpisodeRecord) -> None:
+        """Forward audit to its sink; propagate failures for retry / 将审计交给存储，失败上抛以便重试。"""
         self.sink.append(episode)
 
 
 class JsonlEpisodeStore:
-    """Append-only local episode log; never stores message bodies."""
+    """Locked local JSONL audit; raise write failures and retain last_error / 加锁的本地 JSONL 审计，写入失败抛异常并保留 last_error。"""
 
     def __init__(self, path: str) -> None:
         self.path = Path(path)
@@ -166,6 +166,7 @@ class JsonlEpisodeStore:
         self.last_error = ""
 
     def append(self, episode: EpisodeRecord) -> None:
+        """Append safe metadata under the instance lock; do not swallow failed writes / 在实例锁内追加安全信息，不吞掉写入失败。"""
         with self._lock:
             try:
                 self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -181,13 +182,14 @@ class JsonlEpisodeStore:
 
 
 class RepoEpisodeStore:
-    """Persist runtime episodes through the project's runtime repository."""
+    """Adapt runtime audit to an injected repository without owning its lifecycle / 向注入仓储转交运行审计，不管理其生命周期。"""
 
     def __init__(self, repository: EpisodeRepository) -> None:
         self.repository = repository
         self.last_error = ""
 
     def append(self, episode: EpisodeRecord) -> None:
+        """Use stable session/run identity for new rows; preserve old rows and report failures / 新行使用稳定会话及运行编号，保留旧行并报告失败。"""
         payload = asdict(episode)
         identity = hashlib.sha256(
             f"{episode.session_id}\0{episode.run_id}".encode("utf-8")

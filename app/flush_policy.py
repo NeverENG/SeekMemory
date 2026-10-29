@@ -1,3 +1,5 @@
+"""Pure extraction gating and same-session batch selection; no writes or scheduling / 纯抽取门控及同会话批次选择，不执行写入或调度。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,12 +13,14 @@ MAX_TOPIC_TURNS = 120
 
 @dataclass(frozen=True)
 class FlushDecision:
+    """Extraction eligibility and its reason; no side effects / 是否允许抽取及原因，没有副作用。"""
     should: bool
     reason: str
 
 
 @dataclass(frozen=True)
 class ExtractionBatch:
+    """One session's indivisible input batch and estimated usage / 单会话不可再拆输入批次及估算用量。"""
     session_id: str
     rows: list[DialogueTurn]
     topics: tuple[str, ...]
@@ -35,11 +39,7 @@ def _is_pair(parent: DialogueTurn, reply: DialogueTurn) -> bool:
 
 
 def chunk_turns(items: list[DialogueTurn], limit: int = MAX_TOPIC_TURNS) -> list[list[DialogueTurn]]:
-    """Split one oversized topic without dropping its tail or splitting a pair.
-
-    A user turn and the assistant reply that references it stay in the same
-    chunk when there is room. ``limit=1`` still returns every turn exactly once.
-    """
+    """Split all turns without loss; keep reply pairs together when the limit allows / 完整分块不丢尾部，限额允许时保持问答配对。"""
     size = max(1, int(limit))
     chunks: list[list[DialogueTurn]] = []
     index, total = 0, len(items)
@@ -58,12 +58,7 @@ def pack_same_session_batches(
     token_limit: int,
     fixed_tokens: int = 0,
 ) -> list[ExtractionBatch]:
-    """Pack already-chunked topic units into same-session pure batches.
-
-    Sessions are grouped in first-seen order, preserving the original unit
-    order within each session. Units are indivisible; an oversized unit is
-    emitted as its own batch and never split again. Sessions are never mixed.
-    """
+    """Pack indivisible units in original session order; never mix sessions / 按原会话顺序打包不可拆单元，不混合会话。"""
     limit = max(1, int(token_limit))
     grouped: dict[str, list[tuple[str, list[DialogueTurn]]]] = {}
     session_order: list[str] = []
@@ -81,6 +76,7 @@ def pack_same_session_batches(
         current_text_tokens = 0
 
         def flush() -> None:
+            """Finish this session's batch and reset local accumulation / 完成本会话批次并重置局部累计。"""
             nonlocal current_rows, current_topics, current_text_tokens
             if not current_rows:
                 return
@@ -113,18 +109,7 @@ def pack_same_session_batches(
 def select_topic_batches(
     items: list[DialogueTurn], cap: int
 ) -> list[tuple[str, str, list[DialogueTurn]]]:
-    """Pick one topic per session in turn until ``cap`` batches are chosen.
-
-    Round-robin over sessions keeps a single long conversation from occupying
-    every slot; sessions with more queued topics contribute again on later passes.
-
-    Args:
-        items: queued dialogue turns.
-        cap: maximum number of topic batches to return.
-
-    Returns:
-        ``(session, topic_id, rows)`` batches in selection order.
-    """
+    """Select (session, topic, rows) batches round-robin; cap limits the selection / 按会话轮转选择（会话、话题、消息）批次，cap 限制数量。"""
     buckets: dict[str, dict[str, list[DialogueTurn]]] = {}
     order: list[str] = []
     for turn in items:
@@ -162,8 +147,9 @@ def decide_flush(*, pending: int, idle_seconds: float, worth_now: bool,
                  topic_age_seconds: float = 0.0,
                  topic_ttl_seconds: float = 86400.0,
                  dream_only: bool = False) -> FlushDecision:
-    # 梦境模式下白天一律不抽：进化只发生在 dream 周期里。
-    # 放在最前面，连 topic 过期也不越过它，否则白天又会被触发。
+    # Dream gating precedes even expired topics to prevent daytime extraction.
+    # 夜间门控优先于过期话题，避免白天触发抽取。
+    """Apply Dream gating before expiry, daily limits, backlog and idle rules / 先检查夜间门控，再判断过期、日限额、积压及空闲条件。"""
     if dream_only:
         return FlushDecision(False, "dream_only")
     if topic_ttl_seconds > 0 and topic_age_seconds >= topic_ttl_seconds:

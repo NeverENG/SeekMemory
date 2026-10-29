@@ -1,4 +1,4 @@
-"""Pure proactive policy result and protocol."""
+"""Pure proactive decision data and required policy declaration / 纯主动发言决策数据及所需策略声明。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Protocol
 from .sessions import SessionState
 @dataclass(frozen=True)
 class ProactiveDecision:
-    """Pure policy result: whether this session should be considered due."""
+    """Pure eligibility result and next due time / 纯主动发言资格结果及下次到期时间。"""
 
     should_speak: bool
     reason: str
@@ -16,4 +16,7 @@ class ProactiveDecision:
 
 
 class ProactivePolicy(Protocol):
-    def evaluate(self, state: SessionState, *, now: float) -> ProactiveDecision: ...
+    """Injected pure proactive eligibility rules / 注入的纯主动发言资格规则。"""
+    def evaluate(self, state: SessionState, *, now: float) -> ProactiveDecision:
+        """Evaluate explicit time without state mutation / 根据显式时间判断，不修改状态。"""
+        ...

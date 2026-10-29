@@ -1,4 +1,7 @@
-"""Content-free action audit lifecycle for tool and host actions."""
+"""Content-free action execution and audit orchestration; host and repository are injected.
+
+不含正文的动作执行及审计编排，宿主和仓储由外部注入。
+"""
 
 from __future__ import annotations
 
@@ -18,7 +21,7 @@ def action_idempotency_key(
     *,
     session_id: str = "",
 ) -> str:
-    """Derive a stable opaque key without persisting a host callback identifier."""
+    """Hash session/run/action/callback identity; reject an empty callback key / 散列会话、运行、动作及回调标识，拒绝空回调编号。"""
     callback = str(callback_key or "").strip()
     if not callback:
         raise ValueError("callback_key is required for action idempotency")
@@ -40,7 +43,7 @@ def _moment(value: float) -> float:
 
 
 class ActionLedger:
-    """Record idempotent attempts and one terminal outcome through an ActionSink."""
+    """Build content-free attempts and terminal records; the sink enforces persistence / 构造不含正文的尝试及终态记录，由外部存储保证落库。"""
 
     def __init__(self, sink: ActionSink) -> None:
         self.sink = sink
@@ -56,7 +59,7 @@ class ActionLedger:
         attempt: int = 1,
         reason: str = "",
     ) -> ActionRecord:
-        """Append one content-free attempt with a stable callback identity."""
+        """Persist an attempted action before execution with a stable identity / 执行前以稳定编号保存动作尝试。"""
         session = str(session_id or "").strip()
         if not session:
             raise ValueError("session_id is required for action audit")
@@ -90,7 +93,7 @@ class ActionLedger:
         at: float,
         reason: str = "",
     ) -> ActionRecord:
-        """Append a success, failure, or cancellation for an attempted action."""
+        """Persist a terminal transition from an attempted action / 从尝试状态保存终态迁移。"""
         if attempted.status is not ActionStatus.ATTEMPTED:
             raise ValueError("only an attempted action can transition to terminal")
         terminal_status = ActionStatus(status)
@@ -107,12 +110,13 @@ class ActionLedger:
 
 
 class RepoActionSink:
-    """Adapt the SQL-owned runtime episode repository to the ActionSink port."""
+    """Map audit to an injected repository; own no SQL or connection / 将审计映射到注入仓储，不拥有 SQL 或连接。"""
 
     def __init__(self, repository: ActionRepository) -> None:
         self.repository = repository
 
     def append(self, record: ActionRecord) -> None:
+        """Persist one action transition; repository failures propagate / 保存一次动作迁移，仓储失败向上抛出。"""
         self.repository.append_action({
             "action_id": record.action_id,
             "action_kind": record.kind.value,
@@ -126,12 +130,7 @@ class RepoActionSink:
 
 
 class ActionExecutor:
-    """Single execution and audit coordinator for runtime actions.
-
-    Runtime-initiated actions go through this class. Host-native callbacks may
-    use ``begin``/``finish`` directly, but they must not maintain a parallel
-    action ledger.
-    """
+    """Execute through one host port; isolate optional audit failures / 通过唯一宿主端口执行，隔离可选审计失败。"""
 
     def __init__(self, port, ledger: ActionLedger | None = None, clock=None) -> None:
         self.port = port
@@ -151,6 +150,7 @@ class ActionExecutor:
         attempt: int = 1,
         reason: str = "",
     ):
+        """Try to persist an attempt; audit failure returns None / 尝试保存动作开始记录，审计失败返回空。"""
         if self.ledger is None:
             return None
         try:
@@ -163,7 +163,7 @@ class ActionExecutor:
                 attempt=attempt,
                 reason=reason,
             )
-        except Exception:  # noqa: BLE001 - audit is fail-open
+        except Exception:  # noqa: BLE001 - audit failure is isolated / 隔离审计失败
             return None
 
     def finish(
@@ -174,11 +174,12 @@ class ActionExecutor:
         at: float | None = None,
         reason: str = "",
     ) -> None:
+        """Try to record terminal status without changing execution outcome / 尝试记录终态，不改变执行结果。"""
         if self.ledger is None or attempted is None:
             return
         try:
             self.ledger.finish(attempted, status, at=self._at(at), reason=reason)
-        except Exception:  # noqa: BLE001 - audit is fail-open
+        except Exception:  # noqa: BLE001 - audit failure is isolated / 隔离审计失败
             return
 
     async def execute(
@@ -190,6 +191,7 @@ class ActionExecutor:
         at: float | None = None,
         attempt: int = 1,
     ):
+        """Record attempt, execute, then record terminal; sanitize host failures / 记录尝试、执行、记录终态，并规整宿主错误。"""
         from .contracts import ActionResult
 
         attempted = self.begin(
@@ -201,7 +203,7 @@ class ActionExecutor:
         )
         try:
             result = await self.port.execute(request)
-        except Exception:  # noqa: BLE001 - host errors must not leak payloads
+        except Exception:  # noqa: BLE001 - sanitize host failures / 宿主失败不泄漏正文
             result = ActionResult(False, "host_action_failed")
         status = ActionStatus.SUCCEEDED if result.ok else ActionStatus.FAILED
         self.finish(attempted, status, at=at, reason=result.reason)
@@ -209,12 +211,13 @@ class ActionExecutor:
 
 
 class ActionMessageSender:
-    """Compatibility SEND_TEXT view over the one ActionPort."""
+    """Expose legacy text sending over ActionPort without another ledger / 以动作端口提供旧文本发送能力，不另建账本。"""
 
     def __init__(self, port) -> None:
         self.port = port
 
     async def send(self, session_id: str, text: str) -> bool:
+        """Execute SEND_TEXT and return observed success / 执行 SEND_TEXT 并返回观察到的成功状态。"""
         from .contracts import ActionKind, ActionRequest
 
         result = await self.port.execute(

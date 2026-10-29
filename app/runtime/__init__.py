@@ -1,4 +1,7 @@
-"""Host-agnostic SeekMemory agent runtime."""
+"""Compatibility runtime exports; implementations own behavior and composition owns resources.
+
+兼容运行时导出，行为由实现负责，资源由组装方管理。
+"""
 
 from .contracts import (
     ActionKind,

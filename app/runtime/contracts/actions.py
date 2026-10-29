@@ -1,4 +1,4 @@
-"""Host action requests, results, audit records and ports."""
+"""Transient action inputs, content-free audit data and external capability declarations / 临时动作输入、不含正文的审计数据及外部能力声明。"""
 
 from __future__ import annotations
 
@@ -8,12 +8,14 @@ from typing import Protocol
 
 
 class ActionKind(str, Enum):
+    """Supported host action vocabulary / 支持的宿主动作词表。"""
     SEND_TEXT = "send_text"
     TOOL_CALL = "tool_call"
     HOST_ACTION = "host_action"
 
 
 class ActionStatus(str, Enum):
+    """Attempted and terminal action states / 动作尝试与终态词表。"""
     ATTEMPTED = "attempted"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
@@ -22,7 +24,7 @@ class ActionStatus(str, Enum):
 
 @dataclass(frozen=True)
 class ActionRequest:
-    """Transient host execution input; its text must never enter action audit."""
+    """Transient execution input; its text must not enter action audit / 临时执行输入，正文不得进入动作审计。"""
 
     session_id: str
     kind: ActionKind = ActionKind.SEND_TEXT
@@ -31,16 +33,15 @@ class ActionRequest:
 
 @dataclass(frozen=True)
 class ActionResult:
-    """Observed host execution result, without audit transition policy."""
+    """Observed host result without audit transition policy / 宿主执行结果，不负责审计终态策略。"""
 
     ok: bool
     reason: str = ""
 @dataclass(frozen=True)
 class ActionRecord:
-    """Content-free action/handoff audit metadata.
+    """Content-free audit; action_id is stable, and bodies/prompts/tool payloads are excluded.
 
-    Message bodies, prompts, tool arguments and tool results must never be
-    added here. ``action_id`` is the stable idempotency key for one action.
+    不含正文的审计，action_id 稳定，不保存消息、提示词或工具内容。
     """
 
     action_id: str
@@ -54,14 +55,21 @@ class ActionRecord:
 
     @property
     def terminal(self) -> bool:
+        """Whether status is success, failure or cancellation / 是否为成功、失败或取消终态。"""
         return self.status in (
             ActionStatus.SUCCEEDED,
             ActionStatus.FAILED,
             ActionStatus.CANCELLED,
         )
 class ActionPort(Protocol):
-    async def execute(self, request: ActionRequest) -> ActionResult: ...
+    """Host execution capability supplied by composition / 组装方提供的宿主执行能力。"""
+    async def execute(self, request: ActionRequest) -> ActionResult:
+        """Execute a transient request and report the observed outcome / 执行临时请求，返回观察到的结果。"""
+        ...
 
 
 class ActionSink(Protocol):
-    def append(self, record: ActionRecord) -> None: ...
+    """Persistence capability for content-free action audit / 不含正文的动作审计存储能力。"""
+    def append(self, record: ActionRecord) -> None:
+        """Persist an action record; failures raise / 保存动作记录，失败抛异常。"""
+        ...

@@ -43,8 +43,12 @@ ToolPolicy 在模型请求前可从 req.func_tool 移除不允许的工具；观
 
 ## 交付后补写
 
-Runtime 在确认发送后立即保留进程内交付凭据。会话确认、Source/队列及审计分阶段完成；失败返回 `RunResult(delivered=True, error="writeback_pending")`，不重新生成或发送。`AgentRuntime.retry_writebacks()` 返回完成的补写项数；worker 每轮在发言开关判断前调用，停止时再次尝试。同一会话旧交付未补完时，后台新发言暂停，普通消息仍接收。普通交付回调同样先确认会话，再补审计。
+Runtime 在确认发送后立即保留进程内交付凭据。会话确认、Source/队列及审计分阶段完成；失败返回 `RunResult(delivered=True, error="writeback_pending")`，不重新生成或发送。`AgentRuntime.retry_writebacks()` 返回完成的补写项数；worker 每轮在发言开关判断前调用，停止时再次尝试。同一会话旧交付未补完时，后台新发言暂停，普通消息仍接收。普通回复即使原始消息保存失败，也返回已准备编号供宿主关联交付；交付回调先确认会话，再补原始消息及审计。
 
 RunRecorder 保留原始消息、投影及逐条强化的完成位置，失败仅重试缺失阶段。新仓储审计的稳定编号来自会话和 run_id，历史记录不改写。状态读取错误不再伪装成空会话，状态/审计写入失败保留 last_error 并抛出；编排方负责重试，诊断仍不影响业务。文件替换失败保留磁盘和内存中的旧状态。
 
 凭据及补偿不跨进程持久化。突然退出或发送结果未知仍可能重试，不能据此承诺跨重启单次发送。
+
+## 内部文件及资源
+
+运行时入口保留在 runtime.py；transitions.py 只计算独立状态副本，dispatch.py 通过端口执行后台任务，writeback.py 管理已确认交付的补偿。三者不反向依赖 AgentRuntime；recorder.py 唯一协调原始消息/队列/强化/审计写回。现有 state、episode、actions 内的存储转接以及宿主 tracing、工具过滤暂留原处。源码说明统一英文在前、中文等义，接口清单见 app 模块文档。

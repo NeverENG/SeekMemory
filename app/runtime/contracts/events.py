@@ -1,10 +1,11 @@
-"""Event and decision DTOs shared by host adapters and runtime policies."""
+"""Host-neutral event and decision data; no state mutation or I/O / 与宿主无关的事件及决策数据，不修改状态或读写。"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
 class AttentionLevel(str, Enum):
+    """Attention categories, independent of a host / 与宿主无关的注意力类别。"""
     AMBIENT = "ambient"
     ADDRESSED = "addressed"
     DIRECT = "direct"
@@ -12,6 +13,7 @@ class AttentionLevel(str, Enum):
 
 
 class WakeAction(str, Enum):
+    """Supported observation, waiting and reply decisions / 支持的观察、等待及回复决策。"""
     IGNORE = "ignore"
     OBSERVE = "observe"
     WAIT = "wait"
@@ -20,11 +22,9 @@ class WakeAction(str, Enum):
 
 @dataclass(frozen=True)
 class RuntimeInput:
-    """One inbound event reduced to host-neutral fields.
+    """Reduced inbound event; event_time is platform time, received_at is observation time, and decision time is explicit.
 
-    ``event_time`` is when the platform says the event happened. ``received_at``
-    is when this process observed it. Decision time is passed explicitly to the
-    runtime methods and is never inferred from either field.
+    精简入站事件，event_time 为平台时间，received_at 为接收时间，决策时间单独传入。
     """
 
     session_id: str
@@ -37,10 +37,12 @@ class RuntimeInput:
     question: bool = False
     unread_count: int = 0
     unread_seq: int = 0
-    # 多平台语境；全部带默认值，旧调用方（#114 冻结契约）不需要改动。
-    # scene 取值 private/group/channel/thread/comment；thread_id 承载评论嵌套或楼中楼；
-    # role 取值 owner/admin/member/bot/system；
-    # kind 预留给编辑、撤回、表情回应等非消息事件，当前只处理 message。
+    # Optional host-neutral context preserves existing callers.
+    # 可选的平台无关上下文保留旧调用方式。
+    # scene: private/group/channel/thread/comment; thread_id carries nesting.
+    # scene 为上述场景值，thread_id 表达嵌套评论或话题。
+    # role: owner/admin/member/bot/system; kind currently handles message only.
+    # role 为上述角色值，kind 当前只处理 message，其他事件类别预留。
     scene: str = ""
     conversation_id: str = ""
     thread_id: str = ""
@@ -53,13 +55,13 @@ class RuntimeInput:
 
     @property
     def is_owner(self) -> bool:
-        """说话人是否为主人；只读派生，不参与序列化契约。"""
+        """Derive owner status without adding a serialized field / 派生主人状态，不增加序列化字段。"""
         return self.role == "owner"
 
 
 @dataclass(frozen=True)
 class RunContext:
-    """One runtime unit before it becomes a durable result."""
+    """Caller-supplied input for one runtime execution / 调用方提供的一次运行输入。"""
 
     session_id: str
     text: str
@@ -72,7 +74,7 @@ class RunContext:
 
 @dataclass(frozen=True)
 class UserRunReceipt:
-    """Identity and acknowledgement cursor for one accepted user turn."""
+    """Accepted message identity and bounded acknowledgement cursor / 已接收消息标识及有界确认位置。"""
 
     decision: RunDecision
     source_id: str = ""
@@ -82,7 +84,10 @@ class UserRunReceipt:
 
 @dataclass(frozen=True)
 class RunResult:
-    """Observed outcome of one runtime run."""
+    """Observed delivery and write-back result; writeback_pending may accompany delivered=True.
+
+    观察到的交付及写回结果，delivered=True 时仍可能有 writeback_pending。
+    """
 
     run_id: str
     session_id: str
@@ -93,6 +98,7 @@ class RunResult:
 
 @dataclass(frozen=True)
 class RunDecision:
+    """Selected action, reason and attention requirement / 选定动作、原因及注意力要求。"""
     action: WakeAction
     reason: str
     attention: AttentionLevel = AttentionLevel.AMBIENT
@@ -101,7 +107,7 @@ class RunDecision:
 
 @dataclass(frozen=True)
 class AttentionDecision:
-    """Policy result plus the generic follow-up state patch."""
+    """Pure decision and per-speaker follow-up update / 纯决策及按说话人区分的后续回复变化。"""
 
     action: WakeAction
     reason: str
@@ -111,6 +117,7 @@ class AttentionDecision:
     followup_remaining: int | None = None
 
     def runtime_decision(self) -> RunDecision:
+        """Project the action without applying follow-up changes / 投影动作决策，不执行后续回复状态变化。"""
         return RunDecision(
             action=self.action,
             reason=self.reason,

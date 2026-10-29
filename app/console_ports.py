@@ -1,16 +1,28 @@
-"""Narrow data ports consumed by the administration console."""
+"""Console and daily-journal declarations; implementations and resources remain external / 控制台及每日台账声明，实现及资源留在外部。"""
 from typing import Any, Protocol
 
 
 class PersonaPacks(Protocol):
-    def catalog(self, collection: str, offset: int, limit: int) -> dict: ...
-    def read(self, reference: str) -> dict: ...
-    def save(self, seed: dict, expected_version: str | None = None) -> str: ...
-    def remove(self, reference: str) -> None: ...
+    """Console access to seed packs; storage and lifecycle belong to the caller / 控制台人格包能力，存储和生命周期由调用方管理。"""
+    def catalog(self, collection: str, offset: int, limit: int) -> dict:
+        """Read a bounded catalogue page / 读取有数量限制的目录页。"""
+        ...
+    def read(self, reference: str) -> dict:
+        """Read one referenced pack / 读取指定人格包。"""
+        ...
+    def save(self, seed: dict, expected_version: str | None = None) -> str:
+        """Save with an optional expected version and return its reference / 可指定预期版本保存，并返回引用。"""
+        ...
+    def remove(self, reference: str) -> None:
+        """Remove the referenced pack / 删除指定人格包。"""
+        ...
 
 
 class DreamJournal(Protocol):
-    def recent(self, limit: int = 7) -> list[dict]: ...
+    """Read-only console view of recent daily runs / 控制台使用的近期每日整理只读视图。"""
+    def recent(self, limit: int = 7) -> list[dict]:
+        """Read a bounded list of recent runs / 读取有数量限制的近期整理记录。"""
+        ...
 
 
 class DreamRunStore(DreamJournal, Protocol):

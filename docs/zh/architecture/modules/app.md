@@ -64,7 +64,7 @@ app 提供用例间共享的数据、外部能力声明和应用策略。目前�
 | `InMemoryStateStore`、`JsonStateStore`、`RepoStateStore` | `get/put`：内存、文件或注入仓储的会话状态实现 | 中 / 中 |
 | `JsonlEpisodeStore`、`RepoEpisodeStore`、`RepoActionSink` | `append`：写文件或将审计转交注入仓储 | 中 / 中 |
 
-`AgentRuntime` 的方法按职责分为：输入 `observe/accept_user`；上下文 `build_context`；回调 `record_reply/record_delivery/record_error`；执行 `dispatch_deferred/dispatch_proactive`；状态迁移 `schedule_proactive/clear_proactive/clear_wait/claim_dispatch/schedule_retry/mark_delivered`。这些仍是同一个类的方法，尚未完成内部拆分。
+`AgentRuntime` 的方法按职责分为：输入 `observe/accept_user`；上下文 `build_context`；回调 `record_reply/record_delivery/record_error`；执行 `dispatch_deferred/dispatch_proactive`；状态迁移 `schedule_proactive/clear_proactive/clear_wait/claim_dispatch/schedule_retry/mark_delivered`。这些方法保留为兼容入口；状态计算已移入内部 transitions，后台执行已移入 dispatch，进程内交付补偿由 writeback 管理；新增 `retry_writebacks()` 仅补写，不调用模型或发送。
 
 ### ports：外部提供的能力
 
@@ -81,6 +81,8 @@ app 提供用例间共享的数据、外部能力声明和应用策略。目前�
 | `TreeCache` | `get/put/by_level` | 树所需的三个缓存操作；未命中不等于数据库不存在 |
 | `ExtractionStore` | `enqueue_extraction/pending_extractions/queue_counts/release_deferred/ready_extraction_ids/mark_extraction_succeeded/mark_extraction_failed` | Source 引用排队、成功标记和失败重试 |
 | `MetricsStore`、`LedgerStore` | `capacity_usage`；`entries/verify` | 容量统计、业务账本读取和校验 |
+| `DreamRunStore` | `get/begin/finish/recent` | 完整夜间台账生命周期，失败可被编排识别 |
+| `StateRepository`、`EpisodeRepository`、`ActionRepository` | `get/put`；`append`；`append_action` | 运行时转接使用的原始仓储能力，不包含 SQL |
 | `PersonaPacks`、`DreamJournal` | `catalog/read/save/remove`；`recent` | 人格包管理、近期整理记录读取 |
 | `Clock`、`SessionStateStore` | `__call__`；`get/put` | UTC 时间戳秒数、可变会话状态读写 |
 | `MemoryContextPort`、`ModelGateway` | `build_context`；`complete` | 只读记忆上下文、运行时模型文本调用 |
@@ -101,17 +103,17 @@ app 提供用例间共享的数据、外部能力声明和应用策略。目前�
 | `EpisodeWriter`、`EpisodeRecorder`、`EpisodeSink` | 形成 `record → record → append` 链；中间类目前只转交，没有独立业务规则，存在简化空间 |
 | `CheckpointManager.flush` 与 `core.strength.reinforce` | 都包含权重增加计算，但前者还累计命中、限制上限并提交版本；不能直接替换，应先明确强化规则的唯一归属 |
 
-### 尚未明确声明的外部依赖
+### 外部依赖状态
 
-接口集中不等于依赖已经全部规范化。以下是当前代码实际要求、但未形成完整具名协议或未用于参数注解的能力：
+接口集中不等于依赖已经全部规范化。以下列出已声明能力和仍待后续盘点的依赖：
 
 | 使用位置 | 实际要求 | 当前缺口 |
 | --- | --- | --- |
-| `DreamCycle.dreams` | `get/begin/finish/recent` | 参数为 `Any`；`DreamJournal` 仅覆盖 `recent`，不能代表整个整理台账 |
+| `DreamCycle.dreams` | `get/begin/finish/recent` | 已使用 `DreamRunStore`；控制台仍只要求 `DreamJournal.recent` |
 | `budget_from_config`、`DreamCycle` | 配置读取函数 | 使用 `Callable`，配置键仍由各策略读取 |
-| `CheckpointManager.artifacts/cache` | 版本提交、缓存读取和更新 | 依赖存在但构造参数未标注协议 |
-| `RunRecorder.cache` | 按编号读取记忆 | 使用 `Any`，没有表达最小能力 |
-| `RepoStateStore/RepoEpisodeStore/RepoActionSink` | `get/put`、`append`、`append_action` | 注入仓储未声明窄协议 |
+| `CheckpointManager.artifacts/cache` | 版本提交、缓存读取和更新 | 已使用 `ArtifactStore`、`ArtifactCache` |
+| `RunRecorder.cache` | 按编号读取记忆 | 已标注已有 `ArtifactCache`；进一步缩窄留待调用方盘点 |
+| `RepoStateStore/RepoEpisodeStore/RepoActionSink` | `get/put`、`append`、`append_action` | 已使用 `StateRepository`、`EpisodeRepository`、`ActionRepository` |
 | `RuntimeWorker` | 开关、会话列表、任务构造、间隔和重试参数回调 | 各自使用匿名 `Callable`；调用关系需结合构造函数阅读 |
 | `RunTracer`、`ToolPolicy.filter_tool_set` | 事件 `get_extra/set_extra`；工具集 `tools/remove_tool` | 宿主对象形状进入应用实现，未被明确隔离 |
 
@@ -127,34 +129,54 @@ CheckpointManager 依赖调用方只传入最终上下文实际保留的 Artifac
 
 ChatModel 是无会话状态的调用端口。app 的 budget、flush 和 wake/timing 策略不负责连接数据库或调度宿主任务。DreamCycle、CheckpointManager 和 AgentRuntime 则会协调外部读写；`runtime/state.py`、`episode.py` 中的现有文件实现会直接访问文件系统，`RunTracer` 和工具过滤仍操作宿主形状的对象。SQL 继续只由 store 实现。
 
-## 内部逻辑的整理顺序
+## 逻辑与文件分层
 
-纯规则部分的关系较清楚：预算 → 批次选择；人格请求构造 → 草稿校验；注意力/主动策略 → 调度选择。它们不调用模型或维护数据库事务，可以保留当前分工。
+| 层次 | 文件 | 职责与限制 |
+| --- | --- | --- |
+| 接口与数据 | `domain.py`、`ports.py`；`contracts.py`、`console_ports.py`、`runtime/contracts/` | 两个集中入口只声明、导出和说明；原数据及协议定义位置兼容保留 |
+| 纯规则 | `budget.py`、`flush_policy.py`、`persona_synthesis.py`、`dream_policy.py`；运行时 attention、proactive、transitions、topics 的排序 | 只根据输入计算，不调用模型、不持久化、不读取时钟 |
+| 流程编排 | `checkpoint.py`、`dream.py`；运行时 runtime、dispatch、writeback、recorder、scheduler、worker、动作执行 | 通过注入能力读写；区分领取、生成、发送、确认、写回及补偿 |
+| 外围转接 | 运行时 state、episode、actions 中的现有存储实现，以及 tracing、工具过滤 | 暂留原文件；连接、文件路径及任务生命周期由组装方管理；SQL 仍仅在 store |
 
-后续按以下顺序澄清，尚未实施：
+内部依赖方向为：`AgentRuntime → Dispatch / DeliveryWritebacks → transitions / RunRecorder / 外部端口`。纯状态计算不反向依赖运行时入口；执行不持有整个 Runtime。调度只读选择任务；worker 管理同进程并发与会话去重，并复用既有循环补写。两条后台路径保留独立提示和失败规则。dispatch 的较长实现保留这两条完整流程，避免通过大量回调把编排重新分散。
 
-1. **写回与夜间整理**：先明确 `CheckpointManager` 的待提交状态、提交和缓存恢复阶段，以及 `DreamCycle` 的抽取、维护、预算停止和台账结果。两者的依赖需要完整声明；是否迁入 services 留待 services 盘点后决定。
-2. **运行时状态与执行**：`AgentRuntime` 同时管理状态迁移、调用模型、发送和写回；延迟与主动路径各自维护生成、发送及失败处理。先列明共同阶段和各自规则，再决定合并位置，不能直接把两条路径当成相同行为。
-3. **失败后的资源交接**：延迟发送后的 Source/审计写回位于模型/发送异常处理块之外；`CheckpointManager.flush` 又在同一异常处理块内执行提交与缓存更新。需要分别说明“未提交”“提交成功但缓存失败”“已发送但写回失败”的恢复责任，不能把它们统称一次执行失败。
-4. **存储和宿主转接**：`state.py` 混合状态解析与三种存储；`episode.py` 混合结果归类和文件/仓储写入；`actions.py` 混合编号规则、审计、执行与仓储转接；`tracing.py` 和工具过滤依赖宿主形状。先与 store/adapters 的职责核对，再移动实现。
-5. **状态释放与未接入接口**：`RunRecorder` 的运行去重集合、Checkpoint 的命中冷却表没有单项淘汰流程，仅随实例释放。`RecallRequest/RecallResult` 未接入生产召回。需要明确保留期和真实调用方，再决定收敛或删除。
+## 提交与交付恢复
 
-app 文件的显式导入关系中未发现循环；动态导入和实际运行行为仍需单独验证。接口入口的集中不改变上列实现位置与恢复责任。
+| 阶段 | 失败行为与恢复责任 |
+| --- | --- |
+| 强化数据库提交失败 | 保留未提交命中，不更新缓存；后续 flush 重试 |
+| 强化提交成功、缓存失败 | 已提交命中不再强化；单独读取数据库最新版本修复缓存 |
+| 模型或发送失败 | 保留既有有限重试与取消传播；发送返回 False 同样视为失败 |
+| 确认发送成功、状态或写回失败 | 保留进程内交付凭据，返回 `delivered=True / writeback_pending`，仅补未完成写入 |
+| 夜间台账结束失败 | 返回 `failed / journal_finish_failed` 及已完成数量，不回滚此前记忆提交 |
 
-代码入口：[domain.py](../../../../app/domain.py)、[ports.py](../../../../app/ports.py)；运行时行为详见 [Agent Runtime](runtime.md)。
+`CheckpointManager.flush()` 只统计本次新提交，`pending()` 按编号统计待提交和待补缓存并集；补偿期间的新命中独立保留。缓存缺失不等于数据库删除。
 
-## 完整依赖声明
+`RunRecorder` 按原始消息、队列投影、逐条强化和审计记录完成位置。`AgentRuntime.retry_writebacks()` 返回完成的补写项数，不调用模型或发送；worker 在发言开关判断前及停止时调用。同会话交付未补完时暂停新的后台发言，普通入站继续接收。普通回复保存失败时保留已准备编号供宿主关联交付；交付回调先确认有界已读位置，再补回复及审计；旧回调及补偿不清理新任务。
 
-`DreamRunStore` 声明 `get/begin/finish/recent`，用于夜间整理的完整台账生命周期；控制台仍只要求 `DreamJournal.recent`。`StateRepository`、`EpisodeRepository`、`ActionRepository` 声明运行时转接所需的原始仓储能力，均由 `app.ports` 导出。Checkpoint 和 RunRecorder 的存储、缓存依赖已标注现有协议；这一步不改变实现或失败行为。
+状态读取失败不伪装成空会话。状态及审计写入失败保留 `last_error` 并抛出，编排方重试；文件替换成功后才发布内存候选状态。新仓储审计编号稳定，旧记录、数据库结构和公开配置保持兼容。诊断回调失败不改变业务结果，错误不保存异常正文。
 
-## 强化提交恢复
+凭据及补偿只在当前进程保留，不能据此承诺崩溃、发送结果未知或跨进程场景严格单次交付。日期台账也不是分布式锁；夜间失败续跑不保证所有维护动作只执行一次。时区转换继续由适配层负责。
 
-Checkpoint 使用独立的未提交命中和缓存补偿状态。`flush()` 仅返回新提交数量，`pending()` 按编号统计两者并集。提交成功即消费该批命中；缓存失败只补缓存，且读取数据库最新版本，避免重复强化或覆盖新版本。缓存缺失不再丢弃数据库仍有效的记忆命中。补偿限于当前进程，强化系数、证据和版本原子提交规则保持不变。
+## 注释与验证入口
 
-## 夜间规则与台账结果
+全部 app 模块及公开定义使用英文在前、中文等义说明；简单说明使用一行，复杂说明写职责、副作用、资源归属及失败约定。机器指令、字段值与提示词不翻译。
 
-内部 `dream_policy.py` 只计算时间与预算，`DreamCycle` 执行抽取、维护、台账顺序。台账结束写入失败返回 `failed / journal_finish_failed`，保留已完成批次和写入数量；错误只记录阶段和异常类型。诊断回调失败不改变业务结果。日期台账不是跨进程锁，失败续跑不保证所有维护动作严格只执行一次。
+| 场景 | 现有验证入口 |
+| --- | --- |
+| 公开契约及依赖导出 | `tests/test_public_interfaces.py`、`tests/test_runtime_contracts.py` |
+| 强化提交与最新缓存补偿 | `tests/test_reinforcement.py` |
+| 夜间到期、预算、台账与诊断失败 | `tests/test_dream.py`、`tests/test_dream_eval.py` |
+| 部分原始消息、队列及强化写回 | `tests/test_run_recorder.py` |
+| 确认交付后各阶段失败、停止/关闭发言补写、存储失败 | `tests/test_runtime_writeback.py` |
+| 已读确认、新消息保护及重启恢复 | `tests/test_runtime_delivery.py`、`tests/test_runtime_recovery.py` |
+| 并发、主动策略及宿主接线 | runtime scheduler/worker/proactive 与 host 测试 |
 
-## 运行时内部依赖
+## 后续仍待整理
 
-`AgentRuntime` 保留原对外入口；内部 `transitions.py` 复制状态并计算变化，不读写；`dispatch.py` 使用明确的模型、发送、记忆、状态及记录能力编排延迟和主动执行。执行不持有整个 Runtime，状态计算不反向依赖入口。两条执行路径的提示和失败规则分别保留。
+- services/store/adapters 初步盘点后，再决定编排和外围实现的跨模块迁移；保留现有 EpisodeRecorder 薄兼容转接。
+- 去重结果、补偿完成结果及命中冷却记录的保留期限尚未定义，仍随实例释放；未完成补偿可能在内存保留待写正文。
+- `RecallRequest/RecallResult` 尚未接入生产召回，`ChatModel/ModelGateway` 仍是不同约定。
+- worker 配置回调仍是 Callable；宿主形状对象仍进入 tracing 和工具过滤，位置迁移留待后续。
+
+代码入口：[domain.py](../../../../app/domain.py)、[ports.py](../../../../app/ports.py)；运行时交付约束见 [Agent Runtime](runtime.md)。

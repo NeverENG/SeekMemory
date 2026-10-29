@@ -1,4 +1,7 @@
-"""Background dispatch loop for due runtime sessions."""
+"""Poll and dispatch due work through injected callbacks; retry writes even when speaking is disabled.
+
+通过注入回调轮询执行到期任务，关闭发言时仍补写。
+"""
 
 from __future__ import annotations
 
@@ -12,10 +15,9 @@ from .topics import TopicCandidate, TopicSource
 
 
 class RuntimeWorker:
-    """Own due-session dispatch and its in-flight dedupe set.
+    """Own polling, concurrency slots and in-process session deduplication; composition owns tasks and resources.
 
-    The worker does not know the host or the database. The composition layer
-    provides session ids and maps each id to a RunContext.
+    管理轮询、并发名额及进程内会话去重，组装方管理任务及资源。
     """
 
     def __init__(
@@ -87,6 +89,7 @@ class RuntimeWorker:
         return semaphore
 
     async def dispatch(self, session_id: str, now: float | None = None) -> RunResult | None:
+        """Claim a concurrency slot, recheck due state and dispatch one session / 领取并发名额、复查到期状态并执行一个会话。"""
         if not self.enabled() or session_id in self._dispatching:
             return None
         moment = self._moment(now)
@@ -95,7 +98,8 @@ class RuntimeWorker:
             async with self._semaphore():
                 if not self.enabled():
                     return None
-                # Time and due state may have changed while waiting for a slot.
+                # Recheck time and due state after waiting for a slot.
+                # 等待并发名额后复查时间及到期状态。
                 if self.clock is not None:
                     moment = max(moment, self._moment(None))
                 if not self.scheduler.due([session_id], moment):
@@ -116,7 +120,7 @@ class RuntimeWorker:
             candidates = self.topic_source.candidates(
                 session_id, now=now, limit=1
             )
-        except Exception as exc:  # noqa: BLE001 - source failure skips proactive
+        except Exception as exc:  # noqa: BLE001 - topic failure skips proactive / 话题失败跳过主动发言
             self._record_failure("proactive_topic_failed", exc, session_id)
             return None
         return candidates[0] if candidates else None
@@ -128,6 +132,7 @@ class RuntimeWorker:
         now: float | None = None,
         topic: TopicCandidate | None = None,
     ) -> RunResult | None:
+        """Use the same concurrency and session guard for proactive work / 主动任务复用相同并发及会话保护。"""
         if not self.enabled() or session_id in self._dispatching:
             return None
         moment = self._moment(now)
@@ -146,6 +151,7 @@ class RuntimeWorker:
             self._dispatching.discard(session_id)
 
     async def tick(self, now: float | None = None) -> int:
+        """Retry writes first, then select enabled due work; return dispatched count / 先补写，再选择已启用的到期任务，返回执行数量。"""
         self.retry_writebacks()
         if not self.enabled():
             return 0
@@ -158,9 +164,10 @@ class RuntimeWorker:
         dispatched = 0
         if due:
             async def run_one(item) -> bool:
+                """Isolate one dispatch failure while other sessions continue / 隔离一次执行失败，其他会话继续。"""
                 try:
                     result = await self.dispatch(item.session_id, moment)
-                except Exception as exc:  # noqa: BLE001 - one run must not stop the tick
+                except Exception as exc:  # noqa: BLE001 - isolate failed runs / 隔离失败运行
                     self._record_failure("dispatch_failed", exc, item.session_id)
                     return False
                 return result is not None
@@ -176,7 +183,7 @@ class RuntimeWorker:
                 self.proactive_policy,
                 max_fanout=self.proactive_max_fanout,
             )
-        except Exception as exc:  # noqa: BLE001 - proactive is fail-open
+        except Exception as exc:  # noqa: BLE001 - isolate proactive failure / 隔离主动计划失败
             self._record_failure("proactive_plan_failed", exc)
             return dispatched
         deferred_ids = {item.session_id for item in due}
@@ -197,7 +204,7 @@ class RuntimeWorker:
                 result = await self.dispatch_proactive(
                     candidate.session_id, candidate.decision, moment, topic
                 )
-            except Exception as exc:  # noqa: BLE001 - one run must not stop the tick
+            except Exception as exc:  # noqa: BLE001 - isolate failed runs / 隔离失败运行
                 self._record_failure(
                     "proactive_dispatch_failed", exc, candidate.session_id
                 )

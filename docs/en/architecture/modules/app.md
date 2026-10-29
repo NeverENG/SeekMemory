@@ -64,7 +64,7 @@ Complexity below means the difficulty of understanding prerequisites, state, and
 | `InMemoryStateStore`, `JsonStateStore`, `RepoStateStore` | `get/put`: memory, file, or injected-repository state implementations | Medium / medium |
 | `JsonlEpisodeStore`, `RepoEpisodeStore`, `RepoActionSink` | `append`: file writes or delegation to injected repositories | Medium / medium |
 
-`AgentRuntime` methods group into input (`observe/accept_user`), context (`build_context`), callbacks (`record_reply/record_delivery/record_error`), execution (`dispatch_deferred/dispatch_proactive`), and transitions (`schedule_proactive/clear_proactive/clear_wait/claim_dispatch/schedule_retry/mark_delivered`). These still belong to one class; internal separation has not been implemented.
+`AgentRuntime` methods group into input (`observe/accept_user`), context (`build_context`), callbacks (`record_reply/record_delivery/record_error`), execution (`dispatch_deferred/dispatch_proactive`), and transitions (`schedule_proactive/clear_proactive/clear_wait/claim_dispatch/schedule_retry/mark_delivered`). These remain compatibility methods. Pure state calculation now lives in internal transitions, background execution in dispatch, and process-local delivery recovery in writeback. The new `retry_writebacks()` retries writes only, with no model or sender access.
 
 ### ports: required external capabilities
 
@@ -81,6 +81,8 @@ Named protocols are listed by their existing roles, not as interchangeable contr
 | `TreeCache` | `get/put/by_level` | Three tree cache operations; a miss does not prove storage absence |
 | `ExtractionStore` | `enqueue_extraction/pending_extractions/queue_counts/release_deferred/ready_extraction_ids/mark_extraction_succeeded/mark_extraction_failed` | Source queueing, success markers, failure/retry |
 | `MetricsStore`, `LedgerStore` | `capacity_usage`; `entries/verify` | Capacity measurements and business-ledger reads/verification |
+| `DreamRunStore` | `get/begin/finish/recent` | Complete daily journal lifecycle with observable failures |
+| `StateRepository`, `EpisodeRepository`, `ActionRepository` | `get/put`; `append`; `append_action` | Raw repository slots for runtime adapters, without SQL |
 | `PersonaPacks`, `DreamJournal` | `catalog/read/save/remove`; `recent` | Persona pack management and recent daily-cycle reads |
 | `Clock`, `SessionStateStore` | `__call__`; `get/put` | UTC epoch seconds and mutable session-state storage |
 | `MemoryContextPort`, `ModelGateway` | `build_context`; `complete` | Read-only memory context and runtime model text calls |
@@ -101,17 +103,17 @@ The daily cycle uses six named callbacks: `FlushFn` (bounded extraction), `Pendi
 | `EpisodeWriter`, `EpisodeRecorder`, `EpisodeSink` | A `record → record → append` chain; the middle class currently only forwards and has no independent business rule, so simplification is possible |
 | `CheckpointManager.flush` and `core.strength.reinforce` | Both calculate weight increases, but the former also counts hits, caps weight, and commits revisions; establish one rule owner before replacing either implementation |
 
-### External requirements not yet fully declared
+### External dependency status
 
-Centralized entry points do not mean every dependency is normalized. The implementation still requires capabilities without complete named protocols or without using those protocols in parameter annotations:
+Centralized entry points do not mean every dependency is normalized. The following lists completed declarations and dependencies still awaiting later inventory:
 
 | Consumer | Actual requirement | Current gap |
 | --- | --- | --- |
-| `DreamCycle.dreams` | `get/begin/finish/recent` | Typed as Any; `DreamJournal` covers only `recent`, not the full cycle journal |
+| `DreamCycle.dreams` | `get/begin/finish/recent` | Uses `DreamRunStore`; the console still only requires `DreamJournal.recent` |
 | `budget_from_config`, `DreamCycle` | Configuration reader | Uses Callable; individual policies still read their own keys |
-| `CheckpointManager.artifacts/cache` | Revision commit and cache get/put | Constructor parameters do not name protocols |
-| `RunRecorder.cache` | Read memory by ID | Any does not state the minimum capability |
-| `RepoStateStore/RepoEpisodeStore/RepoActionSink` | `get/put`, `append`, `append_action` | Injected repositories lack narrow protocol declarations |
+| `CheckpointManager.artifacts/cache` | Revision commit and cache get/put | Uses existing `ArtifactStore` and `ArtifactCache` |
+| `RunRecorder.cache` | Read memory by ID | Uses existing `ArtifactCache`; further narrowing awaits caller inventory |
+| `RepoStateStore/RepoEpisodeStore/RepoActionSink` | `get/put`, `append`, `append_action` | Uses `StateRepository`, `EpisodeRepository` and `ActionRepository` |
 | `RuntimeWorker` | Enablement, session list, run construction, interval/retry callbacks | Anonymous Callable types; understanding wiring requires reading its constructor |
 | `RunTracer`, `ToolPolicy.filter_tool_set` | Event `get_extra/set_extra`; tool set `tools/remove_tool` | Host-shaped objects enter application implementations without an explicit seam |
 
@@ -127,34 +129,54 @@ CheckpointManager relies on callers to supply only Artifacts retained in the fin
 
 ChatModel is a stateless call port. app budget, flush, wake, and timing policies do not connect to a database or schedule host tasks. DreamCycle, CheckpointManager, and AgentRuntime coordinate external reads/writes. Existing file implementations in `runtime/state.py` and `episode.py` access the filesystem directly; RunTracer and tool filtering still manipulate host-shaped objects. SQL remains owned by store.
 
-## Internal clarification order
+## Logic and file layers
 
-Pure-policy relationships are reasonably clear: budget → batch selection; persona request construction → draft validation; attention/proactive policies → scheduling selection. They do not call models or maintain database transactions and can retain their present roles.
+| Layer | Files | Responsibility and limits |
+| --- | --- | --- |
+| Interfaces and data | `domain.py`, `ports.py`; `contracts.py`, `console_ports.py`, `runtime/contracts/` | Two central entries declare/export/describe only; existing data/protocol definition paths remain compatible |
+| Pure rules | `budget.py`, `flush_policy.py`, `persona_synthesis.py`, `dream_policy.py`; runtime attention, proactive, transitions and topic ranking | Compute from supplied inputs without models, persistence or clock reads |
+| Orchestration | `checkpoint.py`, `dream.py`; runtime facade, dispatch, writeback, recorder, scheduler, worker and action execution | Read/write through injected capabilities; distinguish claims, generation, sending, acknowledgement, recording and compensation |
+| External adapters | Existing state, episode and action storage implementations, tracing and tool filtering | Remain in place for now; composition owns connections, file paths and task lifetime, and SQL stays in store |
 
-The following work is proposed, not implemented:
+Internal direction is `AgentRuntime → Dispatch / DeliveryWritebacks → transitions / RunRecorder / external ports`. Pure transitions do not import the facade; dispatch never holds the whole Runtime. Scheduling selects read-only work, while the worker owns in-process concurrency/session guards and retries writes on its existing loop. Background paths retain distinct prompts and failure rules. The longer dispatch implementation retains both complete flows instead of dispersing orchestration across many callbacks.
 
-1. **Write-back and daily cycles:** clarify CheckpointManager pending, commit, and cache-recovery phases; distinguish DreamCycle extraction, maintenance, budget stops, and journal outcomes. Declare complete dependencies; decide whether they belong in services after the services inventory.
-2. **Runtime transitions and execution:** AgentRuntime owns state transitions, model calls, sending, and write-back. Deferred and proactive paths separately coordinate generation, sending, and failures. Identify shared stages and distinct rules before choosing a shared implementation.
-3. **Failure handoffs:** deferred Source/episode write-back after sending sits outside the model/send exception handler, while CheckpointManager.flush combines commit and cache update in one handler. Assign recovery responsibility separately for no commit, committed-but-cache-failed, and sent-but-write-back-failed outcomes.
-4. **Storage and host adaptation:** state.py mixes decoding and three stores; episode.py mixes outcome classification with file/repository writes; actions.py mixes identity rules, audit, execution, and repository adaptation. Tracing and tool filtering depend on host-shaped objects. Compare with store/adapters ownership before moving implementations.
-5. **State release and unused shapes:** RunRecorder deduplication collections and Checkpoint hit cooldown records have no per-item eviction, only instance lifetime. RecallRequest/RecallResult are not used by production recall. Establish retention and actual consumers before consolidating or deleting them.
+## Commit and delivery recovery
 
-No cycles were found among explicit app file imports; dynamic imports and runtime behavior require separate verification. Centralized interface entry points do not change the implementation locations or recovery responsibilities listed above.
+| Stage | Failure and recovery owner |
+| --- | --- |
+| Reinforcement commit fails | Keep uncommitted hits, do not touch cache; retry on a later flush |
+| Reinforcement commits but cache fails | Do not reinforce the same batch again; separately refresh from the latest persisted head |
+| Model or sending fails | Retain bounded retry and cancellation propagation; a False send result is also failure |
+| Sending is confirmed but state/recording fails | Retain a process-local receipt and return `delivered=True / writeback_pending`; retry missing writes only |
+| Daily journal finish fails | Return `failed / journal_finish_failed` with completed counts, without rolling back earlier memory commits |
 
-Code entry points: [domain.py](../../../../app/domain.py), [ports.py](../../../../app/ports.py); runtime behavior is described in [Agent Runtime](runtime.md).
+`CheckpointManager.flush()` counts new commits only; `pending()` counts distinct IDs in the union of uncommitted hits and cache repairs. New hits remain separate during repair. Cache absence does not prove database deletion.
 
-## Complete dependency declarations
+`RunRecorder` tracks Source, projection, individual reinforcement and audit completion. `AgentRuntime.retry_writebacks()` returns completed write-back items without generating or sending; the worker calls it before speaking enablement and at shutdown. Unfinished session delivery blocks new background speech while normal input remains accepted. Normal reply persistence failures retain prepared identity for host delivery correlation; callbacks acknowledge the bounded read cursor before retrying reply/audit, and stale callbacks or recovery do not clear newer work.
 
-`DreamRunStore` declares `get/begin/finish/recent` for the full daily journal lifecycle; the console still only requires `DreamJournal.recent`. `StateRepository`, `EpisodeRepository` and `ActionRepository` declare the raw repository capabilities needed by runtime adapters and are exported by `app.ports`. Checkpoint and RunRecorder storage/cache dependencies now use existing protocol annotations; this step changes neither implementation nor failure behavior.
+State read errors do not masquerade as empty sessions. State/audit write failures retain `last_error` and raise for orchestration to retry; file state is published in memory only after successful replacement. New repository audit IDs are stable; historical records, schema and public configuration remain compatible. Diagnostics do not change outcomes and exception bodies are omitted.
 
-## Checkpoint recovery
+Receipts and compensation live only in the current process, so crashes, unknown send results and multiple processes are not exactly-once delivery scenarios. The daily journal is not a distributed lock, and resumption does not guarantee exactly-once maintenance. Timezone conversion remains in adapters.
 
-Checkpoint separates uncommitted hits from cache repairs. `flush()` returns only newly committed IDs; `pending()` counts the union of unfinished IDs. Successful commits consume their hit batch before cache work. Cache failures retry only the refresh from the latest persisted head, preventing duplicate reinforcement or stale replacement. Cache misses no longer discard hits for active persisted memories. Recovery is process-local; reinforcement coefficients, evidence and atomic revision commits are unchanged.
+## Comments and verification entries
 
-## Daily policy and journal outcomes
+All app modules and public definitions use English followed by equivalent Chinese. Short descriptions use one line; longer descriptions explain responsibility, effects, resource ownership and failures. Machine directives, field values and prompts are not translated.
 
-Internal `dream_policy.py` computes time/budget rules only; `DreamCycle` orders extraction, maintenance and journal writes. A failed journal finish returns `failed / journal_finish_failed` while preserving completed counts. Errors retain only stages and exception types; diagnostic callback failure does not change the business outcome. The daily journal is not a cross-process lock and resuming does not guarantee exactly-once maintenance.
+| Scenario | Existing verification entry |
+| --- | --- |
+| Public contracts and dependency exports | `tests/test_public_interfaces.py`, `tests/test_runtime_contracts.py` |
+| Reinforcement commits and latest-head cache recovery | `tests/test_reinforcement.py` |
+| Daily eligibility, budgets, journal and diagnostic failures | `tests/test_dream.py`, `tests/test_dream_eval.py` |
+| Partial Source/projection/reinforcement recording | `tests/test_run_recorder.py` |
+| Post-delivery failures, shutdown/disabled-speaking retry and storage failure | `tests/test_runtime_writeback.py` |
+| Read acknowledgement, new-input protection and restart recovery | `tests/test_runtime_delivery.py`, `tests/test_runtime_recovery.py` |
+| Concurrency, proactive policy and host wiring | Runtime scheduler/worker/proactive and host tests |
 
-## Runtime internal dependencies
+## Remaining work
 
-`AgentRuntime` retains its existing caller-facing methods. Internal `transitions.py` copies state and computes changes without I/O; `dispatch.py` coordinates deferred/proactive work through explicit model, delivery, context, state and recorder dependencies. Dispatch never holds the whole runtime, and transitions do not import the facade. Path-specific prompts and failure rules remain separate.
+- Inventory services/store/adapters before moving orchestration or adapters across modules; retain the shallow EpisodeRecorder compatibility adapter.
+- Deduplication results, completed compensation results and hit cooldown entries still live for the instance without defined retention; pending compensation may retain text in memory.
+- `RecallRequest/RecallResult` remain outside production recall; `ChatModel/ModelGateway` still have distinct contracts.
+- Worker configuration callbacks remain Callable; tracing and tool filtering retain host-shaped objects pending later movement.
+
+Code entries: [domain.py](../../../../app/domain.py), [ports.py](../../../../app/ports.py); delivery contracts are described in [Agent Runtime](runtime.md).

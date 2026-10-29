@@ -58,8 +58,8 @@ def apply_attention(state: SessionState, policy_decision: AttentionDecision,
         WakeAction.OBSERVE,
         WakeAction.WAIT,
     ):
-        # Debounce new ambient traffic: every ambient event extends the
-        # pending wait instead of letting an earlier deadline fire.
+        # Extend the wait on each ambient event instead of firing an old deadline.
+        # 每个环境消息延长等待，避免旧期限提前触发。
         state.wait_until = max(state.wait_until, moment + wait_seconds)
     return state
 
@@ -107,9 +107,8 @@ def schedule_retry(state: SessionState, now: float, attempts: int,
                    cap_seconds: float = 60.0, claimed: SessionState | None = None) -> SessionState:
     """Retry old work without overwriting new messages / 重试旧任务，不覆盖新消息。"""
     if claimed is not None:
-        # Do not resurrect input already acknowledged by another delivery,
-        # or overwrite work/deadlines installed after this claim. Unchanged
-        # retained markers still belong to this failed attempt.
+        # Preserve acknowledged input and newer work; unchanged markers are this attempt.
+        # 保留已确认输入及新任务，未变化的标记才属于本次尝试。
         if (pending_changed(state, claimed)
                 or (state.read_through_seq > claimed.read_through_seq
                     and state.read_through_seq >= claimed.last_unread_seq)):
@@ -117,8 +116,8 @@ def schedule_retry(state: SessionState, now: float, attempts: int,
     tries = max(1, int(attempts))
     if (claimed is not None and state.last_unread_seq > claimed.last_unread_seq
             and tries >= max(1, int(max_attempts))):
-        # Exhaustion belongs to the old Source. The retained marker lets
-        # the worker pick up the newer Source with its own attempt budget.
+        # Exhaustion belongs to old input; newer input keeps its own attempt budget.
+        # 耗尽仅属于旧输入，新输入保留独立的尝试预算。
         return state
     state = snapshot(state)
     if tries >= max(1, int(max_attempts)):

@@ -48,6 +48,7 @@ class DreamResult:
 
     @property
     def ran(self) -> bool:
+        """Whether the cycle ran, including a failed run / 是否实际运行过，包含失败的整理。"""
         return self.status in ("done", "failed")
 
 

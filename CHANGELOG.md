@@ -40,6 +40,8 @@
 
 ### 中文
 
+- app 卫生：保留兼容入口，内部区分纯规则、状态变化、执行和补写；全量规范中英双语源码说明，同步双语文件职责、接口及验证入口。存储和宿主转接暂留原处，供后续跨模块整理。
+
 - 运行时：确认发送后保留进程内凭据，写回失败仅补状态、原始消息/队列及审计；关闭后台发言及停止时仍补写。保存失败可被编排识别，文件失败不覆盖旧状态，新增审计使用稳定运行编号。不改数据库结构或旧记录，不保证断电后绝对不重发。
 
 - 夜间整理：分离纯时间/预算规则；台账结束失败如实返回失败及已完成数量，错误不再保存异常正文，诊断失败不影响整理结果。
@@ -91,6 +93,8 @@
 - 人格控制台接入历史版本回滚、差异比较与变化原因；安装时校验预览内容，按版本显示已安装状态；Dream 日志区分预算停止与完成，并显示调度开关。新增控制台接口需与 dashboard 同步更新，不涉及数据库迁移或配置变化（#82 / #83）。
 
 ### English
+
+- Clarify app pure rules, transitions, dispatch and write-back behind compatible entries; standardize bilingual source documentation and update mirrored responsibility/interface/verification maps. Storage and host adapters remain in place pending cross-module inventory.
 
 - Retain process-local receipts after confirmed sending and retry only state, Source/projection and audit writes, including with speaking disabled and at shutdown. Surface storage failures, preserve old file state and derive stable IDs for new audit rows. No schema or historical-row changes; crashes may still lead to resend.
 

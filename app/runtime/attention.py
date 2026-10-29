@@ -1,8 +1,6 @@
-"""Default host-neutral attention policy.
+"""Pure attention rules for owner, private, direct and follow-up replies; no I/O or scoring.
 
-The policy is intentionally small: direct attention gets a reply, owner gets a
-reply, and a non-owner direct interaction opens a short per-speaker follow-up
-window. It contains no platform, group, relationship, quota or scoring logic.
+主人、私聊、直接关注和后续回复的纯注意力规则，不读写或评分。
 """
 
 from __future__ import annotations
@@ -17,7 +15,7 @@ from .contracts import (
 
 
 class DefaultAttentionPolicy:
-    """Minimal deterministic reply policy used by AgentRuntime."""
+    """Pure owner/private/direct/follow-up reply rules; no scoring or I/O / 纯主人、私聊、直接关注及后续回复规则，不评分或读写。"""
 
     def __init__(self, followup_rounds: int = 3, owner_always_reply: bool = True) -> None:
         self.followup_rounds = max(0, int(followup_rounds))
@@ -26,6 +24,7 @@ class DefaultAttentionPolicy:
     def evaluate(
         self, event: RuntimeInput, state: SessionState, now: float
     ) -> AttentionDecision:
+        """Return a decision and follow-up patch without mutating state / 返回决策及后续回复变化，不修改状态。"""
         if not str(event.text or "").strip():
             return AttentionDecision(WakeAction.IGNORE, "empty_text")
 

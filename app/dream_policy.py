@@ -33,6 +33,7 @@ def usage_values(snapshot: dict[str, Any] | None) -> UsageSnapshot:
     """Clamp invalid/negative counters to zero / 将非法或负用量规整为零。"""
     data = snapshot if isinstance(snapshot, dict) else {}
     def number(key: str) -> int:
+        """Normalize one counter without reading external state / 规整一个计数器，不读取外部状态。"""
         try:
             return max(0, int(data.get(key, 0) or 0))
         except (TypeError, ValueError):
