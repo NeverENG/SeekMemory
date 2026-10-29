@@ -1,19 +1,17 @@
-"""Turn pending dialogue into validated Artifacts without persistence.
+"""Coordinate parsing, evidence validation, deduplication and Artifact construction; read cache only, never call models or persist memory.
 
-The IngestService owns model calls and every write side effect.
+协调解析、证据校验、去重及记忆构造，仅查询缓存，不调用模型或写入记忆。
 """
 
 from __future__ import annotations
 
 import datetime
-import math
-import re
 from dataclasses import dataclass
 from contextlib import AbstractContextManager, nullcontext
 from collections.abc import Callable
 from typing import Any
 
-try:  # 作为 astrbot 插件包的一部分导入
+try:  # Plugin namespace / 插件命名空间。
     from ..app.contracts import DialogueTurn, WriteOutcome
     from ..core.artifact import Artifact, Lineage, Strength, TimeSpan, content_of, make, validate
     from ..core.relationship import RELATIONSHIP_POLICY_VERSION
@@ -40,7 +38,7 @@ try:  # 作为 astrbot 插件包的一部分导入
         validate_observation,
     )
     from ..app.ports import ArtifactCache, SourceStore
-except ImportError:  # 作为顶层包导入（脚本 / 测试）
+except ImportError:  # Top-level package / 顶层包。
     from app.contracts import DialogueTurn, WriteOutcome
     from core.artifact import Artifact, Lineage, Strength, TimeSpan, content_of, make, validate
     from core.relationship import RELATIONSHIP_POLICY_VERSION
@@ -71,223 +69,27 @@ except ImportError:  # 作为顶层包导入（脚本 / 测试）
 
 MAX_ITEMS = 6
 
-# 值得不等晚上的信号：计划与日期、稳定事实、强情绪。命中任一就当场抽。
-_PLAN = re.compile(
-    r"(下周|明天|后天|下个月|周末|计划|打算|准备|约了|要去|出差|搬家|"
-    r"面试|入职|离职|辞职|生日|纪念日|考试|体检)"
-)
-_FACT = re.compile(
-    r"(我叫|名字|住在|老家|公司|工作|职业|女朋友|男朋友|老婆|老公|对象|"
-    r"爸|妈|猫|狗|住院|手术|升职|加薪|毕业)"
-)
-_STRONG = re.compile(
-    r"(崩溃|吵架|分手|哭了|想死|撑不住|很难受|被骂|裁员|辞退|生病|发烧)"
-)
-_NOT_WORTH = re.compile(
-    r"^(早|晚安|在吗|在不在|哈哈|嗯|哦|好|好的|收到)[。！？!?~～]*$"
-)
 Log = Callable[[str], None]
 
-
-def _parse_time(value: Any) -> datetime.datetime | None:
-    try:
-        return datetime.datetime.fromisoformat(str(value or "").strip())
-    except (TypeError, ValueError):
-        try:
-            return datetime.datetime.fromisoformat(
-                str(value or "").strip() + "T00:00:00"
-            )
-        except (TypeError, ValueError):
-            return None
-
-
-def _date_or_none(value: Any) -> str | None:
-    parsed = _parse_time(value)
-    return parsed.date().isoformat() if parsed is not None else None
-
-
-def _event_at(item: dict, turns: list[DialogueTurn]) -> str:
-    parsed = _parse_time(item.get("event_at"))
-    if parsed is not None:
-        return parsed.isoformat(timespec="seconds")
-    wanted = item.get("event_date") or item.get("valid_from")
-    parsed = _parse_time(wanted)
-    if parsed is not None:
-        return parsed.isoformat(timespec="seconds")
-    stamps = [_parse_time(turn.at) for turn in turns]
-    valid = [stamp for stamp in stamps if stamp is not None]
-    if valid:
-        return min(valid).isoformat(timespec="seconds")
-    return datetime.datetime.now().isoformat(timespec="seconds")
-
-
-def _subject_id(item: dict, owner: str, default: str, owner_id: str = "") -> str:
-    kind = str(item.get("subject_kind") or "").strip()
-    raw = str(item.get("subject_id") or "").strip()
-    if raw and raw not in ("owner", "speaker", "self", "world", "relation"):
-        return raw
-    if not owner_id and owner:
-        owner_id = str(owner).split(":")[-1]
-    if kind == "owner":
-        return owner_id or default
-    if kind == "speaker":
-        return default
-    if kind in ("world", "relation", "self"):
-        return kind
-    name = str(item.get("subject_name") or "").strip()
-    return "third:" + name if name else default
-
-
-def _num(value: Any, default: float, low: float, high: float) -> float:
-    """把模型给的数值收进区间；缺失、NaN 或非法值回落到默认值。"""
-    if isinstance(value, bool):
-        return default
-    try:
-        number = float(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return default
-    if not math.isfinite(number):
-        return default
-    return max(low, min(high, number))
-
-
-def strength_of(item: dict) -> dict:
-    """从抽取结果取情绪与命中字段，缺省回落到 Strength 的默认值。"""
-    base = Strength()
-    out = {
-        "arousal": _num(item.get("arousal"), base.arousal, 0.0, 1.0),
-        "valence": _num(item.get("valence"), base.valence, -1.0, 1.0),
-        "funny": _num(item.get("funny"), base.funny, 0.0, 1.0),
-    }
-    if "confidence" in item or is_behavior(item):
-        # 行为条目没给 confidence 时保守落在 0.9 以下；老式普通事实保持兼容默认。
-        default = DEFAULT_BEHAVIOR_CONFIDENCE if is_behavior(item) else base.confidence
-        out["confidence"] = _num(item.get("confidence"), default, 0.0, 1.0)
-    hits = item.get("hits")
-    if hits is not None:
-        try:
-            out["hits"] = max(0, int(hits))
-        except (TypeError, ValueError):
-            pass
-    return out
-
-
-def worth_now(items: list[DialogueTurn]) -> bool:
-    for turn in items[-30:]:
-        if turn.role != "user":
-            continue
-        line = str(turn.text or "").strip()
-        if not line or _NOT_WORTH.match(line):
-            continue
-        if _PLAN.search(line) or _FACT.search(line) or _STRONG.search(line):
-            return True
-    return False
-
-
-def _dialog_rows(items: list[DialogueTurn]) -> list[DialogueTurn]:
-    """Return every supplied row; the caller owns bounded chunks.
-
-    ``_flush`` already chunks the original rows, and a recovered immutable
-    parent can push the pairing context above the chunk size. Rendering that
-    context in full is safe, so no supplied row may be silently lost.
-    """
-    return list(items)
-
-
-def dialogue_of(
-    items: list[DialogueTurn], *, include_topic: bool = False
-) -> str:
-    """Render lines with explicit source labels so evidence ids can be cited.
-
-    Topic labels are opt-in for multi-topic batches; the default rendering is
-    unchanged for existing extraction and tests.
-    """
-    lines = []
-    for turn in _dialog_rows(items):
-        who = f"{turn.role}({turn.speaker_id})" if turn.speaker_id else turn.role
-        if turn.source_id:
-            who = f"{who}[{turn.source_id}]"
-        if turn.role == "assistant" and turn.reply_to:
-            who += f" reply_to={turn.reply_to}"
-        prefix = f"[{turn.at}] " if turn.at else ""
-        topic = f"topic={turn.topic_id} " if include_topic and turn.topic_id else ""
-        lines.append(f"{prefix}{topic}{who}: {turn.text}")
-    return "\n".join(lines)
-
-
-def recover_parents(items: list[DialogueTurn], sources: SourceStore | None) -> list[DialogueTurn]:
-    """Recover already-extracted user parents as read-only pairing context.
-
-    A chunk boundary or a restart can leave an assistant turn without the user
-    turn it replies to. The immutable Source is read back only for pairing and
-    evidence: it is never re-queued, re-marked succeeded or re-written.
-
-    Raises:
-        Exception: When the Source lookup fails, so the caller can keep the
-            pending rows retryable instead of extracting without context.
-    """
-    rows = list(items)
-    if sources is None:
-        return rows
-    present = {turn.source_id for turn in items if turn.source_id}
-    wanted: list[str] = []
-    for turn in items:
-        parent_id = str(turn.reply_to or "")
-        if turn.role != "assistant" or not parent_id or parent_id in present:
-            continue
-        if parent_id not in wanted:
-            wanted.append(parent_id)
-    if not wanted:
-        return rows
-    source_rows = sources.sources_by_ids(wanted)
-    out: list[DialogueTurn] = []
-    added: set[str] = set()
-    for turn in items:
-        parent_id = str(turn.reply_to or "") if turn.role == "assistant" else ""
-        parent = source_rows.get(parent_id) if parent_id else None
-        # 只有同会话、role=user、且就是被回复的那条 Source 才能进提示词。
-        if parent is not None and parent.id not in present and parent.id not in added:
-            same_session = parent.session_id == turn.session_id
-            if parent.role == "user" and same_session and parent.id == parent_id:
-                added.add(parent.id)
-                out.append(
-                    DialogueTurn(
-                        parent.session_id,
-                        parent.speaker_id,
-                        parent.role,
-                        parent.text,
-                        parent.at,
-                        parent.id,
-                        "",
-                        parent.turn_id,
-                        parent.reply_to,
-                    )
-                )
-        out.append(turn)
-    return out
+from .extraction_rules import (
+    _parse_time, _date_or_none, _event_at, _subject_id, _num, strength_of, worth_now, _boundary,
+    _PLAN, _FACT, _STRONG, _NOT_WORTH,
+)
+from .dialogue_evidence import _dialog_rows, dialogue_of, recover_parents
 
 
 def existing_texts(cache: ArtifactCache | None) -> list[str]:
-    """已有记忆正文，供抽取去重。"""
+    """Read cached memory text for compatibility deduplication / 读取供兼容去重使用的缓存记忆正文。"""
     if cache is None:
         return []
     try:
         return [content_of(a) for a in cache.active("memory")]
-    except Exception:  # noqa: BLE001 - 读不到就当作没有
+    except Exception:  # noqa: BLE001 - Unavailable history stays empty / 历史不可用时按空处理。
         return []
 
 
-def _boundary(scope: str, subject_id: str) -> str:
-    return f"{scope}\x1f{subject_id}"
-
-
 def existing_texts_by_subject(cache: ArtifactCache | None) -> dict[str, list[str]]:
-    """Existing memory text grouped by subject, scope and behavior evidence.
-
-    Ordinary memories keep the plain subject boundary. Behavior memories are
-    keyed by their own evidence so a new episode with the same wording but
-    different assistant evidence is not mistaken for a repeat.
-    """
+    """Read deduplication history by subject, scope and behavior/relationship evidence / 按主体、范围及行为或关系证据读取去重历史。"""
     if cache is None:
         return {}
     out: dict[str, list[str]] = {}
@@ -308,19 +110,20 @@ def existing_texts_by_subject(cache: ArtifactCache | None) -> dict[str, list[str
                     art.header.lineage.sources,
                 )
             out.setdefault(boundary, []).append(content_of(art))
-    except Exception:  # noqa: BLE001 - a broken cache view means no dedupe history
+    except Exception:  # noqa: BLE001 - Unavailable cache history stays empty / 缓存历史不可用时按空处理。
         return {}
     return out
 
 
 def owner_of(items: list[DialogueTurn]) -> str:
+    """Read the sole nonempty input session, otherwise return empty / 读取输入中唯一非空的会话，否则返回空。"""
     sessions = {turn.session_id for turn in items if turn.session_id}
     return next(iter(sessions)) if len(sessions) == 1 else ""
 
 
 @dataclass(frozen=True)
 class ExtractionPlan:
-    """Pure extraction result ready for the ingest service to persist."""
+    """Hold validated memory candidates and failures without owning persistence / 保存验证后的候选记忆及失败信息，不负责持久化。"""
     artifacts: tuple[Artifact, ...] = ()
     skipped: int = 0
     errors: tuple[str, ...] = ()
@@ -342,11 +145,7 @@ def build_plan(
         nullcontext()
     ),
 ) -> ExtractionPlan:
-    """Convert model output into validated Artifacts without side effects.
-
-    The function reads the cache for dedupe only. It never commits, caches,
-    links, supersedes or revises anything; those writes belong to IngestService.
-    """
+    """Read supplied context/cache and prepare candidates; never commit, link or mutate cache / 读取给定上下文及缓存并准备候选，不提交、建联或修改缓存。"""
     owner = owner_of(items)
     available = {turn.source_id: turn for turn in context if turn.source_id}
     source_ids = tuple(turn.source_id for turn in items if turn.source_id)

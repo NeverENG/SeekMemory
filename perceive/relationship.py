@@ -1,4 +1,7 @@
-"""Validate relationship observations proposed during extraction."""
+"""Validate evidence-oriented relationship observations without deriving scores or writing state.
+
+校验面向证据的关系观察，不推导分数或写入状态。
+"""
 
 from __future__ import annotations
 
@@ -21,6 +24,7 @@ SEPARATOR = "\x1d"
 
 
 def reason_of(payload: Mapping[str, Any] | None) -> RelationshipReason | None:
+    """Read the declared relationship reason code / 读取声明的关系原因码。"""
     if not isinstance(payload, Mapping):
         return None
     try:
@@ -30,17 +34,18 @@ def reason_of(payload: Mapping[str, Any] | None) -> RelationshipReason | None:
 
 
 def signal_of(payload: Mapping[str, Any] | None) -> str:
-    """Return the program-derived signal for one validated reason."""
+    """Derive the existing relationship signal from its allowed reason / 根据允许的原因推导既有关系信号。"""
     reason = reason_of(payload)
     return EVIDENCE_RULES[reason].signal.value if reason is not None else ""
 
 
 def is_relationship_observation(payload: Mapping[str, Any] | None) -> bool:
+    """Recognize relationship observation payloads / 识别关系观察内容。"""
     return reason_of(payload) is not None
 
 
 def validate_observation(payload: Mapping[str, Any] | None) -> None:
-    """Reject partial, unknown, or model-scored relationship observations."""
+    """Reject unsupported relationship claims or fields / 拒绝不受支持的关系声明或字段。"""
     if not isinstance(payload, Mapping):
         raise ValueError("memory payload must be a mapping")
     if payload.get("relationship_signal") not in (None, ""):
@@ -66,6 +71,7 @@ def observation_boundary(
     payload: Mapping[str, Any],
     evidence_ids: tuple[str, ...] | list[str],
 ) -> str:
+    """Build the existing relationship/evidence deduplication identity / 构造既有关系及证据去重身份。"""
     reason = reason_of(payload)
     evidence = "|".join(str(value) for value in evidence_ids if str(value))
     return f"{boundary}{SEPARATOR}{reason.value if reason else ''}{SEPARATOR}{evidence}"

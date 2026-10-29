@@ -1,11 +1,6 @@
-"""Bot behavior vocabulary shared by the prompt, dedupe and evidence checks.
+"""Validate paired assistant behavior and prepare payloads without I/O.
 
-This module is pure: no storage, no model, no SQL.
-
-The optional payload field is exactly one: ``bot_behavior``. Its value must be
-one of the six approved behaviors. The descriptive text fields only describe a
-behavior that has already qualified; on their own they never make an item a
-behavior item, so they can never feed future self-impression by accident.
+校验有配对的助手行为并准备内容，不执行读写。
 """
 
 from __future__ import annotations
@@ -21,9 +16,9 @@ BEHAVIOR_FIELD = "bot_behavior"
 EVIDENCE_FIELD = "evidence_source_ids"
 BEHAVIOR_TEXT_FIELDS = ("bot_action", "bot_tone", "bot_boundary", "outcome")
 
-# 六个值就是全部合法取值；其它字符串一律视为构造错误。
+# Exactly six categories are allowed / 仅允许六个类别，其他值构造失败。
 
-# 行为条目没有给 confidence 时的保守默认：低于 0.9，避免伪装高置信。
+# Missing behavior confidence stays below 0.9 / 行为缺失置信度时保持低于 0.9。
 DEFAULT_BEHAVIOR_CONFIDENCE = 0.6
 
 _SEPARATOR = "\x1e"
@@ -31,7 +26,7 @@ _ID_SEPARATOR = "|"
 
 
 def behavior_of(payload: Mapping[str, Any] | None) -> str:
-    """Return the approved behavior value, or an empty string."""
+    """Read the declared bot behavior category / 读取声明的机器人行为类别。"""
     if not isinstance(payload, Mapping):
         return ""
     value = str(payload.get(BEHAVIOR_FIELD) or "").strip()
@@ -39,12 +34,12 @@ def behavior_of(payload: Mapping[str, Any] | None) -> str:
 
 
 def is_behavior(payload: Mapping[str, Any] | None) -> bool:
-    """True only when ``bot_behavior`` holds one of the six approved values."""
+    """Recognize the existing bot behavior payload form / 识别既有机器人行为内容形式。"""
     return bool(behavior_of(payload))
 
 
 def check_payload(payload: Mapping[str, Any] | None) -> None:
-    """Reject an unknown ``bot_behavior`` value as a construction error."""
+    """Validate the supported behavior payload shape / 校验受支持的行为内容结构。"""
     if not isinstance(payload, Mapping):
         raise ValueError("memory payload must be a mapping")
     raw = payload.get(BEHAVIOR_FIELD)
@@ -54,12 +49,7 @@ def check_payload(payload: Mapping[str, Any] | None) -> None:
 
 
 def payload_of(item: Mapping[str, Any]) -> dict[str, Any]:
-    """Copy an extracted item for storage without raw evidence or fake behavior.
-
-    Evidence ids belong to lineage and the repository evidence table, not to the memory
-    body. Behavior text fields are optional descriptions and are preserved
-    individually, but they never qualify an item on their own.
-    """
+    """Prepare family payload without creating or persisting an Artifact / 准备类型内容，不创建或持久化记忆。"""
     out = {key: value for key, value in item.items() if key != EVIDENCE_FIELD}
     qualifies = is_behavior(out)
     for key in BEHAVIOR_TEXT_FIELDS:
@@ -74,7 +64,7 @@ def payload_of(item: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def evidence_ids(payload: Mapping[str, Any] | None) -> tuple[str, ...]:
-    """Return the ordered, de-duplicated evidence ids carried by an item."""
+    """Normalize supplied evidence IDs without inventing links / 规范化给定证据编号，不补造关联。"""
     if not isinstance(payload, Mapping):
         return ()
     raw = payload.get(EVIDENCE_FIELD)
@@ -91,18 +81,13 @@ def evidence_ids(payload: Mapping[str, Any] | None) -> tuple[str, ...]:
 def behavior_boundary(
     boundary: str, behavior: str, ids: tuple[str, ...] | list[str]
 ) -> str:
-    """Build the identity key of one behavior event.
-
-    The key ignores wording and evidence ordering, so reprocessing the same
-    assistant evidence cannot create a duplicate behavior event, while a
-    different evidence set stays a distinct event.
-    """
+    """Extend deduplication identity with behavior category and exact evidence / 以行为类别及精确证据扩展去重身份。"""
     cleaned = sorted({str(value).strip() for value in ids or () if str(value).strip()})
     return f"{boundary}{_SEPARATOR}{behavior}{_SEPARATOR}{_ID_SEPARATOR.join(cleaned)}"
 
 
 def is_behavior_key(key: str) -> bool:
-    """True for a boundary produced by :func:`behavior_boundary`."""
+    """Recognize an existing behavior deduplication key / 识别既有行为去重键。"""
     return _SEPARATOR in str(key or "")
 
 
@@ -112,7 +97,7 @@ def dedupe_behaviors(
     existing_keys: set[str],
     boundary_of: Callable[[dict], str],
 ) -> list[dict]:
-    """Drop only re-runs of the same evidence + behavior, never distinct ones."""
+    """Keep distinct behavior/evidence observations in their supplied boundary / 在给定范围内保留不同的行为及证据观察。"""
     seen = set(existing_keys)
     kept: list[dict] = []
     for item in items:
@@ -145,21 +130,7 @@ def validate_evidence(
     *,
     session_id: str = "",
 ) -> tuple[str, ...]:
-    """Validate one item's evidence against the Sources actually in this batch.
-
-    Args:
-        payload: The extracted item, possibly with ``evidence_source_ids``.
-        available: Source id -> turn/Source mapping for the batch plus any
-            immutable parents recovered for pairing.
-        session_id: The batch session; evidence must not cross it.
-
-    Returns:
-        The accepted evidence ids as a tuple (empty for legacy items).
-
-    Raises:
-        ValueError: Invented ids, cross-session ids, or a behavior item that
-            does not carry at least one assistant turn and its user parent.
-    """
+    """Validate exact cited evidence and user/assistant pairing in one session / 在同一会话中校验精确引用的证据及用户与助手配对。"""
     ids = evidence_ids(payload)
     if not ids:
         if is_behavior(payload):

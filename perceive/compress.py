@@ -1,4 +1,7 @@
-"""把一段对话压缩成三行摘要（情绪 / 未完成 / 事实）的提示词与解析。"""
+"""Keep legacy pure compression prompt/parser helpers; production extraction does not call them.
+
+保留旧的纯压缩提示词及解析帮助函数，生产抽取不调用这些函数。
+"""
 
 from __future__ import annotations
 
@@ -8,7 +11,7 @@ _EMPTY_FACTS = ("", "无", "没有", "暂无", "none", "null")
 
 
 def build_compress_prompt(dialogue: str) -> str:
-    """生成三行压缩提示词，要求模型严格按固定格式输出。"""
+    """Build the existing three-line compatibility prompt without invoking a model / 构造既有三行兼容提示词，不调用模型。"""
     body = dialogue.strip() if isinstance(dialogue, str) else ""
     return (
         "把下面这段对话压缩成三行，只输出这三行，不要解释，不要 Markdown。\n\n"
@@ -25,7 +28,7 @@ def build_compress_prompt(dialogue: str) -> str:
 
 
 def _first_word(value: str) -> str:
-    """从情绪行里取第一个词；模型多写时只保留最前面的部分。"""
+    """Keep the first supported emotion word or an empty value / 保留首个受支持的情绪词或空值。"""
     value = value.strip("。.!！ ")
     if value.lower() in _EMPTY_FACTS:
         return ""
@@ -37,7 +40,7 @@ def _first_word(value: str) -> str:
 
 
 def _split_facts(value: str) -> list[str]:
-    """按顿号/逗号/分号拆事实，清理序号，最多保留两条。"""
+    """Parse at most two facts using existing separator rules / 按既有分隔规则解析至多两条事实。"""
     if value.strip().lower() in _EMPTY_FACTS:
         return []
     facts: list[str] = []
@@ -51,7 +54,7 @@ def _split_facts(value: str) -> list[str]:
 
 
 def parse_compress(text: str) -> dict:
-    """解析三行压缩结果，返回 {"emotion", "unfinished", "facts"}；缺失字段给默认值。"""
+    """Parse the legacy three-line response with defaults for absent fields / 解析旧三行响应，缺失字段使用默认值。"""
     result: dict = {"emotion": "", "unfinished": "", "facts": []}
     if not isinstance(text, str):
         return result

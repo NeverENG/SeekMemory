@@ -1,8 +1,6 @@
-"""Deterministic importance triage for pending Dream topics.
+"""Rank Dream topics with deterministic user and paired-assistant signals; no model calls or queue writes.
 
-This module is intentionally pure: it uses user memory signals plus paired
-assistant behavior to produce a bounded category score, never calls a model
-and never writes queue state. Assistant-only topics still score zero.
+以确定性的用户及配对助手信号对夜间整理话题排序，不调用模型或写入队列。
 """
 
 from __future__ import annotations
@@ -18,7 +16,8 @@ except ImportError:
 
 MIN_IMPORTANCE_SCORE = 2.0
 
-# Each category contributes once per topic. Reasons are labels, never text.
+# Each category scores once; reasons are labels, never bodies.
+# 每个类别仅计分一次，原因仅为标记，不含正文。
 _SIGNALS: tuple[tuple[str, float, re.Pattern[str]], ...] = (
     (
         "explicit_remember",
@@ -65,6 +64,7 @@ _SIGNALS: tuple[tuple[str, float, re.Pattern[str]], ...] = (
 
 @dataclass(frozen=True)
 class TopicImportance:
+    """Hold a topics bounded score, reason labels and original rows / 保存话题的有上限分数、原因标记及原始行。"""
     session_id: str
     topic_id: str
     rows: tuple[DialogueTurn, ...]
@@ -74,12 +74,7 @@ class TopicImportance:
 
 
 def score_topic(rows: Iterable[DialogueTurn]) -> tuple[float, tuple[str, ...]]:
-    """Score one topic from user memory signals and paired bot behavior.
-
-    Assistant-only topics cannot score. Assistant behavior is considered only
-    when the topic also contains user text, so behavior evidence can be paired
-    with its user parent by the existing extraction validation.
-    """
+    """Score user signals and paired assistant behavior; assistant-only topics score zero / 给用户信号及配对助手行为打分，仅含助手的话题得零分。"""
     rows = list(rows)
     user_text = "\n".join(
         str(turn.text or "")
@@ -105,12 +100,13 @@ def score_topic(rows: Iterable[DialogueTurn]) -> tuple[float, tuple[str, ...]]:
 
 
 def _latest_at(rows: Iterable[DialogueTurn]) -> str:
+    """Read the latest nonempty supplied timestamp label / 读取给定的最新非空时间标签。"""
     values = [str(turn.at or "") for turn in rows if str(turn.at or "").strip()]
     return max(values) if values else ""
 
 
 def rank_topics(items: Iterable[DialogueTurn]) -> list[TopicImportance]:
-    """Group pending rows by session/topic and rank by deterministic importance."""
+    """Group by session/topic and rank with stable existing importance ordering / 按会话及话题分组，并按既有稳定重要性顺序排序。"""
     buckets: dict[tuple[str, str], list[DialogueTurn]] = {}
     order: list[tuple[str, str]] = []
     for turn in items:
@@ -144,7 +140,7 @@ def select_ranked_topics(
     cap: int,
     min_score: float = MIN_IMPORTANCE_SCORE,
 ) -> list[tuple[str, str, list[DialogueTurn]]]:
-    """Select topic batches from an already-ranked list."""
+    """Select a bounded number of already-ranked eligible topics / 从已排序且符合条件的话题中限量选择。"""
     limit = max(0, int(cap))
     if limit <= 0:
         return []
@@ -160,7 +156,7 @@ def select_important_topics(
     cap: int,
     min_score: float = MIN_IMPORTANCE_SCORE,
 ) -> list[tuple[str, str, list[DialogueTurn]]]:
-    """Return high-value topic batches in score/recency order."""
+    """Rank then select bounded high-importance topic groups / 排序后限量选择高重要性话题组。"""
     return select_ranked_topics(rank_topics(items), cap, min_score)
 
 _WEIGHTS = {
@@ -331,6 +327,7 @@ def _true_plan(text: str) -> bool:
 
 
 def _refine(text: str, reasons: tuple[str, ...]) -> tuple[float, tuple[str, ...]]:
+    """Remove false-positive signal categories before computing the existing weighted score / 在计算既有加权分数前移除误报信号类别。"""
     allowed = set(reasons)
     if "identity_profile" in allowed and not _true_identity(text):
         allowed.discard("identity_profile")

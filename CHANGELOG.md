@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 内部卫生：为 perceive 增加明确 domain/ports，分开话题规则、旧文件读写、消息转换、JSON 解析、去重、证据准备及抽取计划；保留原路径、提示词字节、时间及评分行为，同步双语职责说明。
+
 - 保留诊断包装后的业务代码来源定位，避免日志指向包装帮助函数；位置回归检查验证真实文件、行及函数归属，继续检查正文隐私。
 
 - 修复缓存重建或替换准备失败时丢失旧视图、连接初始化失败时未及时关闭的问题；分组提交与单次提交使用同一操作校验，诊断追加失败会明确抛错并保留已保存快照，宿主继续隔离诊断异常。无结构或配置变更。
@@ -19,6 +21,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Internal hygiene: add explicit perceive domain/ports and separate topic rules, legacy files, row conversion, JSON parsing, deduplication, evidence preparation and extraction planning, preserving import paths, prompt bytes, time and scoring behavior with mirrored responsibility docs.
 
 - Preserve business source attribution through transparent diagnostic wrappers; location checks verify actual file, line and function ownership while retaining payload-privacy assertions.
 

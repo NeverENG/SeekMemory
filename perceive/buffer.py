@@ -1,9 +1,10 @@
-"""Pending dialogue buffer with lightweight topic segmentation and TTL signals."""
+"""Own pending queue projections and coordinate topic rules and legacy files; repositories and files retain separate ownership.
+
+管理待处理队列视图并协调话题规则与旧文件，仓储和文件各自拥有明确职责。
+"""
 
 from __future__ import annotations
 
-import hashlib
-import json
 import os
 import time
 from dataclasses import asdict, replace
@@ -17,63 +18,64 @@ except ImportError:
     from app.contracts import DialogueTurn, ExtractionState
     from core.source import Source, make_source_id
 
-TOPIC_GAP_SECONDS = 5400
-TOPIC_SIMILARITY = 0.12
-TOPIC_TTL_SECONDS = 86400
-
-
-def _parse_at(value: str) -> datetime | None:
-    try:
-        return datetime.fromisoformat(str(value or ""))
-    except (TypeError, ValueError):
-        return None
-
-
-def _bigrams(text: str) -> set[str]:
-    clean = "".join(ch.lower() for ch in str(text or "") if ch.isalnum())
-    return {clean[i:i + 2] for i in range(max(0, len(clean) - 1))}
-
-
-def _dice(a: set[str], b: set[str]) -> float:
-    if not a or not b:
-        return 0.0
-    return 2.0 * len(a & b) / (len(a) + len(b))
-
-
-def _new_topic_id(turn: DialogueTurn) -> str:
-    raw = f"{turn.session_id}|{turn.at}|{turn.text}"
-    return "tp_" + hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+from .buffer_policy import (
+    TOPIC_GAP_SECONDS, TOPIC_SIMILARITY, TOPIC_TTL_SECONDS,
+    _parse_at, _bigrams, _dice, _new_topic_id, topic_for,
+)
+from .buffer_codec import turn_from_row, unique_by_source
+from .pending_file import PendingFile
+from .ports import ExtractionStore
 
 
 class Buffer:
-    """In-memory view of a Source-backed extraction projection.
+    """Own a pending Source projection; use legacy JSON only for compatibility input / 管理待处理原始消息视图，旧 JSON 仅用于兼容输入。"""
 
-    A path-only Buffer keeps the legacy JSON test/support behavior. When a repository is
-    supplied, queued turns are rebuilt from Source plus extraction_state.
-    """
-
-    def __init__(self, path: str = "", extraction=None) -> None:
-        self.path = str(path or "")
+    def __init__(self, path: str = "", extraction: ExtractionStore | None = None) -> None:
+        self._legacy = PendingFile(path)
         self._extraction = extraction
         self.items: list[DialogueTurn] = []
         self.last_ts = 0.0
-        self.load_error = ""
-        self.save_error = ""
         self.load()
 
+    @property
+    def path(self) -> str:
+        """Read the legacy file path / 读取旧文件的 path。"""
+        return self._legacy.path
+
+    @path.setter
+    def path(self, value: str) -> None:
+        """Update the legacy file path / 更新旧文件的 path。"""
+        self._legacy.path = str(value or "")
+
+    @property
+    def load_error(self) -> str:
+        """Read the legacy file load_error / 读取旧文件的 load_error。"""
+        return self._legacy.load_error
+
+    @load_error.setter
+    def load_error(self, value: str) -> None:
+        """Update the legacy file load_error / 更新旧文件的 load_error。"""
+        self._legacy.load_error = str(value or "")
+
+    @property
+    def save_error(self) -> str:
+        """Read the legacy file save_error / 读取旧文件的 save_error。"""
+        return self._legacy.save_error
+
+    @save_error.setter
+    def save_error(self, value: str) -> None:
+        """Update the legacy file save_error / 更新旧文件的 save_error。"""
+        self._legacy.save_error = str(value or "")
+
     def _last_for_session(self, session_id: str) -> DialogueTurn | None:
+        """Read the latest pending row in one session / 读取一个会话中最新的待处理行。"""
         for turn in reversed(self.items):
             if turn.session_id == session_id:
                 return turn
         return None
 
     def _paired_parent(self, turn: DialogueTurn) -> DialogueTurn | None:
-        """Find the user turn this one replies to; the session must match.
-
-        ``reply_to`` points at the parent Source id, so only an actual user
-        Source can be a parent. The scan covers the whole pending queue instead
-        of a fixed recent window, because an old parent may still be queued.
-        """
+        """Read the exact same-session pending user parent referenced by reply_to / 读取 reply_to 引用的同会话精确待处理用户父消息。"""
         reply_to = str(turn.reply_to or "")
         if not reply_to:
             return None
@@ -98,6 +100,7 @@ class Buffer:
         deferred: bool = False,
         role: str = "user",
     ) -> DialogueTurn | None:
+        """Admit Source-backed input before publishing its pending view; ignore empty text / 先接纳具有原始消息的输入，再发布待处理视图，忽略空文本。"""
         text = str(text or "").strip()
         if not text:
             return None
@@ -124,7 +127,7 @@ class Buffer:
         return turn
 
     def reload(self) -> int:
-        """Rebuild the in-memory queue from Source after admission release."""
+        """Rebuild the pending projection after deferred admission is released / 在延后接纳释放后重建待处理视图。"""
         if self._extraction is None:
             return len(self.items)
         self._load_projection()
@@ -138,13 +141,7 @@ class Buffer:
         turn_id: str,
         deferred: bool = False,
     ) -> DialogueTurn:
-        """Give a repository-backed turn its immutable Source and extraction state.
-
-        Host callers may add a turn without a Source id. The pending projection
-        deduplicates by Source id, so an empty id would collapse every such turn
-        into one row; synthesize the id and let ``enqueue_extraction`` write the
-        Source and its extraction state together.
-        """
+        """Assign missing Source identity and atomically admit Source plus queue state / 补充缺失原始消息身份并原子接纳原始消息及队列状态。"""
         at = turn.at or datetime.now().isoformat(timespec="seconds")
         source_id = turn.source_id or make_source_id(
             session_id=turn.session_id,
@@ -170,41 +167,27 @@ class Buffer:
 
     @staticmethod
     def _unique_by_source(items: list[DialogueTurn]) -> list[DialogueTurn]:
-        """Keep one row per non-empty Source id; source-less rows stay distinct."""
-        seen: set[str] = set()
-        kept: list[DialogueTurn] = []
-        for item in items:
-            if item.source_id and item.source_id in seen:
-                continue
-            seen.add(item.source_id)
-            kept.append(item)
-        return kept
+        """Keep one row per nonempty Source ID, retaining distinct source-less rows / 每个非空原始消息编号仅保留一行，无编号行仍分别保留。"""
+        return unique_by_source(items)
 
     def _topic_for(self, turn: DialogueTurn, previous: DialogueTurn | None,
                    parent: DialogueTurn | None = None) -> str:
-        if (parent is not None and parent.session_id == turn.session_id
-                and parent.topic_id):
-            return parent.topic_id
-        if previous is None or not previous.topic_id:
-            return _new_topic_id(turn)
-        current_at, previous_at = _parse_at(turn.at), _parse_at(previous.at)
-        if current_at is not None and previous_at is not None:
-            if (current_at - previous_at).total_seconds() > TOPIC_GAP_SECONDS:
-                return _new_topic_id(turn)
-        if _dice(_bigrams(turn.text), _bigrams(previous.text)) < TOPIC_SIMILARITY:
-            return _new_topic_id(turn)
-        return previous.topic_id
+        """Delegate the existing same-session topic rule / 委托执行既有同会话话题规则。"""
+        return topic_for(turn, previous, parent)
 
     def topics(self) -> list[tuple[str, str, list[DialogueTurn]]]:
+        """Group pending rows by session and topic without consuming them / 按会话和话题分组待处理行，不消费这些行。"""
         groups: dict[tuple[str, str], list[DialogueTurn]] = {}
         for turn in self.items:
             groups.setdefault((turn.session_id, turn.topic_id), []).append(turn)
         return [(session, topic, rows) for (session, topic), rows in groups.items()]
 
     def idle_seconds(self) -> float:
+        """Read elapsed time since the latest admitted turn / 读取距最新接纳消息的经过时长。"""
         return max(0.0, time.time() - self.last_ts)
 
     def oldest_topic_age(self) -> float:
+        """Read the oldest valid pending timestamp using existing local-time semantics / 沿用现有本地时间语义读取最旧有效待处理时间的时长。"""
         stamps = [_parse_at(turn.at) for turn in self.items]
         valid = [stamp for stamp in stamps if stamp is not None]
         if not valid:
@@ -212,17 +195,20 @@ class Buffer:
         return max(0.0, (datetime.now() - min(valid)).total_seconds())
 
     def should_flush(self, idle_seconds: float, min_items: int) -> bool:
+        """Check the legacy minimum-count and idle-duration gates / 检查旧的最少数量及空闲时长条件。"""
         if not self.items:
             return False
         return len(self.items) >= max(1, min_items) and self.idle_seconds() >= idle_seconds
 
     def take(self) -> list[DialogueTurn]:
+        """Consume and save the legacy pending view, returning its previous rows / 消费并保存旧待处理视图，返回原有行。"""
         items = self.items
         self.items = []
         self.save()
         return items
 
     def take_topics(self, topic_ids: set[str]) -> list[DialogueTurn]:
+        """Consume selected legacy topics and save the remaining view / 消费选定的旧话题并保存剩余视图。"""
         wanted = {str(x) for x in topic_ids}
         taken = [turn for turn in self.items if turn.topic_id in wanted]
         self.items = [turn for turn in self.items if turn.topic_id not in wanted]
@@ -230,6 +216,7 @@ class Buffer:
         return taken
 
     def restore(self, rows: list[DialogueTurn]) -> None:
+        """Restore distinct rows and save the pending view / 恢复不同的行并保存待处理视图。"""
         if not rows:
             return
         existing = set(self.items)
@@ -238,21 +225,22 @@ class Buffer:
         self.save()
 
     def save(self) -> bool:
+        """Persist legacy-only input; Source-backed rows already live in the queue.
+
+        保存仅由旧文件持有的输入，带原始消息编号的行已保存在队列中。
+        """
         if not self.path or (self._extraction is not None and all(t.source_id for t in self.items)):
             self.save_error = ""
             return True
         try:
-            os.makedirs(os.path.dirname(self.path), exist_ok=True)
-            with open(self.path, "w", encoding="utf-8") as f:
-                json.dump({"last": self.last_ts, "items": [asdict(t) for t in self.items]},
-                          f, ensure_ascii=False)
-            self.save_error = ""
-            return True
+            data = {"last": self.last_ts, "items": [asdict(turn) for turn in self.items]}
         except Exception as exc:
             self.save_error = type(exc).__name__
             return False
+        return self._legacy.save(data)
 
     def load(self) -> None:
+        """Read Source-backed projection or legacy pending input / 读取原始消息支持的视图或旧待处理输入。"""
         if self._extraction is not None:
             self._load_projection()
             return
@@ -271,6 +259,7 @@ class Buffer:
             self.last_ts = 0.0
 
     def _load_projection(self) -> None:
+        """Read pending Source rows into the in-memory projection / 将待处理原始消息行读入内存视图。"""
         self.items = []
         for row in self._extraction.pending_extractions():
             self.items.append(
@@ -291,38 +280,15 @@ class Buffer:
         self.last_ts = max(valid, default=0.0)
 
     def _read_file(self) -> dict:
-        if not self.path or not os.path.exists(self.path):
-            return {}
-        try:
-            with open(self.path, encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as exc:
-            self.load_error = type(exc).__name__
-            self._quarantine()
-            return {}
-        if not isinstance(data, dict):
-            self.load_error = "InvalidPendingFile"
-            self._quarantine()
-            return {}
-        self.load_error = ""
-        return data
+        """Read legacy input through its single file owner / 通过唯一文件所有者读取旧输入。"""
+        return self._legacy.read()
 
     def _quarantine(self) -> None:
-        """Preserve a corrupt pending file instead of overwriting it on save."""
-        if not self.path or not os.path.exists(self.path):
-            return
-        target = Path(self.path + ".corrupt")
-        suffix = 1
-        while target.exists():
-            target = Path(f"{self.path}.corrupt.{suffix}")
-            suffix += 1
-        try:
-            Path(self.path).replace(target)
-        except OSError:
-            pass
+        """Preserve corrupt legacy input through its file owner / 通过文件所有者保留损坏的旧输入。"""
+        self._legacy.quarantine()
 
     def mark_succeeded(self, rows: list[DialogueTurn]) -> int:
-        """Mark rows extracted and refresh the projection without deleting Source."""
+        """Confirm supplied queue rows without deleting Source evidence / 确认给定队列行，不删除原始证据。"""
         source_ids = [turn.source_id for turn in rows if turn.source_id]
         changed = (
             self._extraction.mark_extraction_succeeded(source_ids)
@@ -337,7 +303,7 @@ class Buffer:
     def mark_failed(
         self, rows: list[DialogueTurn], error_type: str, *, max_attempts: int = 5
     ) -> int:
-        """Retain failed rows and record only a bounded exception type."""
+        """Retain unfinished input with bounded retry metadata / 保留未完成输入及有上限的重试信息。"""
         source_ids = [turn.source_id for turn in rows if turn.source_id]
         if self._extraction is None:
             return 0
@@ -346,7 +312,7 @@ class Buffer:
         )
 
     def migrate_legacy(self) -> int:
-        """Move pending.json into Source + extraction_state without content loss."""
+        """Admit supported legacy rows before archiving the original file; retain Source / 在归档原文件前接纳受支持的旧行，并保留原始消息。"""
         if self._extraction is None or not self.path or not os.path.exists(self.path):
             return 0
         data = self._read_file()
@@ -387,35 +353,5 @@ class Buffer:
 
     @staticmethod
     def _from_row(row) -> DialogueTurn | None:
-        if isinstance(row, dict):
-            try:
-                turn = DialogueTurn(
-                    str(row.get("session_id") or ""),
-                    str(row.get("speaker_id") or ""),
-                    str(row.get("role") or "user"),
-                    str(row.get("text") or ""),
-                    str(row.get("at") or ""),
-                    str(row.get("source_id") or ""),
-                    str(row.get("topic_id") or ""),
-                    str(row.get("turn_id") or ""),
-                    str(row.get("reply_to") or "") or None,
-                )
-            except Exception:
-                return None
-        elif isinstance(row, (list, tuple)):
-            if len(row) >= 5:
-                turn = DialogueTurn(str(row[0]), str(row[1]), str(row[2]), str(row[3]),
-                                    "", str(row[4]), "")
-            elif len(row) == 4:
-                turn = DialogueTurn(str(row[0]), str(row[1]), str(row[2]), str(row[3]))
-            elif len(row) == 3:
-                turn = DialogueTurn(str(row[0]), "", str(row[1]), str(row[2]))
-            else:
-                return None
-        else:
-            return None
-        if not turn.text.strip():
-            return None
-        if turn.topic_id:
-            return turn
-        return replace(turn, topic_id=_new_topic_id(turn))
+        """Decode a supported legacy row without I/O / 转换受支持的旧行，不执行读写。"""
+        return turn_from_row(row)

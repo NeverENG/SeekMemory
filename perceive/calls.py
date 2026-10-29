@@ -1,7 +1,6 @@
-"""记忆调用日志：每轮记一条"这轮要不要翻记忆、翻了几条"。
+"""Append bounded content-free recall diagnostics; file failures do not interrupt chat.
 
-只记结构，不记内容——用来回答"什么情况下会调用记忆"，以及调完之后有没有用。
-写 JSONL，超过 4MB 滚一份备份；任何失败都静默。
+追加有数量上限且无正文的召回诊断，文件失败不中断聊天。
 """
 
 from __future__ import annotations
@@ -14,7 +13,7 @@ MAX_BYTES = 4 * 1024 * 1024
 
 
 def log_call(path: str, umo: str, info: dict) -> None:
-    """追加一条调用记录：会话类型、唤起档位、命中条数、注入字数。"""
+    """Append bounded structural recall counts without message bodies; contain failures / 追加有数量上限的结构化召回计数，不含消息正文，并隔离失败。"""
     try:
         if not path:
             return
@@ -32,5 +31,5 @@ def log_call(path: str, umo: str, info: dict) -> None:
         }
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-    except Exception:  # noqa: BLE001 - 记录失败不影响回复
+    except Exception:  # noqa: BLE001 - Diagnostics cannot block replies / 诊断不能阻塞回复。
         pass
