@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from .writer import MaintenanceWriter
+from .plans import RevisionPlan, RevisionWrite
+
 import math
 
 try:
@@ -53,8 +56,11 @@ def consolidate_relationships(
     sources: SourceStore,
     cache: ArtifactCache,
     policy: RelationshipScoringPolicy = RelationshipScoringPolicy(),
+    *, writer: MaintenanceWriter | None = None,
 ) -> int:
     """Commit one existing relationship revision per subject with fresh verified evidence / 以新已验证证据按主体提交一个既有关系版本。"""
+    writer = writer or MaintenanceWriter(artifacts, cache)
+    writer.ensure_ready()
     current = _current_relationships(cache)
     candidates = _validated_observations(cache, sources, policy)
     made = 0
@@ -98,14 +104,11 @@ def consolidate_relationships(
             policy,
         )
         validate(replacement)
-        artifacts.commit(
-            replacement,
-            expected_revision=existing.header.revision if isinstance(existing, Artifact) else 0,
-            op="revise" if isinstance(existing, Artifact) else "create",
-            reason="relationship evidence consolidation",
-            source_ids=plan.counted_source_ids,
-        )
-        cache.put(replacement)
+        plan = RevisionPlan((RevisionWrite(
+            replacement, existing.header.revision if isinstance(existing, Artifact) else 0,
+            plan.counted_source_ids,
+        ),), "revise" if isinstance(existing, Artifact) else "create", "relationship evidence consolidation")
+        writer.execute(plan, grouped=False)
         current[subject_id] = replacement
         made += 1
     return made

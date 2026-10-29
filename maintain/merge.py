@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from .writer import MaintenanceWriter
+
 import datetime
 import re
 from collections import Counter
@@ -42,9 +44,12 @@ from .merge_policy import (
 
 
 def merge_similar(
-    artifacts: ArtifactStore, cache: ArtifactCache, threshold: float = 0.6, limit: int = 50
+    artifacts: ArtifactStore, cache: ArtifactCache, threshold: float = 0.6, limit: int = 50,
+    *, writer: MaintenanceWriter | None = None,
 ) -> int:
     """Commit each eligible same-subject/scope cluster atomically; clusters are independent / 原子提交每个符合条件的同主体及范围聚类，各聚类彼此独立。"""
+    writer = writer or MaintenanceWriter(artifacts, cache)
+    writer.ensure_ready()
     pool = [
         art
         for art in list(cache.by_level("scene")) + list(cache.by_level("detail"))
@@ -80,10 +85,6 @@ def merge_similar(
         for indices in clusters:
             members = [batch[index] for index in indices]
             plan = cluster_plan(members, [texts[index] for index in indices], now)
-            art = plan.writes[0].artifact
-            artifacts.commit_many(plan.rows(), op=plan.op, reason=plan.reason)
-            cache.put(art)
-            for member in members:
-                cache.remove(member.header.id)
+            writer.execute(plan)
             made += 1
     return made

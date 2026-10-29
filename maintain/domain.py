@@ -13,10 +13,11 @@ from .link import link_new, persist
 from .reflect import signals, should_reflect
 from .promote import promote_candidates
 from .plans import RevisionWrite, RevisionPlan
+from .writer import MaintenanceWriter
 
 __all__ = [
     "decay_all", "forget_expired", "merge_similar", "revise_impression", "build_self_impressions",
     "promote_self_candidates", "compose", "distill_persona", "distill_self_persona",
     "consolidate_relationships", "link_new", "persist", "signals", "should_reflect", "promote_candidates",
-    "RevisionWrite", "RevisionPlan",
+    "RevisionWrite", "RevisionPlan", "MaintenanceWriter",
 ]

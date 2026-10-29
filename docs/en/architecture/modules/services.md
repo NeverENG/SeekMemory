@@ -71,3 +71,5 @@ Flush failures with no completed commit preserve the original exception type; co
 Memory context construction uses the pure `RecallService.query()`. Explicit inclusion recording is forwarded through the optional generic `MemoryContextRecorder`; ordinary host hooks call it after request attachment, background dispatch immediately before model invocation. The runtime contains no designated rules. Existing `RecallService.build()` remains a compatibility query-plus-recording entry.
 
 Background compensation also delegates the context-inclusion writer, so pending designated commits/cache repairs can finish while extraction/speaking are disabled and before database shutdown.
+
+MaintenanceService retains its maintenance writer for exact prepared commits and latest-head cache repairs. Background compensation delegates it even with extraction/speaking disabled and before database shutdown. Pending repairs block derivation of further maintenance plans from a stale view.

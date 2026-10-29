@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+from .writer import MaintenanceWriter
+
 from dataclasses import dataclass
 
 try:
@@ -29,8 +31,11 @@ from .self_impression_policy import (
 
 def build_self_impressions(artifacts: ArtifactStore, sources: SourceStore,
                            cache: ArtifactCache, min_hits: int = MIN_HITS,
-                           today: str | None = None) -> int:
+                           today: str | None = None,
+                           *, writer: MaintenanceWriter | None = None) -> int:
     """Read exact paired evidence, commit one prepared self-impression group and then cache / 读取精确配对证据，提交准备好的自我印象版本组后更新缓存。"""
+    writer = writer or MaintenanceWriter(artifacts, cache)
+    writer.ensure_ready()
     pool = cache.active("memory")
     ids = sorted({sid for art in pool for sid in art.header.lineage.sources})
     source_rows = sources.sources_by_ids(ids)
@@ -40,9 +45,7 @@ def build_self_impressions(artifacts: ArtifactStore, sources: SourceStore,
         for entity in art.header.lineage.derived_from
     }
     plan = prepare_self_impressions(pool, source_rows, episodes, min_hits)
-    artifacts.commit_many(plan.rows(), op=plan.op, reason=plan.reason)
-    for write in plan.writes:
-        cache.put(write.artifact)
+    writer.execute(plan)
     return len(plan.writes)
 
 

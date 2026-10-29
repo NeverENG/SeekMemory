@@ -101,7 +101,7 @@ class BackgroundService:
         独立于抽取及发言开关重试待补写，不调用模型；返回已完成的补偿操作数。
         """
         completed = 0
-        for service in (self.ingest, self.runtime_worker, self.context_writer):
+        for service in (self.ingest, self.maintenance, self.runtime_worker, self.context_writer):
             retry = getattr(service, "retry_writebacks", None)
             if retry is None:
                 continue

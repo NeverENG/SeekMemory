@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+from .writer import MaintenanceWriter
+
 try:
     from ..core.artifact import Artifact, Lineage, Strength, make, revise
     from ..core.bot_behavior import SELF_SUBJECT, compose_behaviors, trusted_self_impression
@@ -28,19 +30,17 @@ def compose(impressions: list[Artifact]) -> str:
 
 
 def distill_self_persona(artifacts: ArtifactStore, sources: SourceStore, cache: ArtifactCache,
-                        today: str | None = None) -> Artifact | None:
+                        today: str | None = None,
+                        *, writer: MaintenanceWriter | None = None) -> Artifact | None:
     """Read verified self-candidates, commit the prepared persona group, then cache / 读取已验证自身候选，提交准备好的人格版本组后更新缓存。"""
+    writer = writer or MaintenanceWriter(artifacts, cache)
+    writer.ensure_ready()
     candidates = promote_self_candidates(cache, sources, today)
     prepared = prepare_persona(candidates, list(cache.active("persona")))
     persona, plan = prepared.persona, prepared.revisions
     if persona is None:
         return None
-    artifacts.commit_many(plan.rows(), op=plan.op, reason=plan.reason)
-    if plan.writes:
-        cache.put(persona)
-        for write in plan.writes:
-            if write.artifact.header.state != "active":
-                cache.remove(write.artifact.header.id)
+    writer.execute(plan)
     return persona
 
 

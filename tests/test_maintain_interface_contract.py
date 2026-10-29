@@ -18,7 +18,7 @@ EXPORTS = {
     "distill_persona": "persona", "distill_self_persona": "persona",
     "consolidate_relationships": "relationship", "link_new": "link", "persist": "link",
     "signals": "reflect", "should_reflect": "reflect", "promote_candidates": "promote",
-    "RevisionWrite": "plans", "RevisionPlan": "plans",
+    "RevisionWrite": "plans", "RevisionPlan": "plans", "MaintenanceWriter": "writer",
 }
 
 

@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from .writer import MaintenanceWriter
+
 import datetime
 
 try:  # Plugin namespace / 插件命名空间。
@@ -19,10 +21,10 @@ except ImportError:  # Top-level package / 顶层包。
 from .expiry_policy import FORGET_BELOW, _day, _anchor, decay_plan
 
 
-def decay_all(artifacts: ArtifactStore, cache: ArtifactCache, today: str) -> int:
+def decay_all(artifacts: ArtifactStore, cache: ArtifactCache, today: str, *, writer: MaintenanceWriter | None = None) -> int:
     """Compute decay, atomically commit the group, then update cache / 计算衰退并原子提交版本组，再更新缓存。"""
+    writer = writer or MaintenanceWriter(artifacts, cache)
+    writer.ensure_ready()
     plan = decay_plan(list(cache.active()), today)
-    artifacts.commit_many(plan.rows(), op=plan.op, reason=plan.reason)
-    for write in plan.writes:
-        cache.remove(write.artifact.header.id)
+    writer.execute(plan)
     return len(plan.writes)

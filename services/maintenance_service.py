@@ -28,6 +28,13 @@ except ImportError:  # Standalone root / 独立测试以仓库为导入根。
     from core.persona import PERSONA_SYNTHESIS_VERSION
 
 
+try:
+    from ..maintain.writer import MaintenanceWriter
+    from ..maintain.plans import RevisionPlan, RevisionWrite
+except ImportError:
+    from maintain.writer import MaintenanceWriter
+    from maintain.plans import RevisionPlan, RevisionWrite
+
 from .persona_policy import persona_evidence, persona_revision, relationship_weight
 
 
@@ -56,6 +63,17 @@ class MaintenanceService:
         self._c = config or (lambda _key, default: default)
         self.persona_model = persona_model
         self.clock = clock or datetime.datetime.now
+        self._writer = MaintenanceWriter(artifacts, cache, defer_cache_errors=True)
+
+    @property
+    def _writes(self) -> MaintenanceWriter:
+        """Bind current caller-owned resources without losing prepared progress.
+
+        绑定当前调用方资源，不丢失已准备进度；兼容调用方重建连接及缓存后的重新接线。
+        """
+        self._writer.artifacts = self.artifacts
+        self._writer.cache = self.cache
+        return self._writer
 
     def _relationship_mode(self) -> str:
         """Read the relationship mode, warning and falling back when invalid / 读取关系模式，无效时警告并回退。"""
@@ -90,6 +108,13 @@ class MaintenanceService:
             unknown_weight=group_weight,
         )
 
+    def retry_writebacks(self) -> int:
+        """Resume prepared maintenance commits/cache repairs without policy or model calls.
+
+        不调用规则或模型，仅恢复已准备的维护提交及缓存补偿。
+        """
+        return self._writes.retry_writebacks()
+
     async def weekly(self) -> dict:
         """Run the ordered relationship, self-impression, decay, merge and persona stages / 依次执行关系、自身印象、衰退、合并及人格阶段。"""
         try:
@@ -107,6 +132,7 @@ class MaintenanceService:
 
         if self.artifacts is None or self.sources is None or self.cache is None:
             return {}
+        self._writes.ensure_ready()
         today = datetime.date.today().isoformat()
         relationships = 0
         if self._relationship_mode() != "off":
@@ -115,21 +141,21 @@ class MaintenanceService:
                     self.artifacts,
                     self.sources,
                     self.cache,
-                    self._relationship_policy(),
+                    self._relationship_policy(), writer=self._writes,
                 )
                 metrics["updated"] = relationships
         with self.journal.span("weekly", "self_impression") as metrics:
-            self_made = build_self_impressions(self.artifacts, self.sources, self.cache, today=today)
+            self_made = build_self_impressions(self.artifacts, self.sources, self.cache, today=today, writer=self._writes)
             metrics["made"] = self_made
         with self.journal.span("weekly", "decay") as metrics:
-            dropped = decay_all(self.artifacts, self.cache, today)
+            dropped = decay_all(self.artifacts, self.cache, today, writer=self._writes)
             metrics["forgotten"] = dropped
         with self.journal.span("weekly", "merge", threshold=0.6) as metrics:
-            merged = merge_similar(self.artifacts, self.cache, threshold=0.6)
+            merged = merge_similar(self.artifacts, self.cache, threshold=0.6, writer=self._writes)
             metrics["merged"] = merged
         with self.journal.span("weekly", "persona") as metrics:
             if self.persona_model is None:
-                persona = distill_self_persona(self.artifacts, self.sources, self.cache, today)
+                persona = distill_self_persona(self.artifacts, self.sources, self.cache, today, writer=self._writes)
                 persona_result = {
                     "status": "updated" if persona else "unchanged",
                     "mode": "legacy_deterministic",
@@ -144,7 +170,7 @@ class MaintenanceService:
                     # there is no seeded persona to synthesize from, keep the
                     # historical deterministic self-impression persona path.
                     persona = distill_self_persona(
-                        self.artifacts, self.sources, self.cache, today
+                        self.artifacts, self.sources, self.cache, today, writer=self._writes
                     )
                     persona_result = {
                         "status": "updated" if persona else "unchanged",
@@ -170,10 +196,12 @@ class MaintenanceService:
             "persona": bool(persona),
             "persona_result": persona_result,
             "relationships": relationships,
+            "writeback_pending": self._writes.pending(),
         }
 
     async def _synthesize_persona_async(self) -> dict:
         """Select evidence, request a draft and commit before updating cache / 选择证据并请求草案，提交后再更新缓存。"""
+        self._writes.ensure_ready()
         if not bool(self._c("persona_synthesis_enabled", True)):
             return {"status": "disabled"}
         active = sorted(
@@ -220,28 +248,25 @@ class MaintenanceService:
             )
         except Exception as exc:  # noqa: BLE001 - keep the old persona on failure
             self.logger.warning(
-                f"[seekmemory] persona synthesis failed: {type(exc).__name__}: {exc}"
+                f"[seekmemory] persona synthesis failed: {type(exc).__name__}"
             )
             return {"status": "failed", "error": type(exc).__name__}
         if draft is None:
             return {"status": "unchanged", "reason": "same_text"}
         try:
             replacement = self._persona_revision(current, draft, evidence)
-            self.artifacts.commit(
-                replacement,
-                expected_revision=current.header.revision,
-                op="revise",
-                reason="dream persona synthesis",
-                source_ids=tuple(replacement.header.lineage.sources),
-            )
+            plan = RevisionPlan((RevisionWrite(
+                replacement, current.header.revision, tuple(replacement.header.lineage.sources),
+            ),), "revise", "dream persona synthesis")
+            self._writes.execute(plan, grouped=False)
         except Exception as exc:  # noqa: BLE001 - no partial persona write
             self.logger.warning(
-                f"[seekmemory] persona synthesis write failed: {type(exc).__name__}: {exc}"
+                f"[seekmemory] persona synthesis write failed: {type(exc).__name__}"
             )
             return {"status": "failed", "error": type(exc).__name__}
-        self.cache.put(replacement)
         return {
             "status": "updated",
+            "writeback_pending": self._writes.pending(),
             "revision": replacement.header.revision,
             "evidence": len(evidence),
             "usage": {
@@ -291,7 +316,7 @@ class MaintenanceService:
         if self.artifacts is None or self.cache is None:
             return 0
         with self.journal.span("capacity", "compact_artifacts") as metrics:
-            merged = merge_similar(self.artifacts, self.cache, threshold=0.6)
+            merged = merge_similar(self.artifacts, self.cache, threshold=0.6, writer=self._writes)
             metrics["merged"] = merged
         return merged
 
@@ -304,6 +329,6 @@ class MaintenanceService:
         if self.artifacts is None or self.cache is None:
             return 0
         with self.journal.span("capacity", "forget_expired") as metrics:
-            forgotten = forget_expired(self.artifacts, self.cache, today)
+            forgotten = forget_expired(self.artifacts, self.cache, today, writer=self._writes)
             metrics["forgotten"] = forgotten
         return forgotten

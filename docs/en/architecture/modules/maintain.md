@@ -45,3 +45,13 @@ reflect.py can compute wrong/right signals from adjacent user messages, but the 
 | `reflect.py`, `promote.py` | Pure reflection signals (no production caller) and verified self-candidate compatibility entry | Low/medium: documented actual wiring |
 
 The matching variants deliberately remain separate: impression Dice, merge/reflect Jaccard and graph-link Dice are not interchangeable. The existing impression dependency on the recall character helper is documented for the later shared-rule migration. No formulas, time conversion, seed contents, prompts or persisted formats change in this pass. Interface/import contracts and existing evidence, persona, identity, relationship and failure scenarios verify the moved stages.
+
+## Prepared-write recovery
+
+`MaintenanceService` retains one `MaintenanceWriter`. Each task prepares an exact `RevisionPlan`, then the writer uses the existing single or group transaction. Failed database writes retain that exact plan/IDs; CAS conflicts discard it without rebasing or overwriting newer content. Successful commits are recorded and consumed before cache work. Cache-only repair tracks committed IDs and reads their newest database heads; it never repeats a version commit.
+
+Before deriving new plans from cache, the writer retries unfinished work. A still-unrepaired view reports `maintenance_writeback_pending`, preventing stale-cache recreation of self-impressions or parallel personas. Service outcomes include `writeback_pending` counts where a final cache repair remains; pure background compensation and shutdown can retry without model/policy execution. Model-synthesized persona drafts also use this writer, so a failed commit can be repaired without another model request. Rebinding the existing caller-owned repository/cache fields keeps prepared progress and uses the current resources.
+
+Free functions accept an optional keyword writer. Existing callers keep their return shapes and propagation of cache failures; long-lived services inject the retained writer and defer cache-only errors. Distinct group/subject plans remain independent transactions. Recovery is process-local; no persistent task tables or crash/multiprocess guarantee is added. The known duplicate cache-repair implementations are scheduled for the cross-module shared-capability pass.
+
+`tests/test_maintenance_failure_recovery.py` covers exact failed-plan IDs, repeated cache failures with newer versions, no parallel personas, conflicting-group atomicity and no repeated persona model calls. Reverting the recovery commit needs no data migration.

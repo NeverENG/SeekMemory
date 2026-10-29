@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 修复维护写入或缓存失败后重复生成自我印象及并列人格的问题：服务保留精确版本计划，提交成功后仅补缓存；旧缓存未修复时不推导新计划，预期版本冲突不覆盖新正文，人格补写不重复调用模型。
+
 - 内部卫生：明确 maintain 的 domain/ports 和有类型版本计划，分开遗忘、聚类、印象、自我证据、人格及关系的准备规则与读写；保留原函数路径、原子范围、证据及算法行为，并标明未接入的反思能力。
 
 - 修复指定记忆已记录但缓存失败后的重复正文注入与重复提交：纯查询检查数据库最新状态，待提交和仅需缓存补偿分别恢复；旧版本不能覆盖新正文，后台及停止前可纯补写。无结构或配置变更。
@@ -29,6 +31,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Retain exact maintenance revision plans across failed commits/cache updates, preventing repeated self-impressions or parallel personas; committed writes retry cache only, stale views block new planning, conflicts preserve newer text and persona compensation never repeats model calls.
 
 - Internal hygiene: add explicit maintain domain/ports and typed revision plans, separating forgetting, clustering, impression, self-evidence, persona and relationship preparation from I/O while preserving imports, atomicity, evidence and algorithms; document unwired reflection accurately.
 

@@ -71,3 +71,5 @@ BackgroundService 管 nightly/idle/Dream/weekly/checkpoint/runtime worker 的启
 记忆上下文构造使用纯 `RecallService.query()`。明确包含记录通过可选通用 `MemoryContextRecorder` 转发；普通宿主钩子在附加到请求后调用，后台在模型调用前立即调用。运行时不包含指定记忆规则；旧 `RecallService.build()` 仍是兼容的查询加记录入口。
 
 后台补偿也委托上下文包含记录器，因此关闭抽取或发言时，以及数据库关闭前，仍可完成指定记忆待提交或缓存补偿。
+
+MaintenanceService 保留维护写入协调器以恢复精确已准备提交及最新版本缓存补偿；后台在关闭抽取或发言时，以及数据库关闭前仍委托补偿。待修缓存会阻止根据旧视图继续推导维护计划。
