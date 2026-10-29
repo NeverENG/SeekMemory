@@ -66,3 +66,5 @@ Hooks/attention no longer forward arbitrary unknown attributes. Their `_bindings
 | `persona_packs.py`, `relationship_policy.py` | Authored local files and validated relationship projections | Medium: format/access rules remain in their existing owners |
 
 `tests/test_adapter_interface_contract.py` protects shared exports/protocols; runtime plugin tests protect finite dependencies and callback identity/order. Existing host lifecycle, cancellation, context, action and time-hook checks remain required. The UTC+8 implementation was compared as an AST with docstrings removed and is unchanged. Management routes and Node/frontend implementations are outside restructuring scope.
+
+The host owns the observed bot identity used by background RunContext. Callback-only tool attempts belong to AstrBotHooks and are cleared after resource cleanup, so restart cannot complete an old tool receipt against a new executor. The host lifecycle regression covers identity capture, shutdown clearing and restart.

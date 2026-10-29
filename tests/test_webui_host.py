@@ -200,6 +200,20 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("window.AstrBotPluginPage", client)
 
+    async def test_bot_identity_and_tool_correlations_follow_host_lifecycle(self) -> None:
+        event = PrivateEvent("记住这件事", "host-identity")
+        await self.restart_plugin(owner_umo=event.unified_msg_origin)
+        event.get_self_id = lambda: "current-bot-id"
+        await self.plugin.buffer_message(event)
+        context = self.plugin._make_run_context(event.unified_msg_origin, self.plugin.clock())
+        self.assertEqual(context.bot_id, "current-bot-id")
+        self.plugin.hooks._action_attempts["old-tool-call"] = object()
+        await self.plugin.terminate()
+        self.assertEqual(self.plugin.hooks._action_attempts, {})
+        self.assertEqual(self.plugin._self_id, "")
+        await self.plugin.initialize()
+        self.assertEqual(self.plugin.hooks._action_attempts, {})
+
     async def test_initialization_is_idempotent_and_shutdown_owns_resources(
         self,
     ) -> None:

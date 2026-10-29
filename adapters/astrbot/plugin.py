@@ -106,6 +106,7 @@ class AstrBotPlugin(star.Star):
         self.capacity: CapacityGovernor | None = None
         self.relationship_policy: RelationshipInteractionPolicy | None = None
         self._last_runtime_prune_at = 0.0
+        self._self_id = ""
         self._started = False
         self._lifecycle_lock = asyncio.Lock()
         self.actions = None
@@ -513,6 +514,7 @@ class AstrBotPlugin(star.Star):
             "tool_policy", "capacity", "run_traces", "run_tracer", "trace",
         ):
             setattr(self, name, None)
+        self.hooks.reset()
         self._self_id = ""
         self._started = False
         if cancellation is not None:

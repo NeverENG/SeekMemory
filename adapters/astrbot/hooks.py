@@ -22,6 +22,7 @@ class AstrBotHooks:
     def __init__(self, host: HookHost | None = None) -> None:
         self.host = host
         self.clock = getattr(host, "clock", None) or (lambda: 0.0)
+        self._action_attempts: dict = {}
 
     @property
     def _bindings(self) -> HookHost:
@@ -30,6 +31,13 @@ class AstrBotHooks:
         仅读取已声明宿主视图，独立的旧测试可在本地绑定字段；不转发任意属性。
         """
         return self.host if self.host is not None else self
+
+    def reset(self) -> None:
+        """Clear process-local callback correlations after host work has stopped.
+
+        在宿主工作停止后清理进程内回调关联，避免重启使用上次运行的工具尝试。
+        """
+        self._action_attempts.clear()
 
     def _maybe_prune_runtime_episodes(self) -> None:
         """Run bounded audit cleanup at the existing minimum interval / 按既有最小间隔执行有数量上限的审计清理。"""
@@ -189,7 +197,7 @@ class AstrBotHooks:
                     context={"error": self._bindings.buffer.save_error},
                 )
             try:
-                self._self_id = str(event.get_self_id())
+                self._bindings._self_id = str(event.get_self_id())
             except Exception:
                 pass
             AstrBotRuntimeAdapter.bind_user(event, receipt)
