@@ -292,7 +292,9 @@ class IngestService:
                 context={"topics": processed, "written": written, **triage_metrics}, stage="batch.complete",
             )
             if failure is not None:
-                raise ExtractionFailure(written, processed, type(failure).__name__) from failure
+                if written:
+                    raise ExtractionFailure(written, processed, type(failure).__name__) from failure
+                raise failure
             return written, processed
         finally:
             self.flushing = False

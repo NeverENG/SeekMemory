@@ -182,6 +182,13 @@ class IngestWritebackTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.service.retry_writebacks(), 0)
         self.assertEqual(self.model.calls, 1)
 
+    async def test_model_failure_without_commits_preserves_original_exception_type(self):
+        with patch.object(self.model, "text_chat", side_effect=ValueError("provider unavailable")):
+            with self.assertRaises(ValueError):
+                await self.service.flush("test")
+        self.assertEqual(self.db.artifacts.count(), 0)
+        self.assertEqual(len(self.buffer.items), 1)
+
     async def test_broken_diagnostics_do_not_lose_successful_flush_counts(self):
         with patch.object(self.service.journal, "span", side_effect=OSError("diagnostic unavailable")), \
              patch.object(self.service.journal, "record", side_effect=OSError("diagnostic unavailable")), \
