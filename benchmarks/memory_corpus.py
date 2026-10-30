@@ -30,7 +30,7 @@ def to_artifact(event):
 
 构造旧样本预设权重，不执行强化。
     """
-    from core.domain.memory.artifact import make
+    from core.artifact import make
 
     payload = {"text": event.text, "level": event.level, "shape": "point",
                "chrono": "once", "about": "other"}
@@ -47,7 +47,7 @@ def to_artifact(event):
 
 def _synthetic_pool(n: int) -> list:
     """Build deterministic scaling samples, including identity and dates / 构造编号和日期也固定的规模样本。"""
-    from core.domain.memory.artifact import make
+    from core.artifact import make
 
     templates = ("他今天跟我说了{}", "他下午在弄{}", "他提到{}有点麻烦", "他问{}怎么弄", "他{}做完了")
     words = ("项目", "数据库", "接口", "部署", "文档", "测试", "会议", "报表", "脚本", "配置",
