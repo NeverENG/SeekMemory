@@ -31,7 +31,7 @@ from .contracts import (
 )
 from .actions import ActionExecutor
 from .recorder import RecordedReply, RunRecorder
-from .attention import DefaultAttentionPolicy
+from .policy.attention import DefaultAttentionPolicy
 from .topics import TopicCandidate
 from .writeback import DeliveryReceipt, DeliveryWritebacks
 from .episode import normalize_tool_calls

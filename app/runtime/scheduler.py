@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from .contracts import ProactivePolicy, SessionState, SessionStateStore
-from .proactive import ProactiveDispatchPlan, plan_proactive_dispatch
+from .policy.proactive import ProactiveDispatchPlan, plan_proactive_dispatch
 
 
 @dataclass(frozen=True)

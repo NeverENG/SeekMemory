@@ -56,3 +56,7 @@ RunRecorder 保留原始消息、投影及逐条强化的完成位置，失败�
 文件审计补偿以原有 `session_id/run_id` 字段识别完整已保存行；追加结果不确定时重新读取已保存编号，防止再次追加。此去重仅覆盖同实例及重建实例后的完整行，不是跨进程文件锁，也不增加文件字段。
 
 记忆上下文构造使用纯 `RecallService.query()`。明确包含记录通过可选通用 `MemoryContextRecorder` 转发；普通宿主钩子在附加到请求后调用，后台在模型调用前立即调用。运行时不包含指定记忆规则；旧 `RecallService.build()` 仍是兼容的查询加记录入口。
+
+现有注意力与主动选择策略分别由 `app/runtime/policy/attention.py`、`proactive.py` 维护；旧 `app.runtime.attention`、`proactive` 导入保留为同一模块对象的兼容入口。工具策略暂留 `app/runtime/tools.py`，因为它还包含宿主形状的过滤入口；`contracts/` 仍声明数据和端口，`runtime.py`、`dispatch.py`、`actions.py` 等仍负责执行与副作用。本次仅移动文件，不改变策略、调度或中断语义。
+
+`app/runtime/contracts/context.py` 定义 `MemoryContextRequest` 和 `MemoryContext` 数据契约；`app/runtime/port/capabilities.py` 声明此前位于 `contracts/ports.py` 的外部能力协议（时钟、模型、记忆、发送与仓储等）。旧 `contracts/ports.py` 只转发同一对象以保留导入路径；原本与状态和动作 DTO 紧邻的 `SessionStateStore`、`ActionPort` 等协议暂留各自契约文件，不为目录整齐而改变声明所有权。

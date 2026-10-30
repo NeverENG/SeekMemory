@@ -10,7 +10,7 @@ import math
 from dataclasses import replace
 
 from .contracts import ActionKind, ActionRecord, ActionSink, ActionStatus
-from .contracts.ports import ActionRepository
+from .port.capabilities import ActionRepository
 from .episode import safe_error_code
 
 

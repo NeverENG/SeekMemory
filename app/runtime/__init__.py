@@ -50,9 +50,9 @@ from .actions import (
     RepoActionSink,
     action_idempotency_key,
 )
-from .attention import DefaultAttentionPolicy
+from .policy.attention import DefaultAttentionPolicy
 from .recorder import RecordedReply, RecordedTurn, RunRecorder
-from .proactive import (
+from .policy.proactive import (
     DefaultProactivePolicy,
     ProactiveCandidate,
     ProactiveDispatchPlan,

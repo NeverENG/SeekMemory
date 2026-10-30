@@ -13,7 +13,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .contracts import SessionState
-from .contracts.ports import StateRepository
+from .port.capabilities import StateRepository
 
 
 def session_state_from_payload(
