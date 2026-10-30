@@ -141,6 +141,54 @@ class RunRecorderTest(unittest.TestCase):
         self.assertEqual(len(self.buffer.rows), 1)
 
 
+    def test_user_turn_event_id_is_scoped_to_session(self):
+        first = self.recorder.record_user(
+            session_id="s1", text="hello from one", speaker_id="u1", event_id="event-1",
+        )
+        second = self.recorder.record_user(
+            session_id="s2", text="hello from two", speaker_id="u1", event_id="event-1",
+        )
+
+        self.assertNotEqual(first.source_id, second.source_id)
+        self.assertEqual(len(self.db.sources), 2)
+        self.assertEqual(len(self.buffer.rows), 2)
+        self.assertEqual(
+            {(source.session_id, source.text) for source in self.db.sources},
+            {("s1", "hello from one"), ("s2", "hello from two")},
+        )
+        self.assertEqual(first.turn_id, "event-1")
+        self.assertEqual(second.turn_id, "event-1")
+
+    def test_colliding_event_ids_keep_pending_writebacks_independent(self):
+        original_add = self.buffer.add
+        calls = 0
+
+        def fail_first_add(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise OSError("busy")
+            return original_add(*args, **kwargs)
+
+        with patch.object(self.buffer, "add", side_effect=fail_first_add):
+            with self.assertRaises(OSError):
+                self.recorder.record_user(
+                    session_id="s1", text="hello from one", speaker_id="u1", event_id="event-1",
+                )
+            second = self.recorder.record_user(
+                session_id="s2", text="hello from two", speaker_id="u1", event_id="event-1",
+            )
+
+        self.assertEqual(second.turn_id, "event-1")
+        self.assertEqual(len(self.db.sources), 2)
+        self.assertEqual(self.recorder.retry_pending(), 1)
+        self.assertEqual(len(self.db.sources), 2)
+        self.assertEqual(len(self.buffer.rows), 2)
+        self.assertEqual(
+            {(row[0], row[1]) for row in self.buffer.rows},
+            {("s1", "hello from one"), ("s2", "hello from two")},
+        )
+
     def test_user_turn_write_back_is_idempotent_by_event_id(self):
         first = self.recorder.record_user(
             session_id="s1",
