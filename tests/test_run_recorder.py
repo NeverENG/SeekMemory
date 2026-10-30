@@ -18,6 +18,7 @@ from app.runtime import (  # noqa: E402
     RunRecorder,
     EpisodeRecord,
 )
+from perceive.buffer import Buffer  # noqa: E402
 from store import open_store  # noqa: E402
 
 
@@ -279,6 +280,73 @@ class RunRecorderTest(unittest.TestCase):
         rows = db.runtime_episodes.list("s1")
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["run_id"], "run-1")
+
+
+class UserEventIdentityTest(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory(prefix="seekmem_event_identity_")
+        self.addCleanup(temp.cleanup)
+        self.db = open_store(os.path.join(temp.name, "memory.db"))
+        self.addCleanup(self.db.close)
+        self.buffer = Buffer(extraction=self.db.extraction)
+        self.recorder = RunRecorder(
+            sources=self.db.sources, buffer=self.buffer, checkpoint=None, episodes=None,
+            clock=lambda: "2026-01-01T00:00:00",
+        )
+
+    def record(self, session_id, speaker_id, text):
+        return self.recorder.record_user(
+            session_id=session_id, speaker_id=speaker_id, text=text, event_id="event-1"
+        )
+
+    def test_reused_event_id_preserves_source_identity_and_exact_replays(self):
+        messages = [
+            ("s1", "u1", "hello"),
+            ("s2", "u1", "hello"),
+            ("s1", "u2", "hello"),
+            ("s1", "u1", "different message"),
+        ]
+        receipts = [self.record(*message) for message in messages]
+        self.assertEqual(len({receipt.source_id for receipt in receipts}), len(messages))
+        for receipt, message in zip(receipts, messages):
+            source = self.db.sources.sources_by_ids([receipt.source_id])[receipt.source_id]
+            self.assertEqual((source.session_id, source.speaker_id, source.text), message)
+            self.assertEqual(receipt.turn_id, "event-1")
+            self.assertEqual(source.turn_id, "event-1")
+            self.assertEqual(self.record(*message), receipt)
+        self.buffer.load()
+        self.assertEqual(len(self.db.sources.recent_sources(since="", limit=10)), len(messages))
+        self.assertEqual(len(self.buffer.items), len(messages))
+        self.assertEqual({turn.source_id for turn in self.buffer.items},
+                         {receipt.source_id for receipt in receipts})
+
+    def test_pending_projection_is_independent_of_a_colliding_session(self):
+        add = self.buffer.add
+
+        def block_first_session(umo, *args, **kwargs):
+            if umo == "s1":
+                raise OSError("projection busy")
+            return add(umo, *args, **kwargs)
+
+        with patch.object(self.buffer, "add", side_effect=block_first_session):
+            with self.assertRaises(OSError):
+                self.record("s1", "u1", "hello")
+            first_source = self.db.sources.recent_sources(since="", limit=10)[0]
+            second = self.record("s2", "u1", "hello")
+            self.assertEqual(self.db.sources.source_umo(second.source_id), "s2")
+            self.assertEqual([turn.source_id for turn in self.buffer.items], [second.source_id])
+            self.assertEqual(self.recorder.retry_pending(), 0)
+
+        self.assertEqual(self.recorder.retry_pending(), 1)
+        first = self.record("s1", "u1", "hello")
+        self.assertEqual(first.source_id, first_source.id)
+        self.assertEqual(self.record("s2", "u1", "hello"), second)
+        self.assertEqual(self.recorder.retry_pending(), 0)
+        self.buffer.load()
+        self.assertEqual(len(self.db.sources.recent_sources(since="", limit=10)), 2)
+        self.assertEqual(len(self.buffer.items), 2)
+        self.assertEqual({turn.source_id for turn in self.buffer.items},
+                         {first.source_id, second.source_id})
 
 
 if __name__ == "__main__":

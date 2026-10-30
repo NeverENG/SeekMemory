@@ -39,6 +39,8 @@ runtime_gate_enabled 默认 false。关闭时，等待和后台 deferred dispatc
 
 RunRecorder 是 Source、pending projection、checkpoint 和 episode 的唯一运行时写回协调者，以 run_id 和确定性 Source ID 防止重复回调重复写入。runtime_episodes 是追加式业务审计元数据；RunTracer/TraceStore 是受字段白名单约束的诊断时间线。二者不保存对话正文，不互相替代。
 
+用户消息的已完成回执与待补偿写入都以现有 Source ID 为内部键，保留会话、说话人及正文的身份边界。不同会话可复用 event_id；同一消息重放不会重复写入。对外 turn_id 仍保留原 event_id（缺失时使用 Source ID）。
+
 ### 运行轨迹事件边界
 
 `app/runtime/tracing.py` 的 RunTracer 是宿主无关生产者，事件仅需要 get_extra/set_extra 关联状态；`core/trace.py` 拥有字段清理与运行投影，`store/run_trace.py` 拥有 JSONL 持久化。管理查询消费同一快照，见 [WebUI](webui.md#运行轨迹查询)。

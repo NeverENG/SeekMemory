@@ -1,5 +1,15 @@
 # 变更记录
 
+## Unreleased
+
+### 中文
+
+- 修复用户消息跨会话复用 event_id 时被误去重的问题：RunRecorder 的已完成记录与待补偿写入统一按现有 Source ID 区分，保留同一消息重放的幂等性及对外 turn_id，无数据格式或配置变化（#187）。
+
+### English
+
+- Fix user messages being incorrectly deduplicated when event IDs are reused across sessions: RunRecorder keys completed and pending user writeback by the existing Source ID, preserving exact replay idempotency and public turn_id values. No data-format or configuration changes (#187).
+
 ## 0.5.1 — 2026-10-28
 
 ### 中文

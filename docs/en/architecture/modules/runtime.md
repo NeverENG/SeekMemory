@@ -39,6 +39,8 @@ runtime_gate_enabled defaults to false. While disabled, wait and background defe
 
 RunRecorder is the single runtime write-back coordinator for Sources, pending projection, checkpoint, and episodes. run_id and deterministic Source IDs prevent repeated callbacks from duplicating writes. runtime_episodes is append-only business audit metadata; RunTracer/TraceStore is a field-whitelisted diagnostic timeline. They are separate and neither stores conversation bodies.
 
+Completed user receipts and pending user writeback use the existing Source ID as their internal key, preserving session, speaker, and text identity boundaries. Sessions may reuse event IDs, while exact message replays remain idempotent. Public turn_id values retain the original event_id, or the Source ID when absent.
+
 ### Run trace event boundary
 
 RunTracer in `app/runtime/tracing.py` is a host-neutral producer; events need only get_extra/set_extra for correlation. `core/trace.py` owns field cleaning and run projection; `store/run_trace.py` owns JSONL persistence. Management queries consume the same snapshot; see [WebUI](webui.md#run-trace-queries).
