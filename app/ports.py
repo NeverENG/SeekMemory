@@ -11,18 +11,18 @@ from __future__ import annotations
 from typing import Any, Protocol, runtime_checkable
 
 try:
-    from ..core.artifact import Artifact
-    from ..core.graph import ArtifactEdge
-    from ..core.source import Source
-    from ..core.versioning import StateEvent
-    from ..core.retrieval import RetrievalCandidate
+    from ..core.domain.memory.artifact import Artifact
+    from ..core.domain.memory.graph import ArtifactEdge
+    from ..core.domain.memory.source import Source
+    from ..core.domain.memory.versioning import StateEvent
+    from ..core.domain.memory.retrieval import RetrievalCandidate
     from .contracts import ChatRequest, ChatResponse
 except ImportError:
-    from core.artifact import Artifact
-    from core.graph import ArtifactEdge
-    from core.source import Source
-    from core.versioning import StateEvent
-    from core.retrieval import RetrievalCandidate
+    from core.domain.memory.artifact import Artifact
+    from core.domain.memory.graph import ArtifactEdge
+    from core.domain.memory.source import Source
+    from core.domain.memory.versioning import StateEvent
+    from core.domain.memory.retrieval import RetrievalCandidate
     from app.contracts import ChatRequest, ChatResponse
 
 

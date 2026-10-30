@@ -16,7 +16,7 @@ import tracemalloc
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT.parent))
-make = importlib.import_module(f"{ROOT.name}.core.artifact").make
+make = importlib.import_module(f"{ROOT.name}.core.domain.memory.artifact").make
 open_store = importlib.import_module(f"{ROOT.name}.store").open_store
 graph = importlib.import_module(f"{ROOT.name}.services.console_projection").graph
 

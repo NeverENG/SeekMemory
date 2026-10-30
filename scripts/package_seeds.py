@@ -17,8 +17,8 @@ def seed_files(root: Path, tracked: set[str]) -> set[str]:
     import sys
     # Same repository validator used at runtime; no alternative seed schema.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from core.persona import normalize_persona_file
-    from core.persona_artwork import MAX_ARTWORK_BYTES, validate_artwork
+    from core.domain.character.persona import normalize_persona_file
+    from core.domain.character.persona_artwork import MAX_ARTWORK_BYTES, validate_artwork
 
     directory = root / 'persona_seeds'
     index = directory / 'index.json'

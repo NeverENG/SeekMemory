@@ -38,8 +38,8 @@ from ...app.runtime import (
     ToolPolicy,
 )
 from ...app.runtime.tracing import RunTracer
-from ...core.capacity import CapacityGovernor, CapacityThresholds, load_thresholds
-from ...core.graph import Graph
+from ...core.domain.operations.capacity import CapacityGovernor, CapacityThresholds, load_thresholds
+from ...core.domain.memory.graph import Graph
 from ...services import (
     AccessPolicy,
     AccessService,

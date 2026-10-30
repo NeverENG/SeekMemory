@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 将树的唯一父节点和有界祖先查询归入 core 的只读领域规则，遇到环或多父节点歧义时停止；TreeService 保留写入协调，树边编码、已存数据和配置不变。
+
 - 将指定记忆的纯触发/给出规则从兼容写入入口分开，解除上下文记录器的内部反向依赖，保留旧导入别名和规则行为。
 
 - 完成后端及脚本英文在前的等义中文职责说明，修正命中、人格副本及秘密披露旧注释；同步最终模块能力、资源归属、恢复边界和验证入口，并说明保留较长编排文件的理由。纯注释修改校验非说明语法树一致。
@@ -49,6 +51,8 @@
 - 回归测试覆盖：At 组件识别、wake-all 不再算点名、主人开关、陪聊轮数。
 
 ### English
+
+- Move unique-parent and bounded ancestor reads into core read-only tree rules, stopping on cycles or ambiguous parents; TreeService still coordinates writes. Stored edge encoding, data, and configuration are unchanged.
 
 - Separate pure designated trigger/given predicates from the compatible recording entry, removing the context writer’s reverse implementation dependency while preserving old aliases and rule behavior.
 
@@ -120,6 +124,8 @@
 
 ### 中文
 
+- 将 core 的领域实现归入 `core/domain/`，图存储协议归入 `core/port/`；旧模块导入与 `core.ports` 保留同一对象的兼容入口。移除 `main.py` 整文件 40 行上限测试，保留入口职责边界检查。未改模型调用、持久化格式或公开配置。
+
 - app 卫生：保留兼容入口，内部区分纯规则、状态变化、执行和补写；全量规范中英双语源码说明，同步双语文件职责、接口及验证入口。存储和宿主转接暂留原处，供后续跨模块整理。
 
 - 运行时：确认发送后保留进程内凭据，写回失败仅补状态、原始消息/队列及审计；关闭后台发言及停止时仍补写。保存失败可被编排识别，文件失败不覆盖旧状态，新增审计使用稳定运行编号。不改数据库结构或旧记录，不保证断电后绝对不重发。
@@ -175,6 +181,8 @@
 - 人格控制台接入历史版本回滚、差异比较与变化原因；安装时校验预览内容，按版本显示已安装状态；Dream 日志区分预算停止与完成，并显示调度开关。新增控制台接口需与 dashboard 同步更新，不涉及数据库迁移或配置变化（#82 / #83）。
 
 ### English
+
+- Group core domain implementations under `core/domain/` and the graph storage protocol under `core/port/`; legacy module imports and `core.ports` still resolve to the same objects. Remove the whole-file 40-line limit test for `main.py` while retaining entry-point ownership checks. Model calls, persisted formats and public configuration are unchanged.
 
 - Clarify app pure rules, transitions, dispatch and write-back behind compatible entries; standardize bilingual source documentation and update mirrored responsibility/interface/verification maps. Storage and host adapters remain in place pending cross-module inventory.
 

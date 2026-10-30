@@ -23,7 +23,7 @@ These fields are not interchangeable: subject_id identifies who a conclusion is 
 | maintain | Evidence analysis, revision plans and maintenance writes | Separate pure rules from I/O; resume prepared plans without recreating committed interpretations |
 | store | SQLite repositories, cache and persistence | Store owns one connection and repositories borrow it; SQL/transactions remain here |
 
-Each module exposes provided capabilities through domain.py and required capabilities through ports.py; supported legacy implementation entries remain. Python management services are included; webui/dashboard/DSH structure retains its existing owners.
+Business modules still expose domain.py and ports.py; core groups domain implementations and exports in core/domain/ and required protocols in core/port/. Legacy module import paths remain compatibility entries. Python management services are included; webui/dashboard/DSH structure retains its existing owners.
 
 The dependency direction is enforced by code boundaries: core does not depend on the host or storage; SQL belongs in store; AstrBot types stay in adapters and the host route layer; services compose business modules without issuing SQL.
 

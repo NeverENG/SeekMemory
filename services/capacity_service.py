@@ -11,7 +11,7 @@ from typing import Any, Callable
 try:
     from .ports import ExtractionStore, MetricsStore, CapacityTrace, ServiceJournal, ServiceLogger
     from .maintenance_service import MaintenanceService
-    from ..core.capacity import (
+    from ..core.domain.operations.capacity import (
         NORMAL,
         PROTECTIVE,
         CapacityDecision,
@@ -21,7 +21,7 @@ try:
 except ImportError:
     from services.ports import ExtractionStore, MetricsStore, CapacityTrace, ServiceJournal, ServiceLogger
     from services.maintenance_service import MaintenanceService
-    from core.capacity import (
+    from core.domain.operations.capacity import (
         NORMAL,
         PROTECTIVE,
         CapacityDecision,

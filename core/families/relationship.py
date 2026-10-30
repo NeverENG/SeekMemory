@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from ..relationship import RELATIONSHIP_POLICY_VERSION, RelationshipBand
+from ..domain.social.relationship import RELATIONSHIP_POLICY_VERSION, RelationshipBand
 
 # Preserve the persisted vocabulary and order from its domain owner.
 BANDS = tuple(band.value for band in RelationshipBand)

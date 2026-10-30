@@ -14,9 +14,9 @@ except ImportError:
     from sqlite import SqliteRepository, dump_json, load_json_object, now_iso
 
 try:
-    from ..core.source import Source
+    from ..core.domain.memory.source import Source
 except ImportError:
-    from core.source import Source
+    from core.domain.memory.source import Source
 
 
 def source_flags(source: Source) -> dict[str, Any]:

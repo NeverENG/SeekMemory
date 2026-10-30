@@ -5,11 +5,11 @@
 from __future__ import annotations
 
 try:
-    from ..core.disclosure import DisclosureLevel, decide, safe_text
-    from ..core.bot_behavior import trusted_self_persona
+    from ..core.domain.memory.disclosure import DisclosureLevel, decide, safe_text
+    from ..core.domain.character.bot_behavior import trusted_self_persona
 except ImportError:
-    from core.disclosure import DisclosureLevel, decide, safe_text
-    from core.bot_behavior import trusted_self_persona
+    from core.domain.memory.disclosure import DisclosureLevel, decide, safe_text
+    from core.domain.character.bot_behavior import trusted_self_persona
 
 def disclose(arts: list, relevance: float, *, scene, sources, umo: str, owner_umo: str,
              overrides: dict[str, str], disclosure_info: dict[str, str]) -> list:

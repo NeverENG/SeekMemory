@@ -8,9 +8,9 @@ from __future__ import annotations
 from typing import Any, Callable, Mapping
 
 try:
-    from ..core.bot_behavior import BEHAVIORS
+    from ..core.domain.character.bot_behavior import BEHAVIORS
 except ImportError:
-    from core.bot_behavior import BEHAVIORS
+    from core.domain.character.bot_behavior import BEHAVIORS
 
 BEHAVIOR_FIELD = "bot_behavior"
 EVIDENCE_FIELD = "evidence_source_ids"

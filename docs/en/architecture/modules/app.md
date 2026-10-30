@@ -24,10 +24,10 @@ This step centralizes interface entry points, covering top-level app capabilitie
 | `RuntimeInput`, `RunContext`, `UserRunReceipt`, `RunResult` | Inbound event, pending run, acceptance receipt, delivery result | `app/runtime/contracts/events.py` |
 | `AttentionLevel`, `WakeAction`, `AttentionDecision`, `RunDecision` | Attention, reply action, and policy decisions | `app/runtime/contracts/events.py` |
 | `SessionState`, `ProactiveDecision` | Mutable session scheduling state and proactive eligibility | `app/runtime/contracts/sessions.py`, `proactive.py` |
-| `MemoryContextRequest`, `MemoryContext` | Read-only memory context input/output | `app/runtime/contracts/ports.py` |
+| `MemoryContextRequest`, `MemoryContext` | Read-only memory context input/output | `app/runtime/contracts/context.py` |
 | `ActionKind`, `ActionStatus`, `ActionRequest`, `ActionResult`, `ActionRecord` | Action vocabulary, execution input/output, content-free audit | `app/runtime/contracts/actions.py` |
 | `RecordedTurn`, `RecordedReply` | Identity/counts after Source write-back | `app/runtime/recorder.py` |
-| `ProactiveCandidate`, `ProactiveDispatchPlan`, `DueRun`, `TopicCandidate` | Proactive selection, due work, topic candidate | `app/runtime/proactive.py`, `scheduler.py`, `topics.py` |
+| `ProactiveCandidate`, `ProactiveDispatchPlan`, `DueRun`, `TopicCandidate` | Proactive selection, due work, topic candidate | `app/runtime/policy/proactive.py`, `scheduler.py`, `topics.py` |
 | `EpisodeRecord`, `EpisodeOutcome`, `ToolCall`, `ToolGuardDecision` | Episode outcome, tool observation and filter decision | `app/runtime/episode.py`, `tools.py` |
 
 ### domain: policies and executable capabilities

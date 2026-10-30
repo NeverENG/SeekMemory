@@ -86,7 +86,7 @@ def build(seed: int = 42) -> tuple[list[Event], list[Query]]:
 
 def decayed_events(events: list[Event], today: int = 30) -> list[tuple[Event, float]]:
     """按天算每条事件的留存率，供 benchmark 用。"""
-    from core.strength import Strength, retention
+    from core.domain.memory.strength import Strength, retention
 
     out = []
     for e in events:

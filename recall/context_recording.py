@@ -10,13 +10,13 @@ from datetime import datetime
 try:
     from ..app.ports import ArtifactStore, ArtifactCache
     from ..app.cache_repair import CacheRepairs
-    from ..core.artifact import Artifact, revise
-    from ..core.versioning import VersionError
+    from ..core.domain.memory.artifact import Artifact, revise
+    from ..core.domain.memory.versioning import VersionError
 except ImportError:
     from app.ports import ArtifactStore, ArtifactCache
     from app.cache_repair import CacheRepairs
-    from core.artifact import Artifact, revise
-    from core.versioning import VersionError
+    from core.domain.memory.artifact import Artifact, revise
+    from core.domain.memory.versioning import VersionError
 from .designated_policy import already_given
 
 

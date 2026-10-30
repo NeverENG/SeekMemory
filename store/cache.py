@@ -8,9 +8,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 try:  # Plugin namespace / 插件命名空间。
-    from ..core.artifact import Artifact
+    from ..core.domain.memory.artifact import Artifact
 except ImportError:  # Top-level package / 顶层包。
-    from core.artifact import Artifact
+    from core.domain.memory.artifact import Artifact
 
 from .ports import ArtifactReader
 

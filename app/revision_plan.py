@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .ports import TreeArtifactStore
 try:
-    from ..core.artifact import Artifact, revise
+    from ..core.domain.memory.artifact import Artifact, revise
 except ImportError:
-    from core.artifact import Artifact, revise
+    from core.domain.memory.artifact import Artifact, revise
 
 
 @dataclass(frozen=True)

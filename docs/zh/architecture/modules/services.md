@@ -40,6 +40,7 @@ BackgroundService 管 nightly/idle/Dream/weekly/checkpoint/runtime worker 的启
 
 | 实现文件 | 职责及副作用 | 逻辑复杂度与耦合 |
 |---|---|---|
+| `tree_service.py` | 提交 Artifact、更新缓存/父节点/树边；父节点与祖先查询委托 `core/domain/memory/tree.py` 的只读有界规则 | 中：写入步骤不构成一个事务，读取不写回；现有父节点列不作为祖先查询的真源 |
 | `ingest_service.py` | 解析提供方、调用模型及协调有顺序的抽取写入 | 高：管理模型→计划→提交→后续写入的顺序，各阶段共享一份凭据而非各自维护状态 |
 | `ingest_selection.py` | 为已解析的话题分组并检查用量预算 | 低：纯规则，不调用提供方或仓储 |
 | `ingest_state.py` | 已准备计划及每条记忆的阶段进度 | 低：进程内数据，不拥有资源 |

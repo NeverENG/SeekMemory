@@ -11,15 +11,15 @@ from typing import Any
 
 try:  # Plugin namespace / 插件命名空间。
     from ..app.ports import ArtifactCache, ArtifactStore, Retriever, SourceStore
-    from ..core.disclosure import (
+    from ..core.domain.memory.disclosure import (
         DisclosureLevel,
         RecallScene,
         decide,
         safe_text,
         scope_prior,
     )
-    from ..core.graph import Graph
-    from ..core.bot_behavior import trusted_self_persona
+    from ..core.domain.memory.graph import Graph
+    from ..core.domain.character.bot_behavior import trusted_self_persona
     from ..recall.assemble import build_with_meta as assemble_text_meta
     from ..recall.designated import deliverable, mark_given, current_heads
     from ..recall.drift import best_of as drift_best
@@ -34,15 +34,15 @@ try:  # Plugin namespace / 插件命名空间。
     from ..recall.source_query import query_recent
 except ImportError:  # Top-level package / 顶层包。
     from app.ports import ArtifactCache, ArtifactStore, Retriever, SourceStore
-    from core.disclosure import (
+    from core.domain.memory.disclosure import (
         DisclosureLevel,
         RecallScene,
         decide,
         safe_text,
         scope_prior,
     )
-    from core.graph import Graph
-    from core.bot_behavior import trusted_self_persona
+    from core.domain.memory.graph import Graph
+    from core.domain.character.bot_behavior import trusted_self_persona
 
     from recall.assemble import build_with_meta as assemble_text_meta
     from recall.designated import deliverable, mark_given, current_heads

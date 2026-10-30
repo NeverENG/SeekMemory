@@ -5,10 +5,10 @@
 from __future__ import annotations
 
 try:
-    from ..core.artifact import Artifact, content_of
+    from ..core.domain.memory.artifact import Artifact, content_of
     from ..app.ports import ArtifactStore
 except ImportError:
-    from core.artifact import Artifact, content_of
+    from core.domain.memory.artifact import Artifact, content_of
     from app.ports import ArtifactStore
 
 

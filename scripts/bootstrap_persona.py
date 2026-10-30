@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if args.dry_run:
-        from core.persona import persona_payload_from_file
+        from core.domain.character.persona import persona_payload_from_file
 
         try:
             payload = persona_payload_from_file(seed)

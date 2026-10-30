@@ -32,8 +32,8 @@ async def main():
     model_id=os.environ.get('SEEKMEMORY_EVAL_MODEL','deepseek-flash')
     sys.path.insert(0,str(Path(args.repo).resolve()))
     from app.contracts import ChatResponse, DialogueTurn
-    from core.source import Source
-    from core.graph import Graph
+    from core.domain.memory.source import Source
+    from core.domain.memory.graph import Graph
     from store import open_store
     from store.cache import Cache
     from services.ingest_service import IngestService

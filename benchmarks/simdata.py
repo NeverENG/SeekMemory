@@ -13,7 +13,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from core.artifact import content_of, make  # noqa: E402
+from core.domain.memory.artifact import content_of, make  # noqa: E402
 
 USERS = int(os.environ.get("SCALE_USERS", "8"))
 DAYS = int(os.environ.get("SCALE_DAYS", "60"))

@@ -10,10 +10,10 @@ from .writer import MaintenanceWriter
 import datetime
 
 try:
-    from ..core.artifact import Artifact, revise
+    from ..core.domain.memory.artifact import Artifact, revise
     from .ports import ArtifactCache, ArtifactStore
 except ImportError:
-    from core.artifact import Artifact, revise
+    from core.domain.memory.artifact import Artifact, revise
     from maintain.ports import ArtifactCache, ArtifactStore
 
 

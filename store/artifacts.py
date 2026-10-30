@@ -29,13 +29,13 @@ except ImportError:
     from sqlite import SqliteRepository, dump_json, now_iso
 
 try:
-    from ..core.graph import ArtifactEdge
-    from ..core.artifact import Artifact
-    from ..core.versioning import StateEvent, VersionError, assert_next_revision
+    from ..core.domain.memory.graph import ArtifactEdge
+    from ..core.domain.memory.artifact import Artifact
+    from ..core.domain.memory.versioning import StateEvent, VersionError, assert_next_revision
 except ImportError:
-    from core.graph import ArtifactEdge
-    from core.artifact import Artifact
-    from core.versioning import StateEvent, VersionError, assert_next_revision
+    from core.domain.memory.graph import ArtifactEdge
+    from core.domain.memory.artifact import Artifact
+    from core.domain.memory.versioning import StateEvent, VersionError, assert_next_revision
 
 
 _COMMIT_OPERATIONS = frozenset({

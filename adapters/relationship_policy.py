@@ -10,8 +10,8 @@ from collections.abc import Callable
 from typing import Any
 
 try:
-    from ..core.artifact import validate
-    from ..core.interaction_policy import (
+    from ..core.domain.memory.artifact import validate
+    from ..core.domain.social.interaction_policy import (
         INTERACTION_POLICY_VERSION,
         InteractionContext,
         InteractionGate,
@@ -19,12 +19,12 @@ try:
         ReplyStyle,
         decide_interaction,
     )
-    from ..core.relationship import RelationshipSnapshot, snapshot_from_payload
+    from ..core.domain.social.relationship import RelationshipSnapshot, snapshot_from_payload
     from ..app.ports import ArtifactCache
     from ..app.runtime.contracts import RunDecision, RuntimeInput
 except ImportError:
-    from core.artifact import validate
-    from core.interaction_policy import (
+    from core.domain.memory.artifact import validate
+    from core.domain.social.interaction_policy import (
         INTERACTION_POLICY_VERSION,
         InteractionContext,
         InteractionGate,
@@ -32,7 +32,7 @@ except ImportError:
         ReplyStyle,
         decide_interaction,
     )
-    from core.relationship import RelationshipSnapshot, snapshot_from_payload
+    from core.domain.social.relationship import RelationshipSnapshot, snapshot_from_payload
     from app.ports import ArtifactCache
     from app.runtime.contracts import RunDecision, RuntimeInput
 

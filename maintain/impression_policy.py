@@ -8,11 +8,11 @@ from __future__ import annotations
 from dataclasses import replace
 
 try:  # Plugin namespace / 插件命名空间。
-    from ..core.artifact import Artifact, content_of, revise
+    from ..core.domain.memory.artifact import Artifact, content_of, revise
     from .ports import ArtifactCache, ArtifactStore
     from ..app.text_rules import alphanumeric_bigrams as bigrams
 except ImportError:  # Top-level package / 顶层包。
-    from core.artifact import Artifact, content_of, revise
+    from core.domain.memory.artifact import Artifact, content_of, revise
     from maintain.ports import ArtifactCache, ArtifactStore
     from app.text_rules import alphanumeric_bigrams as bigrams
 

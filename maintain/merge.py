@@ -12,7 +12,7 @@ import re
 from collections import Counter
 
 try:  # Plugin namespace / 插件命名空间。
-    from ..core.artifact import (
+    from ..core.domain.memory.artifact import (
         Artifact,
         Lineage,
         Strength,
@@ -23,7 +23,7 @@ try:  # Plugin namespace / 插件命名空间。
     )
     from .ports import ArtifactCache, ArtifactStore
 except ImportError:  # Top-level package / 顶层包。
-    from core.artifact import (
+    from core.domain.memory.artifact import (
         Artifact,
         Lineage,
         Strength,

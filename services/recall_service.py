@@ -9,12 +9,12 @@ from typing import Any, Callable
 
 try:
     from .ports import ArtifactCache, ArtifactStore, SourceStore
-    from ..core.graph import Graph
+    from ..core.domain.memory.graph import Graph
     from ..app.budget import ContextBudget
     from ..app.cache_repair import CacheRepairs
 except ImportError:
     from services.ports import ArtifactCache, ArtifactStore, SourceStore
-    from core.graph import Graph
+    from core.domain.memory.graph import Graph
     from app.budget import ContextBudget
     from app.cache_repair import CacheRepairs
 

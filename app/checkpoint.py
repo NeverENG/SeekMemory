@@ -13,13 +13,13 @@ if TYPE_CHECKING:
     from .ports import ArtifactCache, ArtifactStore
 
 try:
-    from ..core.artifact import Artifact, revise
-    from ..core.versioning import StateEvent
-    from ..core.strength import HIT_STEP
+    from ..core.domain.memory.artifact import Artifact, revise
+    from ..core.domain.memory.versioning import StateEvent
+    from ..core.domain.memory.strength import HIT_STEP
 except ImportError:
-    from core.artifact import Artifact, revise
-    from core.versioning import StateEvent
-    from core.strength import HIT_STEP
+    from core.domain.memory.artifact import Artifact, revise
+    from core.domain.memory.versioning import StateEvent
+    from core.domain.memory.strength import HIT_STEP
 
 from .cache_repair import CacheRepairs
 

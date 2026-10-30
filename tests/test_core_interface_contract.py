@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from core import domain, ports  # noqa: E402
+from core import port  # noqa: E402
 
 
 # Approved interface surface; private definitions do not automatically become exports.
@@ -90,7 +91,28 @@ EXPORTS = {
     ),
 }
 
+DOMAIN_OWNERS = {
+    **dict.fromkeys(("artifact", "source", "versioning", "retrieval", "strength", "disclosure", "graph"), "memory"),
+    **dict.fromkeys(("persona", "persona_artwork", "persona_pack", "bot_behavior"), "character"),
+    **dict.fromkeys(("relationship", "relationship_rules", "interaction_policy"), "social"),
+    **dict.fromkeys(("capacity", "trace"), "operations"),
+}
+
+
 class CoreInterfaceContractTest(unittest.TestCase):
+    def test_core_root_has_no_scattered_forwarding_modules(self) -> None:
+        """Compatibility remains in one place rather than occupying each domain file path."""
+        root_modules = {path.name for path in (ROOT / "core").glob("*.py")}
+        self.assertEqual(root_modules, {"__init__.py", "_legacy.py"})
+
+    def test_grouped_domain_modules_keep_legacy_identity(self) -> None:
+        """Grouped owners are the same objects reached through both historical paths."""
+        for name, group in DOMAIN_OWNERS.items():
+            with self.subTest(name=name):
+                owner = importlib.import_module(f"core.domain.{group}.{name}")
+                self.assertIs(importlib.import_module(f"core.domain.{name}"), owner)
+                self.assertIs(importlib.import_module(f"core.{name}"), owner)
+
     def test_every_export_resolves_without_placeholder_operations(self) -> None:
         """Exports are the existing values/functions, not empty stubs / 导出沿用原对象，不是空函数。"""
         self.assertTrue(set(domain.__all__).isdisjoint(ports.__all__))
@@ -118,12 +140,22 @@ class CoreInterfaceContractTest(unittest.TestCase):
                 with self.subTest(module=module.__name__, name=name):
                     self.assertIs(getattr(domain, name), getattr(module, name))
 
+    def test_legacy_modules_are_the_domain_owners(self) -> None:
+        """Old imports resolve to the owning module, including patchable globals."""
+        for owner in EXPORTS:
+            with self.subTest(owner=owner):
+                old = importlib.import_module(f"core.{owner}")
+                canonical = importlib.import_module(f"core.domain.{owner}")
+                self.assertIs(old, canonical)
+        self.assertIs(ports.GraphArtifactStore, port.GraphArtifactStore)
+
     def test_graph_protocol_import_is_an_alias_of_the_single_declaration(self) -> None:
         """Graph keeps its existing protocol import / 图保留原接口导入路径。"""
         from core.graph import GraphArtifactStore
 
         self.assertIs(GraphArtifactStore, ports.GraphArtifactStore)
-        self.assertEqual(GraphArtifactStore.__module__, "core.ports")
+        self.assertIs(GraphArtifactStore, port.GraphArtifactStore)
+        self.assertEqual(GraphArtifactStore.__module__, "core.port.graph")
 
     def test_storage_protocol_call_shapes_match_the_existing_implementations(self) -> None:
         """Moving declarations keeps call arguments unchanged / 迁移声明不改变调用参数。"""
@@ -149,14 +181,15 @@ class CoreInterfaceContractTest(unittest.TestCase):
 
     def test_interface_file_contains_only_declarations_and_exports(self) -> None:
         """The main interface file has no executable function bodies / 主接口文件没有函数实现。"""
-        for filename in ("domain.py", "ports.py"):
-            tree = ast.parse((ROOT / "core" / filename).read_text(encoding="utf-8"))
+        for filename, path in (("domain", ROOT / "core" / "domain" / "__init__.py"),
+                               ("port", ROOT / "core" / "port" / "graph.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in tree.body:
                 self.assertIsInstance(node, (ast.Expr, ast.ImportFrom, ast.ClassDef, ast.Assign))
                 if isinstance(node, ast.Expr):
                     self.assertIsInstance(node.value, ast.Constant)
                 elif isinstance(node, ast.ClassDef):
-                    self.assertEqual(filename, "ports.py")
+                    self.assertEqual(filename, "port")
                     self.assertEqual([ast.unparse(base) for base in node.bases], ["Protocol"])
                     for method in node.body:
                         if isinstance(method, ast.FunctionDef):
@@ -169,12 +202,11 @@ class CoreInterfaceContractTest(unittest.TestCase):
                 elif isinstance(node, ast.Assign):
                     self.assertEqual([ast.unparse(t) for t in node.targets], ["__all__"])
                     self.assertIsInstance(node.value, ast.List)
-        for name in ("graph",):
-            old = ast.parse((ROOT / "core" / f"{name}.py").read_text(encoding="utf-8"))
-            self.assertFalse([
-                node.name for node in old.body if isinstance(node, ast.ClassDef)
-                and any(ast.unparse(base) == "Protocol" for base in node.bases)
-            ])
+        # Root-level forwarding files are gone; the graph port has one declaration.
+        self.assertFalse((ROOT / "core" / "graph.py").exists())
+        self.assertFalse((ROOT / "core" / "ports.py").exists())
+        self.assertIs(importlib.import_module("core.graph"),
+                      importlib.import_module("core.domain.memory.graph"))
 
     def test_core_does_not_import_application_services_or_storage(self) -> None:
         """Moving tree orchestration must not create an upward dependency."""

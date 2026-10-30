@@ -26,7 +26,7 @@ class ImportBoundaryTest(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         forbidden = ("astrbot", "store", "recall", "perceive", "maintain", "main")
         for folder in (root / "core", root / "app"):
-            for path in folder.glob("*.py"):
+            for path in folder.rglob("*.py"):
                 for name in self._imports(path):
                     self.assertFalse(name.split(".")[0] in forbidden, f"{path}: {name}")
 

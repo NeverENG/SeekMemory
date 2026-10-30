@@ -24,10 +24,10 @@ app 提供用例间共享的数据、外部能力声明和应用策略。目前�
 | `RuntimeInput`、`RunContext`、`UserRunReceipt`、`RunResult` | 入站事件、待执行任务、接收回执和交付结果 | `app/runtime/contracts/events.py` |
 | `AttentionLevel`、`WakeAction`、`AttentionDecision`、`RunDecision` | 注意力、回复动作及判断结果 | `app/runtime/contracts/events.py` |
 | `SessionState`、`ProactiveDecision` | 可变会话调度状态、主动发言条件判断 | `app/runtime/contracts/sessions.py`、`proactive.py` |
-| `MemoryContextRequest`、`MemoryContext` | 只读记忆上下文的输入和输出 | `app/runtime/contracts/ports.py` |
+| `MemoryContextRequest`、`MemoryContext` | 只读记忆上下文的输入和输出 | `app/runtime/contracts/context.py` |
 | `ActionKind`、`ActionStatus`、`ActionRequest`、`ActionResult`、`ActionRecord` | 动作类别、状态、执行输入输出和无正文审计 | `app/runtime/contracts/actions.py` |
 | `RecordedTurn`、`RecordedReply` | 原始消息写回后的标识与数量 | `app/runtime/recorder.py` |
-| `ProactiveCandidate`、`ProactiveDispatchPlan`、`DueRun`、`TopicCandidate` | 主动会话选择、到期任务及话题候选 | `app/runtime/proactive.py`、`scheduler.py`、`topics.py` |
+| `ProactiveCandidate`、`ProactiveDispatchPlan`、`DueRun`、`TopicCandidate` | 主动会话选择、到期任务及话题候选 | `app/runtime/policy/proactive.py`、`scheduler.py`、`topics.py` |
 | `EpisodeRecord`、`EpisodeOutcome`、`ToolCall`、`ToolGuardDecision` | 运行审计结果、工具观察及过滤判断 | `app/runtime/episode.py`、`tools.py` |
 
 ### domain：规则与可执行能力

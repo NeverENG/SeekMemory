@@ -14,8 +14,8 @@ import tempfile, threading, time, urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from core.artifact import make  # noqa: E402
-from core.graph import Graph  # noqa: E402
+from core.domain.memory.artifact import make  # noqa: E402
+from core.domain.memory.graph import Graph  # noqa: E402
 from recall.assemble import build as assemble  # noqa: E402
 from recall.score import select  # noqa: E402
 from recall.seed import seeds  # noqa: E402

@@ -8,13 +8,13 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 try:
-    from ..core.relationship_rules import (
+    from ..core.domain.social.relationship_rules import (
         EVIDENCE_RULES,
         RelationshipReason,
         RelationshipStrength,
     )
 except ImportError:
-    from core.relationship_rules import (
+    from core.domain.social.relationship_rules import (
         EVIDENCE_RULES,
         RelationshipReason,
         RelationshipStrength,

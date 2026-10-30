@@ -6,10 +6,10 @@ from __future__ import annotations
 
 try:
     from .ports import ArtifactCache
-    from ..core.artifact import Artifact
+    from ..core.domain.memory.artifact import Artifact
 except ImportError:
     from maintain.ports import ArtifactCache
-    from core.artifact import Artifact
+    from core.domain.memory.artifact import Artifact
 from .self_impression import promote_self_candidates
 
 

@@ -16,9 +16,9 @@ except ImportError:
     from sqlite import SqliteRepository, load_json_object, now_iso, parse_time
 
 try:
-    from ..core.source import Source
+    from ..core.domain.memory.source import Source
 except ImportError:
-    from core.source import Source
+    from core.domain.memory.source import Source
 
 EXTRACTION_MAX_ATTEMPTS = 5
 _EXTRACTION_BACKOFF_BASE_SECONDS = 30

@@ -66,8 +66,8 @@ from .runtime.contracts import (
 from .runtime.recorder import RecordedReply, RecordedTurn, RunRecorder  # Source/queue/episode write-back / 消息、队列及运行记录写回。
 
 # Runtime policies and lifecycle / 运行时策略与生命周期；details / 细节见 runtime.md。
-from .runtime.attention import DefaultAttentionPolicy  # Reply/observe decision only / 仅判断回复或观察。
-from .runtime.proactive import (
+from .runtime.policy.attention import DefaultAttentionPolicy  # Reply/observe decision only / 仅判断回复或观察。
+from .runtime.policy.proactive import (
     DefaultProactivePolicy,   # Evaluate quiet/cooldown/retry gates / 判断安静期、冷却和重试条件。
     ProactiveCandidate,       # One eligible session / 一个符合条件的会话。
     ProactiveDispatchPlan,    # Selected and deferred sessions / 本次选中及留待后续的会话。

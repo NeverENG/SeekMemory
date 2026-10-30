@@ -23,9 +23,9 @@ try:
         select_topic_batches,
     )
     from .ports import ArtifactCache, ArtifactStore, ExtractionStore, SourceStore, PendingBuffer, ServiceJournal, ServiceLogger, ProviderFactory, ChatModel, LegacyTextModel
-    from ..core.graph import Graph
-    from ..core.artifact import content_of, revise
-    from ..core.capacity import PROTECTIVE, SATURATED
+    from ..core.domain.memory.graph import Graph
+    from ..core.domain.memory.artifact import content_of, revise
+    from ..core.domain.operations.capacity import PROTECTIVE, SATURATED
     from ..maintain.impression import revise_impression
     from ..maintain.writer import MaintenanceWriter
     from ..maintain.link import link_new
@@ -48,9 +48,9 @@ except ImportError:
         select_topic_batches,
     )
     from services.ports import ArtifactCache, ArtifactStore, ExtractionStore, SourceStore, PendingBuffer, ServiceJournal, ServiceLogger, ProviderFactory, ChatModel, LegacyTextModel
-    from core.graph import Graph
-    from core.artifact import content_of, revise
-    from core.capacity import PROTECTIVE, SATURATED
+    from core.domain.memory.graph import Graph
+    from core.domain.memory.artifact import content_of, revise
+    from core.domain.operations.capacity import PROTECTIVE, SATURATED
     from maintain.impression import revise_impression
     from maintain.writer import MaintenanceWriter
     from maintain.link import link_new

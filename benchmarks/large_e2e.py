@@ -17,7 +17,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import large_lib, personas  # noqa: E402
-from core.artifact import content_of  # noqa: E402
+from core.domain.memory.artifact import content_of  # noqa: E402
 from recall.assemble import build as assemble  # noqa: E402
 from recall.gate import pinned  # noqa: E402
 from recall.scope import visible  # noqa: E402

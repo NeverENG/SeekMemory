@@ -1,16 +1,30 @@
-# core module
+# core：领域与端口 / Domain and ports
 
-Provided interface / 对外能力入口：[domain.py](domain.py). It explicitly exports
-domain values and operations without implementing them / 集中导出领域类型和操作，不包含业务实现。
-Required ports / 外部依赖声明：[ports.py](ports.py). It declares the graph storage
-capabilities callers supply / 声明外部需要提供的图存储能力，不包含具体实现。
-Tree orchestration is provided by `services.TreeService`; its required ports live
-in `app/ports.py` / 树操作由服务层负责，依赖接口在应用层声明；原 core 树入口已移除。
+`core/domain/` owns domain values and rules; `core/port/` declares the external
+capabilities those rules need. Neither directory owns SQL, model calls, SDK
+integration or application orchestration. / 领域实现与所需外部协议分开；两者都不负责
+SQL、模型调用、宿主 SDK 或用例编排。
 
-Module design and current contracts are maintained in the central bilingual documentation:
+| 区域 / Area | 实现归属 / Ownership |
+|---|---|
+| `domain/memory/` | Source、Artifact、版本、检索候选、强度、披露、图 |
+| `domain/character/` | 人格文件、人格包、形象及自身行为规则 |
+| `domain/social/` | 关系快照、关系规则及互动策略 |
+| `domain/operations/` | 容量与无正文追踪投影 |
+| `families/` | 各 Artifact family 的 payload 校验 |
+| `port/` | 图写入与树只读协议 `GraphArtifactStore`、`TreeEdgeReader` |
 
-- [中文设计](../docs/zh/architecture/modules/core.md)
-- [English design](../docs/en/architecture/modules/core.md)
-- [Architecture overview](../docs/zh/architecture/overview.md)
+`core.domain` exports the approved domain API; `core.port` exports the required
+protocol. Use the owning module when a narrower import is helpful. The old
+`core.<module>` and historical `core.domain.<module>` imports alias their owning
+modules (including patchable module globals); `core._legacy` registers both old import families without scattered
+forwarding files. `core.ports` aliases the graph
+port for compatibility. Graph
+orchestration receives a store through its port; tree orchestration and its
+ports belong to `services.TreeService` and `app.ports` respectively. / 旧导入路径
+暂作兼容入口；图由注入仓储提供能力，树属于服务层和应用端口。
 
-The implementation under this directory is authoritative for concrete behavior.
+Design and contracts / 设计与契约：
+[中文设计](../docs/zh/architecture/modules/core.md) ·
+[English design](../docs/en/architecture/modules/core.md) ·
+[架构总览](../docs/zh/architecture/overview.md)

@@ -23,7 +23,7 @@ class Query:
 
 def comparison(cache, graph, pool, queries: list[Query]) -> list[str]:
     """Keep the shared report entry while counting negative-query noise / 保留共用报告入口，同时统计无答案题噪声。"""
-    names = ("core.artifact", "recall.retriever", "recall.score", "recall.gate", "recall.assemble")
+    names = ("core.domain.memory.artifact", "recall.retriever", "recall.score", "recall.gate", "recall.assemble")
     modules = SimpleNamespace(**{name.rsplit(".", 1)[-1]: importlib.import_module(name) for name in names})
     cases = [SimpleNamespace(text=q.text, expect=q.expected, expect_level=None) for q in queries]
     lines = ["", "## BM25 component comparison / BM25 组件对照", "",

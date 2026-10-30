@@ -12,15 +12,15 @@ import math
 
 try:
     from .ports import ArtifactCache, ArtifactStore, SourceStore
-    from ..core.artifact import Artifact, Lineage, make, revise, validate
-    from ..core.relationship import (
+    from ..core.domain.memory.artifact import Artifact, Lineage, make, revise, validate
+    from ..core.domain.social.relationship import (
         RELATIONSHIP_POLICY_VERSION,
         RelationshipSnapshot,
         relationship_id,
         snapshot_from_payload,
         summary_for,
     )
-    from ..core.relationship_rules import (
+    from ..core.domain.social.relationship_rules import (
         ConversationScope,
         RelationshipObservation,
         RelationshipReason,
@@ -30,15 +30,15 @@ try:
     )
 except ImportError:
     from maintain.ports import ArtifactCache, ArtifactStore, SourceStore
-    from core.artifact import Artifact, Lineage, make, revise, validate
-    from core.relationship import (
+    from core.domain.memory.artifact import Artifact, Lineage, make, revise, validate
+    from core.domain.social.relationship import (
         RELATIONSHIP_POLICY_VERSION,
         RelationshipSnapshot,
         relationship_id,
         snapshot_from_payload,
         summary_for,
     )
-    from core.relationship_rules import (
+    from core.domain.social.relationship_rules import (
         ConversationScope,
         RelationshipObservation,
         RelationshipReason,

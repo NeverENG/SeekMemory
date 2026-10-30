@@ -8,10 +8,10 @@ from __future__ import annotations
 
 try:  # Plugin namespace / 插件命名空间。
     from ..app.ports import ArtifactCache
-    from ..core.artifact import Artifact
+    from ..core.domain.memory.artifact import Artifact
 except ImportError:  # Top-level package / 顶层包。
     from app.ports import ArtifactCache
-    from core.artifact import Artifact
+    from core.domain.memory.artifact import Artifact
 
 MAX_SIDE = 22   # Prior wording limit / 旧措辞长度上限。
 

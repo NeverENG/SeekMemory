@@ -11,11 +11,11 @@ import json
 
 try:
     from ..app.ports import ArtifactStore, SourceStore, LedgerStore, PersonaPacks, DreamJournal
-    from ..core.artifact import Artifact, content_of
+    from ..core.domain.memory.artifact import Artifact, content_of
     from ..recall.scope import owner_of
 except ImportError:
     from app.ports import ArtifactStore, SourceStore, LedgerStore, PersonaPacks, DreamJournal
-    from core.artifact import Artifact, content_of
+    from core.domain.memory.artifact import Artifact, content_of
     from recall.scope import owner_of
 
 from . import console_projection

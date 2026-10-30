@@ -15,8 +15,8 @@ try:
         parse_persona_draft,
     )
     from .ports import ArtifactCache, ArtifactStore, SourceStore, PersonaModelFactory, ServiceJournal, ServiceLogger
-    from ..core.bot_behavior import SELF_SUBJECT
-    from ..core.persona import PERSONA_SYNTHESIS_VERSION
+    from ..core.domain.character.bot_behavior import SELF_SUBJECT
+    from ..core.domain.character.persona import PERSONA_SYNTHESIS_VERSION
 except ImportError:  # Standalone root / 独立测试以仓库为导入根。
     from app.persona_synthesis import (
         PersonaEvidence,
@@ -24,8 +24,8 @@ except ImportError:  # Standalone root / 独立测试以仓库为导入根。
         parse_persona_draft,
     )
     from services.ports import ArtifactCache, ArtifactStore, SourceStore, PersonaModelFactory, ServiceJournal, ServiceLogger
-    from core.bot_behavior import SELF_SUBJECT
-    from core.persona import PERSONA_SYNTHESIS_VERSION
+    from core.domain.character.bot_behavior import SELF_SUBJECT
+    from core.domain.character.persona import PERSONA_SYNTHESIS_VERSION
 
 
 try:
@@ -98,9 +98,9 @@ class MaintenanceService:
     def _relationship_policy(self):
         """Build the relationship policy from normalized configuration weights / 按规范化后的配置权重构造关系规则。"""
         try:
-            from ..core.relationship_rules import RelationshipScoringPolicy
+            from ..core.domain.social.relationship_rules import RelationshipScoringPolicy
         except ImportError:
-            from core.relationship_rules import RelationshipScoringPolicy
+            from core.domain.social.relationship_rules import RelationshipScoringPolicy
         private_weight = self._relationship_weight(
             "relationship_private_weight", 1.0
         )

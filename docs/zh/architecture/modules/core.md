@@ -10,14 +10,20 @@ core 定义记忆领域的稳定词汇和不依赖 IO 的决策。它不负责 S
 
 本模块将对外提供的能力和要求外部提供的能力分开，两个入口只包含显式导出或协议声明，配有中英混合行为说明，不实现业务：
 
-- **对外提供 — [`core/domain.py`](../../../../core/domain.py)**：领域类型，以及记忆构造/修订/校验、消息编号、版本检查、强度、披露、图、容量、人格、关系/互动和追踪整理能力。函数与类型直接沿用原对象，完整调用参数可由原定义或 `inspect.signature()` 查看；没有包装函数或空实现。
-- **要求外部提供 — [`core/ports.py`](../../../../core/ports.py)**：`GraphArtifactStore` 的连接读写。每个方法说明返回值、读写影响和必要的失败约定；实现由外部注入，连接生命周期也由外部管理。
+- **对外提供 — [`core/domain/`](../../../../core/domain/)**：领域类型，以及记忆构造/修订/校验、消息编号、版本检查、强度、披露、图、容量、人格、关系/互动和追踪整理能力。函数与类型直接沿用原对象，完整调用参数可由原定义或 `inspect.signature()` 查看；没有包装函数或空实现。
+- **要求外部提供 — [`core/port/`](../../../../core/port/)**：`GraphArtifactStore` 的连接读写及 `TreeEdgeReader` 的树连接只读能力。每个方法说明返回值、读写影响和必要的失败约定；实现由外部注入，连接生命周期也由外部管理。
 
-调用方使用 `from core.domain import make, Graph` 获取领域能力，使用 `from core.ports import GraphArtifactStore` 获取依赖声明；插件包中使用相应的相对导入。`core.artifact`、`core.graph` 等领域实现入口继续有效，`core.graph.GraphArtifactStore` 是端口声明的同一对象。图实现直接引用 `ports.py`，`domain.py` 正常导出图类型，不再需要延迟绑定。原内部 `core.interfaces` 入口已移除。
+调用方使用 `from core.domain import make, Graph` 获取领域能力，使用 `from core.port import GraphArtifactStore` 获取依赖声明；插件包中使用相应的相对导入。领域实现按能力收在 `core/domain/`，图存储协议在 `core/port/graph.py`；`core.artifact`、`core.graph` 和 `core.ports` 等旧路径由 `core/_legacy.py` 注册为兼容别名，不再保留根目录转发文件，`core.graph.GraphArtifactStore` 与新端口为同一对象。目录入口只导出能力，不承担业务实现；新代码优先导入所属的领域文件或 `core.port`。原内部 `core.interfaces` 入口已移除。
 
 树的完整读写协调由 [TreeService](services.md) 负责，内部入口为 `from services import TreeService`；原 `core.tree` 及 core 的树相关导出已移除。树所需的 `TreeArtifactStore`、`TreeCache` 声明位于 `app/ports.py`，core 不反向引用应用层或服务层。
 
 `make`/`revise` 仍读取系统时间，`load_thresholds` 仍读取环境变量。`Graph` 通过注入对象读写连接；`edges_of` 查询连接两端但不返回原方向。
+
+模型调用不属于 `core.port`：抽取模型协议由 `app.ports.ChatModel` 持有，运行时文本协议由 `app.runtime.contracts.ModelGateway` 持有，AstrBot 提供方在边缘适配。目录迁移不改变模型选择或调用行为。
+
+`core/domain/memory/tree.py` 通过注入的只读 `TreeEdgeReader` 解析现有 `tree_child:<父节点 ID>` 边，返回唯一父节点或有界祖先 ID；多父节点歧义、缺失和环不会导致任意选边或无限遍历。它不读取父节点列、不提交 Artifact，也不改变树边编码。`TreeService` 仍拥有写入协调。
+
+领域实现现在按 `core/domain/memory/`（证据、版本、检索与披露）、`character/`（人格）、`social/`（关系与互动）、`operations/`（容量与追踪）分组；`core/families/` 保持 payload 校验归属，`core/port/` 仅声明领域实际依赖的图存储协议。`core.domain` 继续集中导出稳定 API；旧 `core.<module>` 与 `core.domain.<module>` 路径指向同一实现模块，不重复维护规则。应用运行时的契约继续留在 `app/runtime/contracts/`，不搬入记忆领域的端口。
 
 ## 数据模型
 
@@ -57,7 +63,7 @@ family 校验器位于 core/families。make 只构造对象，不自动校验；
 
 | 类别 | 唯一归属与使用方式 |
 |---|---|
-| 算法内部参数 | 遗忘的情绪系数、显著度范围及命中系数在 `strength.py`；披露的阈值与因子在 `disclosure.py`；关系进出档位阈值在 `relationship.py`；置信度平滑参数在 `relationship_rules.py`。具名参数放在文件顶部，新增内部名称不从 `domain.py` 导出，也不成为用户配置。 |
+| 算法内部参数 | 遗忘的情绪系数、显著度范围及命中系数在 `strength.py`；披露的阈值与因子在 `disclosure.py`；关系进出档位阈值在 `relationship.py`；置信度平滑参数在 `relationship_rules.py`。具名参数放在文件顶部，新增内部名称不从 `core.domain` 导出，也不成为用户配置。 |
 | 已有可配置策略值 | `CapacityThresholds`、`RelationshipScoringPolicy`、`InteractionPolicySettings` 分别保留本领域的参数与默认值。互动固定规则表复用 `InteractionPolicySettings` 的默认概率；其他层的配置解析与默认值整理不属于 core 常量归属范围。 |
 | 数据约定 | 记忆类别、消息角色、操作名称及人格来源继续留在各自领域；关系档位及策略版本由 `relationship.py` 定义，family 校验器直接引用；追踪中的披露合法值由 `DisclosureLevel` 派生。持久化值和顺序不变。 |
 | 校验与诊断限制 | 人格文件长度限制留在 `persona.py`，自我印象信任要求留在 `bot_behavior.py`，追踪数量上限和白名单留在 `trace.py`。 |
@@ -68,7 +74,7 @@ family 校验器位于 core/families。make 只构造对象，不自动校验；
 
 Source 是追加式事实；Artifact 是可修订解释。内容修订通过仓储的 expected_revision CAS 提交，不能以新对象覆盖旧 ID 的版本历史。subject_id、said_by、来源会话和 evidence 不可相互推断替代。payload 的结构由 family validator 维护。
 
-实现入口：[artifact.py](../../../../core/artifact.py)、[source.py](../../../../core/source.py)、[disclosure.py](../../../../core/disclosure.py)、[versioning.py](../../../../core/versioning.py)。
+实现入口：[artifact.py](../../../../core/domain/memory/artifact.py)、[source.py](../../../../core/domain/memory/source.py)、[disclosure.py](../../../../core/domain/memory/disclosure.py)、[versioning.py](../../../../core/domain/memory/versioning.py)。
 
 <a id="core-verification"></a>
 

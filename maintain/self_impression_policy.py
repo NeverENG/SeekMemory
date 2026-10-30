@@ -7,16 +7,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 try:
-    from ..core.artifact import Artifact, Lineage, Strength, make, revise
-    from ..core.bot_behavior import (BEHAVIORS, BEHAVIOR_TEXT, MIN_EVIDENCE,
+    from ..core.domain.memory.artifact import Artifact, Lineage, Strength, make, revise
+    from ..core.domain.character.bot_behavior import (BEHAVIORS, BEHAVIOR_TEXT, MIN_EVIDENCE,
                                      SELF_SUBJECT, confident, trusted_self_impression)
-    from ..core.source import Source
+    from ..core.domain.memory.source import Source
     from .ports import ArtifactCache, ArtifactStore, SourceStore
 except ImportError:
-    from core.artifact import Artifact, Lineage, Strength, make, revise
-    from core.bot_behavior import (BEHAVIORS, BEHAVIOR_TEXT, MIN_EVIDENCE,
+    from core.domain.memory.artifact import Artifact, Lineage, Strength, make, revise
+    from core.domain.character.bot_behavior import (BEHAVIORS, BEHAVIOR_TEXT, MIN_EVIDENCE,
                                    SELF_SUBJECT, confident, trusted_self_impression)
-    from core.source import Source
+    from core.domain.memory.source import Source
     from maintain.ports import ArtifactCache, ArtifactStore, SourceStore
 
 from .plans import RevisionPlan, RevisionWrite

@@ -13,13 +13,13 @@ try:
     from ...app.contracts import DialogueTurn
     from ...app.ports import SourceStore
     from ...app.runtime.recorder import RecordedReply, RecordedTurn, RunRecorder
-    from ...core.source import Source
+    from ...core.domain.memory.source import Source
     from ...perceive.buffer import Buffer
 except ImportError:  # Top-level adapter imports / 顶层适配器导入。 in scripts/tests
     from app.contracts import DialogueTurn
     from app.ports import SourceStore
     from app.runtime.recorder import RecordedReply, RecordedTurn, RunRecorder
-    from core.source import Source
+    from core.domain.memory.source import Source
     from perceive.buffer import Buffer
 
 UTC8 = datetime.timezone(datetime.timedelta(hours=8))

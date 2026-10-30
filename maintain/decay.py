@@ -10,12 +10,12 @@ from .writer import MaintenanceWriter
 import datetime
 
 try:  # Plugin namespace / 插件命名空间。
-    from ..core.artifact import Artifact, revise
-    from ..core.strength import retention
+    from ..core.domain.memory.artifact import Artifact, revise
+    from ..core.domain.memory.strength import retention
     from .ports import ArtifactCache, ArtifactStore
 except ImportError:  # Top-level package / 顶层包。
-    from core.artifact import Artifact, revise
-    from core.strength import retention
+    from core.domain.memory.artifact import Artifact, revise
+    from core.domain.memory.strength import retention
     from maintain.ports import ArtifactCache, ArtifactStore
 
 from .expiry_policy import FORGET_BELOW, _day, _anchor, decay_plan

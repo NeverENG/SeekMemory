@@ -202,8 +202,8 @@ class TargetModules:
         self.buffer = self._import("perceive.buffer")
         self.ingest = self._import("services.ingest_service")
         self.cache_module = self._import("store.cache")
-        self.graph_module = self._import("core.graph")
-        self.source_module = self._import("core.source")
+        self.graph_module = self._import("core.domain.memory.graph")
+        self.source_module = self._import("core.domain.memory.source")
         self.bot_behavior = self._import("core.bot_behavior")
         self.store_module = self._import("store")
         self.self_impression = self._import("maintain.self_impression")
@@ -967,9 +967,9 @@ def _summarize(
 
 
 def _content_of(art) -> str:
-    module = sys.modules.get("core.artifact")
+    module = sys.modules.get("core.domain.memory.artifact")
     if module is None:
-        module = importlib.import_module("core.artifact")
+        module = importlib.import_module("core.domain.memory.artifact")
     return module.content_of(art)
 
 

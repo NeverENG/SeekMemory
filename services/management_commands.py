@@ -9,16 +9,16 @@ import json
 
 try:
     from ..app.ports import ArtifactStore, ArtifactCache, PersonaPacks
-    from ..core.artifact import Lineage, Strength, make, revise, validate
-    from ..core.bot_behavior import SELF_SUBJECT
-    from ..core.persona import PERSONA_ORIGIN_SEED, persona_payload_from_file
-    from ..core.versioning import VersionError
+    from ..core.domain.memory.artifact import Lineage, Strength, make, revise, validate
+    from ..core.domain.character.bot_behavior import SELF_SUBJECT
+    from ..core.domain.character.persona import PERSONA_ORIGIN_SEED, persona_payload_from_file
+    from ..core.domain.memory.versioning import VersionError
 except ImportError:
     from app.ports import ArtifactStore, ArtifactCache, PersonaPacks
-    from core.artifact import Lineage, Strength, make, revise, validate
-    from core.bot_behavior import SELF_SUBJECT
-    from core.persona import PERSONA_ORIGIN_SEED, persona_payload_from_file
-    from core.versioning import VersionError
+    from core.domain.memory.artifact import Lineage, Strength, make, revise, validate
+    from core.domain.character.bot_behavior import SELF_SUBJECT
+    from core.domain.character.persona import PERSONA_ORIGIN_SEED, persona_payload_from_file
+    from core.domain.memory.versioning import VersionError
 
 from .management_queries import pack_digest, json_object, _persona_version_header
 

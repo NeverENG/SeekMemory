@@ -10,11 +10,11 @@ from collections import Counter
 from dataclasses import dataclass
 
 try:
-    from ..core.artifact import Artifact, content_of
+    from ..core.domain.memory.artifact import Artifact, content_of
     from .seed import tags_of
     from .tokenizer import tokenize
 except ImportError:
-    from core.artifact import Artifact, content_of
+    from core.domain.memory.artifact import Artifact, content_of
     from recall.seed import tags_of
     from recall.tokenizer import tokenize
 

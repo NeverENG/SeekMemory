@@ -11,13 +11,13 @@ from collections import OrderedDict
 from datetime import date
 
 try:  # Plugin namespace / 插件命名空间。
-    from ..core.artifact import Artifact
-    from ..core.retrieval import RetrievalCandidate
+    from ..core.domain.memory.artifact import Artifact
+    from ..core.domain.memory.retrieval import RetrievalCandidate
     from . import gate as gate_mod
     from .seed import bigrams, dice, signals_of
 except ImportError:  # Top-level package / 顶层包。
-    from core.artifact import Artifact
-    from core.retrieval import RetrievalCandidate
+    from core.domain.memory.artifact import Artifact
+    from core.domain.memory.retrieval import RetrievalCandidate
     from recall import gate as gate_mod
     from recall.seed import bigrams, dice, signals_of
 

@@ -10,10 +10,10 @@ from datetime import date
 from typing import Any
 
 try:  # Plugin namespace / 插件命名空间。
-    from ..core.artifact import Artifact, content_of
+    from ..core.domain.memory.artifact import Artifact, content_of
     from .designated import deliverable, triggers_of
 except ImportError:  # Top-level package / 顶层包。
-    from core.artifact import Artifact, content_of
+    from core.domain.memory.artifact import Artifact, content_of
     from recall.designated import deliverable, triggers_of
 
 MEDIA = {

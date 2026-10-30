@@ -5,14 +5,14 @@
 from __future__ import annotations
 
 try:
-    from ..core.artifact import Artifact, Lineage, Strength, make, revise
-    from ..core.bot_behavior import SELF_SUBJECT, compose_behaviors, trusted_self_impression
-    from ..core.persona import PERSONA_ORIGIN_DREAM, compose_seed_evolution
+    from ..core.domain.memory.artifact import Artifact, Lineage, Strength, make, revise
+    from ..core.domain.character.bot_behavior import SELF_SUBJECT, compose_behaviors, trusted_self_impression
+    from ..core.domain.character.persona import PERSONA_ORIGIN_DREAM, compose_seed_evolution
     from .ports import ArtifactCache, ArtifactStore, SourceStore
 except ImportError:
-    from core.artifact import Artifact, Lineage, Strength, make, revise
-    from core.bot_behavior import SELF_SUBJECT, compose_behaviors, trusted_self_impression
-    from core.persona import PERSONA_ORIGIN_DREAM, compose_seed_evolution
+    from core.domain.memory.artifact import Artifact, Lineage, Strength, make, revise
+    from core.domain.character.bot_behavior import SELF_SUBJECT, compose_behaviors, trusted_self_impression
+    from core.domain.character.persona import PERSONA_ORIGIN_DREAM, compose_seed_evolution
     from maintain.ports import ArtifactCache, ArtifactStore, SourceStore
 
 from dataclasses import dataclass

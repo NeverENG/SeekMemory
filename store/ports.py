@@ -8,9 +8,9 @@ from collections.abc import Callable
 from typing import Protocol
 
 try:
-    from ..core.artifact import Artifact
+    from ..core.domain.memory.artifact import Artifact
 except ImportError:
-    from core.artifact import Artifact
+    from core.domain.memory.artifact import Artifact
 
 TraceClock = Callable[[], float]
 

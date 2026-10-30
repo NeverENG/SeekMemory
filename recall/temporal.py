@@ -10,9 +10,9 @@ from datetime import date, datetime, timedelta
 from typing import Iterable
 
 try:
-    from ..core.artifact import Artifact
+    from ..core.domain.memory.artifact import Artifact
 except ImportError:
-    from core.artifact import Artifact
+    from core.domain.memory.artifact import Artifact
 
 
 def as_date(value: str | None) -> date | None:

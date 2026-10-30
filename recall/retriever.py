@@ -8,17 +8,17 @@ from dataclasses import replace
 
 try:
     from ..app.ports import ArtifactCache
-    from ..core.artifact import Artifact
-    from ..core.graph import Graph
-    from ..core.retrieval import RetrievalCandidate
+    from ..core.domain.memory.artifact import Artifact
+    from ..core.domain.memory.graph import Graph
+    from ..core.domain.memory.retrieval import RetrievalCandidate
     from .bm25 import BM25Index
     from .seed import seeds
     from .spread import activate
 except ImportError:
     from app.ports import ArtifactCache
-    from core.artifact import Artifact
-    from core.graph import Graph
-    from core.retrieval import RetrievalCandidate
+    from core.domain.memory.artifact import Artifact
+    from core.domain.memory.graph import Graph
+    from core.domain.memory.retrieval import RetrievalCandidate
     from recall.bm25 import BM25Index
     from recall.seed import seeds
     from recall.spread import activate

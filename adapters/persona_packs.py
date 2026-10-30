@@ -13,11 +13,11 @@ import hashlib
 from pathlib import Path
 
 try:
-    from ..core.persona_pack import normalize_pack, PACK_FORMAT, MAX_PACK_BYTES
-    from ..core.persona_artwork import MAX_ARTWORK_BYTES, validate_artwork
+    from ..core.domain.character.persona_pack import normalize_pack, PACK_FORMAT, MAX_PACK_BYTES
+    from ..core.domain.character.persona_artwork import MAX_ARTWORK_BYTES, validate_artwork
 except ImportError:  # Shared adapters support top-level imports / 共享适配器支持顶层导入。
-    from core.persona_pack import normalize_pack, PACK_FORMAT, MAX_PACK_BYTES
-    from core.persona_artwork import MAX_ARTWORK_BYTES, validate_artwork
+    from core.domain.character.persona_pack import normalize_pack, PACK_FORMAT, MAX_PACK_BYTES
+    from core.domain.character.persona_artwork import MAX_ARTWORK_BYTES, validate_artwork
 
 ID = re.compile(r'^[a-z0-9][a-z0-9_.-]{1,63}$')
 MAX_BYTES = 65536

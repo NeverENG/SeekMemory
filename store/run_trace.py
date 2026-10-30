@@ -13,9 +13,9 @@ from datetime import datetime
 from pathlib import Path
 
 try:
-    from ..core.trace import FILTERS, clean_event, project_runs
+    from ..core.domain.operations.trace import FILTERS, clean_event, project_runs
 except ImportError:  # Top-level package / 顶层包。
-    from core.trace import FILTERS, clean_event, project_runs
+    from core.domain.operations.trace import FILTERS, clean_event, project_runs
 
 
 from .ports import TraceClock

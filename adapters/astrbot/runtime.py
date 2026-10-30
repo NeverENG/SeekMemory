@@ -18,8 +18,8 @@ try:
         WakeAction,
     )
     from ...app.runtime.recorder import RecordedReply
-    from ...core.source import make_source_id
-    from ...core.interaction_policy import InteractionGate
+    from ...core.domain.memory.source import make_source_id
+    from ...core.domain.social.interaction_policy import InteractionGate
     from ...app.runtime.tools import ToolPolicy, trace_tool_call
 except ImportError:
     from app.runtime.contracts import (
@@ -29,8 +29,8 @@ except ImportError:
         WakeAction,
     )
     from app.runtime.recorder import RecordedReply
-    from core.source import make_source_id
-    from core.interaction_policy import InteractionGate
+    from core.domain.memory.source import make_source_id
+    from core.domain.social.interaction_policy import InteractionGate
     from app.runtime.tools import ToolPolicy, trace_tool_call
 
 

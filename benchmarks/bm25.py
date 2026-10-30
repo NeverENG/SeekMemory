@@ -16,8 +16,8 @@ sys.path.insert(0, str(ROOT))
 from benchmarks.ablation import Cfg, _load, measure
 from benchmarks.bm25_cases import CALIBRATION_CASES, CALIBRATION_VALUES, CALIBRATION_WEIGHTS, DISTRACTOR_COUNT
 from benchmarks.goldset import build as gold_data
-from core.artifact import Artifact, make
-from core.graph import Graph
+from core.domain.memory.artifact import Artifact, make
+from core.domain.memory.graph import Graph
 from recall.assemble import build as assemble
 from recall.bm25 import BM25Index, DEFAULT_CALIBRATION_C
 from recall.retriever import GraphRetriever, HybridRetriever

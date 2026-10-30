@@ -9,13 +9,13 @@ import re
 from typing import Any
 
 try:  # Plugin namespace / 插件命名空间。
-    from ..core.artifact import Artifact, content_of, revise
-    from ..core.graph import Graph
+    from ..core.domain.memory.artifact import Artifact, content_of, revise
+    from ..core.domain.memory.graph import Graph
     from .ports import ArtifactCache, ArtifactStore
     from ..app.revision_plan import prepare_revision
 except ImportError:  # Top-level package / 顶层包。
-    from core.artifact import Artifact, content_of, revise
-    from core.graph import Graph
+    from core.domain.memory.artifact import Artifact, content_of, revise
+    from core.domain.memory.graph import Graph
     from maintain.ports import ArtifactCache, ArtifactStore
     from app.revision_plan import prepare_revision
 

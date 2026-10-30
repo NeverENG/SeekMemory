@@ -16,9 +16,9 @@ except ImportError:
     from sqlite import dump_json, load_json_object, pick_dataclass_fields
 
 try:
-    from ..core.artifact import Artifact, Header, Lineage, Strength, TimeSpan
+    from ..core.domain.memory.artifact import Artifact, Header, Lineage, Strength, TimeSpan
 except ImportError:
-    from core.artifact import Artifact, Header, Lineage, Strength, TimeSpan
+    from core.domain.memory.artifact import Artifact, Header, Lineage, Strength, TimeSpan
 
 try:
     from .artifact_sql import SELECT_SQL, UPSERT_SQL

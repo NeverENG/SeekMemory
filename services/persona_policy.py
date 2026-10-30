@@ -10,14 +10,14 @@ from collections.abc import Iterable
 
 try:
     from ..app.persona_synthesis import PersonaEvidence
-    from ..core.artifact import Artifact, Lineage, Strength, content_of, revise
-    from ..core.bot_behavior import SELF_SUBJECT
-    from ..core.persona import PERSONA_SYNTHESIS_VERSION
+    from ..core.domain.memory.artifact import Artifact, Lineage, Strength, content_of, revise
+    from ..core.domain.character.bot_behavior import SELF_SUBJECT
+    from ..core.domain.character.persona import PERSONA_SYNTHESIS_VERSION
 except ImportError:
     from app.persona_synthesis import PersonaEvidence
-    from core.artifact import Artifact, Lineage, Strength, content_of, revise
-    from core.bot_behavior import SELF_SUBJECT
-    from core.persona import PERSONA_SYNTHESIS_VERSION
+    from core.domain.memory.artifact import Artifact, Lineage, Strength, content_of, revise
+    from core.domain.character.bot_behavior import SELF_SUBJECT
+    from core.domain.character.persona import PERSONA_SYNTHESIS_VERSION
 
 
 @dataclass(frozen=True)

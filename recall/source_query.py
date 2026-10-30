@@ -13,11 +13,11 @@ from dataclasses import dataclass
 from typing import Iterable, Sequence
 
 try:
-    from ..core.source import Source
+    from ..core.domain.memory.source import Source
     from .intent import intent_of
     from .tokenizer import tokenize
 except ImportError:
-    from core.source import Source
+    from core.domain.memory.source import Source
     from recall.intent import intent_of
     from recall.tokenizer import tokenize
 

@@ -8,15 +8,13 @@ from __future__ import annotations
 try:
     from ..app.ports import TreeArtifactStore, TreeCache
     from ..app.revision_plan import prepare_revision
-    from ..core.artifact import Artifact, revise
+    from ..core.domain.memory.artifact import Artifact, revise
+    from ..core.domain.memory.tree import ancestor_ids, parent_id, tree_child_kind
 except ImportError:
     from app.ports import TreeArtifactStore, TreeCache
     from app.revision_plan import prepare_revision
-    from core.artifact import Artifact, revise
-
-EDGE_PREFIX = "tree_child:"
-LEVELS = ("impression", "scene", "detail")
-
+    from core.domain.memory.artifact import Artifact, revise
+    from core.domain.memory.tree import ancestor_ids, parent_id, tree_child_kind
 
 class TreeService:
     """Read tree memory and commit before separate cache, parent and edge writes; failures propagate / 读取树记忆，提交后分别写缓存、父节点和连接，失败向上传递。"""
@@ -47,11 +45,19 @@ class TreeService:
         if self.cache is not None:
             self.cache.put(art)
 
+    def parent_id(self, node_id: str) -> str | None:
+        """Read one unambiguous stored parent / 读取唯一且明确的已存父节点。"""
+        return parent_id(node_id, self.artifacts)
+
+    def ancestor_ids(self, node_id: str, *, max_depth: int = 32) -> tuple[str, ...]:
+        """Read bounded ancestors without changing storage / 有界读取祖先，不修改存储。"""
+        return ancestor_ids(node_id, self.artifacts, max_depth=max_depth)
+
     def children(self, node_id: str) -> list[Artifact]:
         """Read distinct existing children from stored tree edges / 根据已存树连接读取去重且仍存在的子节点。"""
         if not node_id:
             return []
-        wanted = EDGE_PREFIX + node_id
+        wanted = tree_child_kind(node_id)
         result: list[Artifact] = []
         seen: set[str] = set()
         for edge in self.artifacts.edges_of(node_id):
@@ -86,6 +92,6 @@ class TreeService:
         self.artifacts.set_parent(child.header.id, parent_id)
         if parent_id is not None:
             self.artifacts.add_edge(
-                parent_id, child.header.id, EDGE_PREFIX + parent_id, 1.0
+                parent_id, child.header.id, tree_child_kind(parent_id), 1.0
             )
         return child

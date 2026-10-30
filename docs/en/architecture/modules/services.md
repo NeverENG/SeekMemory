@@ -40,6 +40,7 @@ Entry points: [service_collection.py](../../../../services/service_collection.py
 
 | Implementation | Responsibility and effects | Logical complexity / coupling |
 |---|---|---|
+| `tree_service.py` | Commit Artifacts and update cache, parent column, and tree edges; delegate bounded parent/ancestor reads to `core/domain/memory/tree.py` | Medium: separate writes are not one transaction; reads do not write back and use stored edges rather than the parent column |
 | `ingest_service.py` | Resolve providers, invoke models and coordinate ordered extraction writes | High: owns the model → plan → commit → follow-up sequence; these stages share one receipt rather than independent state |
 | `ingest_selection.py` | Group resolved topics and check usage budgets | Low: pure rules, no provider or repository calls |
 | `ingest_state.py` | Prepared plans and per-memory stage progress | Low: process-local data; no resource ownership |

@@ -9,10 +9,10 @@ from typing import Any
 
 try:  # Plugin namespace / 插件命名空间。
     from ..app.ports import ArtifactStore
-    from ..core.artifact import Artifact
+    from ..core.domain.memory.artifact import Artifact
 except ImportError:  # Top-level package / 顶层包。
     from app.ports import ArtifactStore
-    from core.artifact import Artifact
+    from core.domain.memory.artifact import Artifact
 
 # Legacy imports retain the original policy objects / 旧导入保留原规则对象。
 from .designated_policy import triggers_of, _compact, matches, already_given, is_private, deliverable, _SPLIT

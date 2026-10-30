@@ -9,9 +9,9 @@ import re
 from collections import OrderedDict, defaultdict
 
 try:  # Plugin namespace / 插件命名空间。
-    from ..core.artifact import Artifact, content_of
+    from ..core.domain.memory.artifact import Artifact, content_of
 except ImportError:  # Top-level package / 顶层包。
-    from core.artifact import Artifact, content_of
+    from core.domain.memory.artifact import Artifact, content_of
 
 MEME_WORDS: tuple[str, ...] = ("咕咕嘎嘎", "原神", "鸣潮", "抽象", "哈基米")
 MEME_BONUS = 0.75

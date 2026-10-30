@@ -1,4 +1,6 @@
-"""Keep the core package lightweight; domain and ports provide the explicit interfaces.
+"""Core domain and required port; legacy imports are registered for compatibility.
 
-保持 core 包入口轻量，domain 和 ports 提供明确接口。
+领域和必需端口入口；集中注册旧导入路径以保持兼容。
 """
+
+from . import _legacy as _legacy

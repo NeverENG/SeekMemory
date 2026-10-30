@@ -7,10 +7,10 @@ from __future__ import annotations
 
 try:  # Plugin namespace / 插件命名空间。
     from ..app.ports import ArtifactCache
-    from ..core.graph import Graph
+    from ..core.domain.memory.graph import Graph
 except ImportError:  # Top-level package / 顶层包。
     from app.ports import ArtifactCache
-    from core.graph import Graph
+    from core.domain.memory.graph import Graph
 
 DECAY = 0.5
 MAX_PER_ROUND = 20

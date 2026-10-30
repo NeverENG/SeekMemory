@@ -9,22 +9,11 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any
 
-from .families import designated, example, media, memory, persona, relationship, secret
-
 FAMILIES = (
     "memory", "example", "persona", "media", "secret", "designated",
     "relationship",
 )
 
-_VALIDATORS = {
-    "memory": memory.validate,
-    "example": example.validate,
-    "persona": persona.validate,
-    "media": media.validate,
-    "secret": secret.validate,
-    "designated": designated.validate,
-    "relationship": relationship.validate,
-}
 
 _TEXT_FIELDS = {
     "memory": "text",
@@ -168,7 +157,16 @@ def validate(art: Artifact) -> None:
         raise ValueError(f"未知 family：{family!r}，可选：{', '.join(FAMILIES)}")
     if not isinstance(art.payload, dict):
         raise ValueError(f"{family} 的 payload 必须是 dict")
-    _VALIDATORS[family](art.payload)
+    # Resolve validators at use time so a family can import its own domain vocabulary.
+    from ...families import designated, example, media, memory, persona, relationship, secret
+
+    validators = {
+        "memory": memory.validate, "example": example.validate,
+        "persona": persona.validate, "media": media.validate,
+        "secret": secret.validate, "designated": designated.validate,
+        "relationship": relationship.validate,
+    }
+    validators[family](art.payload)
 
 
 def _field(payload: dict[str, Any], key: str, family: str) -> str:

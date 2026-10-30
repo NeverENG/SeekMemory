@@ -24,8 +24,8 @@ import recall.gate as gate_mod, recall.score as score_mod  # noqa: E402
 from benchmarks.output import report_path
 from benchmarks.edge_stats import spread_counts  # noqa: E402
 from benchmarks.goldset import FORBIDDEN, GOLD, SEED, TODAY, build, noise_share  # noqa: E402
-from core.artifact import Artifact, content_of, make  # noqa: E402
-from core.graph import Graph  # noqa: E402
+from core.domain.memory.artifact import Artifact, content_of, make  # noqa: E402
+from core.domain.memory.graph import Graph  # noqa: E402
 from maintain.link import persist  # noqa: E402
 from recall.assemble import build as assemble  # noqa: E402
 from recall.score import select  # noqa: E402

@@ -23,7 +23,7 @@ SeekMemory 将原始对话和对话结论分开保存：
 | maintain | 证据分析、版本计划及维护写入 | 纯规则与读写分开；只补已准备计划，不重建已提交解释 |
 | store | SQLite 仓储、缓存及持久化 | Store 唯一拥有连接，仓储借用；SQL 及事务只由此处管理 |
 
-每个模块的 `domain.py` 提供明确能力入口，`ports.py` 声明所需外部能力；旧兼容实现入口保留。Python 管理服务在本轮内，webui/dashboard/DSH 结构保持原归属。
+各业务模块仍用 `domain.py` 提供能力入口、`ports.py` 声明外部依赖；core 改为 `core/domain/` 存放领域实现与导出、`core/port/` 存放领域所需协议。旧模块导入路径作为兼容入口保留。Python 管理服务在本轮内，webui/dashboard/DSH 结构保持原归属。
 
 依赖方向由代码边界保护：core 不依赖宿主或存储；SQL 由 store 管理；AstrBot 类型留在 adapters 与 webui 宿主路由；服务层组合业务模块，不实现 SQL。
 

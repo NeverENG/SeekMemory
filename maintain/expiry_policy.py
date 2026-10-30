@@ -6,11 +6,11 @@ from __future__ import annotations
 
 import datetime
 try:
-    from ..core.artifact import Artifact, revise
-    from ..core.strength import retention
+    from ..core.domain.memory.artifact import Artifact, revise
+    from ..core.domain.memory.strength import retention
 except ImportError:
-    from core.artifact import Artifact, revise
-    from core.strength import retention
+    from core.domain.memory.artifact import Artifact, revise
+    from core.domain.memory.strength import retention
 from .plans import RevisionPlan, RevisionWrite
 
 FORGET_BELOW = 0.3

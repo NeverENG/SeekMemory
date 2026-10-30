@@ -8,7 +8,7 @@ import math
 import re
 from datetime import datetime, timezone
 
-from .disclosure import DisclosureLevel
+from ..memory.disclosure import DisclosureLevel
 
 # Trace contract values and internal storage bounds stay with trace projection.
 EVENTS = {"agent_begin", "llm_request", "llm_response", "agent_done",

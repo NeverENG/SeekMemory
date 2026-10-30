@@ -10,14 +10,20 @@ The central entry also exports upstream persona-pack/artwork validation, format 
 
 The module separates the capabilities it provides from those callers must supply. Both entries contain explicit exports or protocol declarations with mixed English/Chinese behavior notes and no business implementation:
 
-- **Provided capabilities — [`core/domain.py`](../../../../core/domain.py)**: domain values and operations for Artifact construction/revision/validation, Source identity, version checks, strength, disclosure, graph, capacity, persona, relationship/interaction, and trace projection. Functions and types retain their original identities; their complete call signatures remain available in their definitions or through `inspect.signature()`. There are no wrapper functions or empty implementations.
-- **Required capabilities — [`core/ports.py`](../../../../core/ports.py)**: edge storage through `GraphArtifactStore`. Each method describes results, read/write effects, and necessary failure guarantees. Implementations are injected; callers own connection lifetimes.
+- **Provided capabilities — [`core/domain/`](../../../../core/domain/)**: domain values and operations for Artifact construction/revision/validation, Source identity, version checks, strength, disclosure, graph, capacity, persona, relationship/interaction, and trace projection. Functions and types retain their original identities; their complete call signatures remain available in their definitions or through `inspect.signature()`. There are no wrapper functions or empty implementations.
+- **Required capabilities — [`core/port/`](../../../../core/port/)**: edge storage through `GraphArtifactStore` and read-only tree edges through `TreeEdgeReader`. Each method describes results, read/write effects, and necessary failure guarantees. Implementations are injected; callers own connection lifetimes.
 
-Callers use `from core.domain import make, Graph` for provided capabilities and `from core.ports import GraphArtifactStore` for required capabilities, or equivalent relative imports inside the plugin package. Domain implementation paths such as `core.artifact` and `core.graph` remain valid; `core.graph.GraphArtifactStore` aliases the port declaration. Graph imports `ports.py` directly, allowing `domain.py` to export graph types normally without lazy binding. The internal `core.interfaces` entry has been removed.
+Callers use `from core.domain import make, Graph` for provided capabilities and `from core.port import GraphArtifactStore` for required capabilities, or equivalent relative imports inside the plugin package. Domain implementations are grouped under `core/domain/`, and the graph storage protocol lives in `core/port/graph.py`. Old paths such as `core.artifact`, `core.graph`, and `core.ports` remain compatibility entries; `core.graph.GraphArtifactStore` is the same port object. The package entry points export capabilities rather than implementing business logic; new code should import the owning domain module or `core.port`. The internal `core.interfaces` entry remains removed.
 
 Tree read/write orchestration belongs to [TreeService](services.md), imported internally with `from services import TreeService`; `core.tree` and core's tree exports have been removed. Its required `TreeArtifactStore` and `TreeCache` declarations live in `app/ports.py`; core does not import the application or service layer.
 
 `make`/`revise` still read the system clock, and `load_thresholds` still reads environment variables. `Graph` invokes injected edge storage; `edges_of` queries both ends but omits original direction.
+
+Model calls do not belong in `core.port`: `app.ports.ChatModel` owns the extraction-model contract, `app.runtime.contracts.ModelGateway` owns runtime text generation, and AstrBot providers are adapted at the edge. This directory move does not change model selection or call behavior.
+
+`core/domain/memory/tree.py` uses an injected read-only `TreeEdgeReader` to resolve the existing `tree_child:<parent ID>` edge kind into a unique parent or bounded ancestor IDs. Missing or ambiguous parents and cycles do not cause arbitrary branch selection or unbounded traversal. It does not read the separate parent column, commit Artifacts, or change edge encoding. `TreeService` still owns writes.
+
+Domain implementations are grouped under `core/domain/memory/` (evidence, versioning, retrieval, disclosure), `character/` (persona), `social/` (relationships and interaction), and `operations/` (capacity and trace). `core/families/` retains payload validation; `core/port/` declares only the graph-storage capability actually required by the domain. `core.domain` retains the stable exported API; historical `core.<module>` and `core.domain.<module>` paths resolve to the same implementation modules. Application runtime contracts remain in `app/runtime/contracts/` rather than being moved into memory-domain ports.
 
 ## Data model
 
@@ -68,7 +74,7 @@ Existing public constants keep their exports. Ownership cleanup does not change 
 
 Sources are append-only facts; Artifacts are revisable interpretations. Content updates go through ArtifactStore with expected_revision and cannot overwrite version history. subject_id, said_by, source session, and evidence must not be inferred in place of one another. Family validators own payload shape.
 
-Implementation: [artifact.py](../../../../core/artifact.py), [source.py](../../../../core/source.py), [disclosure.py](../../../../core/disclosure.py), [versioning.py](../../../../core/versioning.py).
+Implementation: [artifact.py](../../../../core/domain/memory/artifact.py), [source.py](../../../../core/domain/memory/source.py), [disclosure.py](../../../../core/domain/memory/disclosure.py), [versioning.py](../../../../core/domain/memory/versioning.py).
 
 <a id="core-verification"></a>
 

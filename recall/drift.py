@@ -10,10 +10,10 @@ import random
 
 try:  # Plugin namespace / 插件命名空间。
     from ..app.ports import ArtifactCache
-    from ..core.artifact import Artifact
+    from ..core.domain.memory.artifact import Artifact
 except ImportError:  # Top-level package / 顶层包。
     from app.ports import ArtifactCache
-    from core.artifact import Artifact
+    from core.domain.memory.artifact import Artifact
 
 LEVELS = ("fact", "scene", "detail")
 FAMILY = "memory"

@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from core.artifact import revise  # noqa: E402
+from core.domain.memory.artifact import revise  # noqa: E402
 from store import open_store  # noqa: E402
 
 

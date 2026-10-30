@@ -7,9 +7,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 try:
-    from ..core.artifact import Artifact
+    from ..core.domain.memory.artifact import Artifact
 except ImportError:
-    from core.artifact import Artifact
+    from core.domain.memory.artifact import Artifact
 
 
 @dataclass(frozen=True)

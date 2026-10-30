@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import math
 
-from .artifact import Artifact
+from ..memory.artifact import Artifact
 from .persona import (PERSONA_ORIGIN_DREAM, PERSONA_ORIGIN_SEED,
                       PERSONA_SYNTHESIS_VERSION, seed_evolution_matches)
 

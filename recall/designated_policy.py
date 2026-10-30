@@ -8,9 +8,9 @@ import re
 from typing import Any
 
 try:
-    from ..core.artifact import Artifact
+    from ..core.domain.memory.artifact import Artifact
 except ImportError:
-    from core.artifact import Artifact
+    from core.domain.memory.artifact import Artifact
 
 _SPLIT = re.compile(r"[\s,，、/|;；]+")
 

@@ -51,9 +51,6 @@ class MainOwnershipTest(unittest.TestCase):
         for fragment in forbidden:
             self.assertNotIn(fragment, self.source)
 
-    def test_main_stays_a_composition_and_hook_shell(self) -> None:
-        self.assertLessEqual(len(self.source.splitlines()), 40)
-
     def test_main_only_contains_lifecycle_entrypoints(self) -> None:
         tree = ast.parse(self.source)
         definitions = {

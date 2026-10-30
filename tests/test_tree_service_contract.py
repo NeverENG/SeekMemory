@@ -60,6 +60,19 @@ class TreeServiceContractTest(unittest.TestCase):
                          [self.db.artifacts.get(art.header.id)
                           for art in self.tree.children(parent.header.id)])
 
+    def test_parent_and_ancestors_follow_existing_edges_without_writes(self) -> None:
+        root, middle, leaf = (self.memory(name) for name in ("root", "middle", "leaf"))
+        self.tree.add_under(root, None)
+        self.tree.add_under(middle, root.header.id)
+        self.tree.add_under(leaf, middle.header.id)
+        before = self.db.ledger.last_hash()
+        self.assertEqual(self.tree.parent_id(leaf.header.id), middle.header.id)
+        self.assertEqual(self.tree.ancestor_ids(leaf.header.id),
+                         (middle.header.id, root.header.id))
+        self.assertEqual(self.tree.ancestor_ids(leaf.header.id, max_depth=1),
+                         (middle.header.id,))
+        self.assertEqual(self.db.ledger.last_hash(), before)
+
     def test_impressions_fall_back_only_when_the_cache_level_is_empty(self) -> None:
         first, second = self.memory("first", "impression"), self.memory("second", "impression")
         for art in (first, second, self.memory("scene"),

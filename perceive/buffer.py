@@ -13,10 +13,10 @@ from pathlib import Path
 
 try:
     from ..app.contracts import DialogueTurn, ExtractionState
-    from ..core.source import Source, make_source_id
+    from ..core.domain.memory.source import Source, make_source_id
 except ImportError:
     from app.contracts import DialogueTurn, ExtractionState
-    from core.source import Source, make_source_id
+    from core.domain.memory.source import Source, make_source_id
 
 from .buffer_policy import (
     TOPIC_GAP_SECONDS, TOPIC_SIMILARITY, TOPIC_TTL_SECONDS,

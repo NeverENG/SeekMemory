@@ -7,10 +7,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 try:
-    from ..core.versioning import VersionError
+    from ..core.domain.memory.versioning import VersionError
     from ..app.cache_repair import CacheRepairs
 except ImportError:
-    from core.versioning import VersionError
+    from core.domain.memory.versioning import VersionError
     from app.cache_repair import CacheRepairs
 from .plans import RevisionPlan
 from .ports import ArtifactStore, ArtifactCache

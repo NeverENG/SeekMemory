@@ -13,8 +13,8 @@ from typing import Any
 
 try:  # Plugin namespace / 插件命名空间。
     from ..app.contracts import DialogueTurn, WriteOutcome
-    from ..core.artifact import Artifact, Lineage, Strength, TimeSpan, content_of, make, validate
-    from ..core.relationship import RELATIONSHIP_POLICY_VERSION
+    from ..core.domain.memory.artifact import Artifact, Lineage, Strength, TimeSpan, content_of, make, validate
+    from ..core.domain.social.relationship import RELATIONSHIP_POLICY_VERSION
     from ..perceive.behavior import (
         DEFAULT_BEHAVIOR_CONFIDENCE,
         behavior_boundary,
@@ -40,8 +40,8 @@ try:  # Plugin namespace / 插件命名空间。
     from ..app.ports import ArtifactCache, SourceStore
 except ImportError:  # Top-level package / 顶层包。
     from app.contracts import DialogueTurn, WriteOutcome
-    from core.artifact import Artifact, Lineage, Strength, TimeSpan, content_of, make, validate
-    from core.relationship import RELATIONSHIP_POLICY_VERSION
+    from core.domain.memory.artifact import Artifact, Lineage, Strength, TimeSpan, content_of, make, validate
+    from core.domain.social.relationship import RELATIONSHIP_POLICY_VERSION
     from app.ports import ArtifactCache, SourceStore
 
     from perceive.behavior import (

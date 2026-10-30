@@ -27,7 +27,7 @@ def target(repo: Path):
     repo = repo.resolve()
     sys.path.insert(0, str(repo))
     try:
-        names = ("core.artifact", "core.source", "core.graph", "store", "store.cache",
+        names = ("core.domain.memory.artifact", "core.domain.memory.source", "core.domain.memory.graph", "store", "store.cache",
                  "recall.pipeline", "recall.retriever", "recall.score", "recall.gate",
                  "recall.assemble", "recall.temporal", "recall.source_query")
         loaded = {name: importlib.import_module(name) for name in names}

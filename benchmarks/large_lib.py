@@ -13,8 +13,8 @@ import time
 import urllib.request
 
 import personas
-from core.artifact import content_of, make
-from core.graph import Graph
+from core.domain.memory.artifact import content_of, make
+from core.domain.memory.graph import Graph
 from recall.seed import bigrams
 from store.cache import Cache
 from store import open_store

@@ -11,10 +11,10 @@ from typing import Any
 
 try:
     from ..app.contracts import DialogueTurn
-    from ..core.artifact import Strength
+    from ..core.domain.memory.artifact import Strength
 except ImportError:
     from app.contracts import DialogueTurn
-    from core.artifact import Strength
+    from core.domain.memory.artifact import Strength
 from .behavior import DEFAULT_BEHAVIOR_CONFIDENCE, is_behavior
 
 # Legacy urgency signals; the external scheduling gate decides when to extract.
