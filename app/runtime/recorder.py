@@ -142,7 +142,7 @@ class RunRecorder:
             at=moment,
         )
         turn_id = str(event_id or source_id)
-        key = turn_id
+        key = source_id
         existing = self._turns.get(key)
         if existing is not None:
             return existing
