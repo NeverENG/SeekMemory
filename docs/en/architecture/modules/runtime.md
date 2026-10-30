@@ -39,6 +39,22 @@ runtime_gate_enabled defaults to false. While disabled, wait and background defe
 
 RunRecorder is the single runtime write-back coordinator for Sources, pending projection, checkpoint, and episodes. run_id and deterministic Source IDs prevent repeated callbacks from duplicating writes. runtime_episodes is append-only business audit metadata; RunTracer/TraceStore is a field-whitelisted diagnostic timeline. They are separate and neither stores conversation bodies.
 
+### Run trace event boundary
+
+RunTracer in `app/runtime/tracing.py` is a host-neutral producer; events need only get_extra/set_extra for correlation. `core/domain/operations/trace.py` owns field cleaning and run projection; `store/run_trace.py` owns JSONL persistence. Management queries consume the same snapshot; see [WebUI](webui.md#run-trace-queries).
+
+| Event | Observation |
+|---|---|
+| `agent_begin` | Run begins with a randomly generated run_id |
+| `llm_request` / `llm_response` | Request index, allowlisted recall summary and available timing; no model input/output |
+| `tool_call` / `tool_result` | Tool name and available timing; no arguments or result body; unknown outcomes remain unknown |
+| `agent_done` | Run completion status |
+| `message_sent` | Observed successful delivery, independent of memory injection |
+
+Public event fields are limited to run_id, sequence, at, event, request_index, status, duration_ms, tool, and recall. Recall retains only bounded generated IDs, counts, fixed mode/fallback/disclosure enums and gate numbers. It excludes messages, prompts, responses, Source text, tool arguments/results, user/session identifiers and credentials. Write and reload both remove unknown fields. Event statuses are running/ok/error/unknown. Existing projection yields error for an erroneous completion, completed for other completion or successful delivery, interrupted for unfinished runs preceding startup, and running otherwise.
+
+TraceStore defaults to seven days and at most 5,000 events. Producers remove expired or excess records. Diagnostic write failures do not block the main operation; persistence_error warns that records may be incomplete. Missing or evicted events do not prove a step never ran. The standalone console loads offline files read-only at startup; replacing the snapshot requires a restart. It must not share a data directory with a running host.
+
 ToolPolicy can remove disallowed tools from req.func_tool before the model request. A post-call tool observation hook is diagnostic and cannot block execution by itself. Actual request filtering is controlled by runtime_tool_filter_enabled and is disabled by default.
 
 ## Write-back after delivery

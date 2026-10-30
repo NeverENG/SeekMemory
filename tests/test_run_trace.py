@@ -126,6 +126,24 @@ class RunTraceTests(unittest.TestCase):
         restored = TraceStore(self.path, clock=lambda: self.now)
         self.assertEqual(restored.snapshot()["runs"][0]["event_count"], 1)
 
+    def test_read_only_snapshots_age_without_rewriting_or_accepting_events(self) -> None:
+        self.tracer.begin(Event())
+        original = self.path.read_bytes()
+        reader = TraceStore(self.path, read_only=True, clock=lambda: self.now)
+        self.assertEqual(len(reader.snapshot()["events"]), 1)
+        self.assertEqual(self.path.read_bytes(), original)
+        with self.assertRaises(PermissionError):
+            reader.append(reader.snapshot()["events"][0])
+        self.now += 8 * 86400
+        self.assertEqual(reader.snapshot()["events"], [])
+        self.assertEqual(self.path.read_bytes(), original)
+
+    def test_read_only_missing_trace_creates_no_file_or_directory(self) -> None:
+        missing = Path(self.temp.name) / "missing" / "trace.jsonl"
+        reader = TraceStore(missing, read_only=True, clock=lambda: self.now)
+        self.assertEqual(reader.snapshot()["events"], [])
+        self.assertFalse(missing.parent.exists())
+
     def test_stale_unfinished_run_is_interrupted_after_restart(self) -> None:
         event = Event()
         self.tracer.begin(event)

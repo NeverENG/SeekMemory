@@ -14,6 +14,7 @@ services 将领域对象、app 端口以及 perceive、recall、maintain 组合�
 | CapacityService | 读容量快照、运行 CapacityGovernor，并执行限流、释放 deferred、缩小批次/召回或维护动作 |
 | MaintenanceService | 按顺序调用自我印象汇总、遗忘、相似合并和人格沉淀/综合 |
 | ManagementService | 查询目录、详情、版本与证据；验证管理编辑和回滚；复用 RecallService 做诊断 |
+| trace_query | 校验运行编号、状态与时间条件，筛选既有白名单快照；两个管理入口共享，不访问业务表 |
 | StatusService | 为管理页提供人格时间线和账本哈希链检查 |
 | BackgroundService | 只负责周期、闲时与 Dream 调度；具体动作委托给上述服务 |
 | TreeService | 统一查询子节点和印象，协调记忆版本提交、缓存及父子关系更新 |

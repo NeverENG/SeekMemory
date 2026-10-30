@@ -24,8 +24,9 @@ from .ports import TraceClock
 class TraceStore:
     """Own a bounded diagnostic snapshot and file lock; resources come from the caller / 管理有数量上限的诊断快照及文件锁，资源由调用方提供。"""
     def __init__(self, path: Path, *, retention_days: int = 7, max_rows: int = 5000,
-                 clock: TraceClock = time.time) -> None:
+                 clock: TraceClock = time.time, read_only: bool = False) -> None:
         self.path = Path(path)
+        self.read_only = read_only
         self.retention_days = max(1, min(365, int(retention_days)))
         self.max_rows = max(1, min(5000, int(max_rows)))
         self.clock = clock
@@ -48,7 +49,8 @@ class TraceStore:
                                 UnicodeDecodeError):
                             continue
                 self.events = self._retained(self.events)
-                self._persist(self.events)
+                if not self.read_only:
+                    self._persist(self.events)
         except OSError:
             self.persistence_error = True
 
@@ -72,6 +74,8 @@ class TraceStore:
 
     def append(self, row: dict) -> None:
         """Append a cleaned row; failures raise and preserve the saved snapshot / 追加已清理的行，失败抛错并保留已保存快照。"""
+        if self.read_only:
+            raise PermissionError("trace_store_is_read_only")
         with self._lock:
             try:
                 row = clean_event(row)
@@ -98,12 +102,12 @@ class TraceStore:
                 raise
 
     def snapshot(self, state: str = "all") -> dict:
-        """Read projected runs; may compact expired diagnostics, with visible persistence status / 读取运行视图，允许裁剪过期诊断，并提供可见的持久化状态。"""
+        """Read projected runs; compact expired diagnostics only in write mode / 读取运行视图，仅写入模式裁剪过期诊断。"""
         if state not in FILTERS:
             raise ValueError("unknown_trace_filter")
         with self._lock:
             rows = self._retained(self.events)
-            if len(rows) != len(self.events):
+            if not self.read_only and len(rows) != len(self.events):
                 try:
                     self._persist(rows)
                     self.events = rows

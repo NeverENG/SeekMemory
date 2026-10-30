@@ -15,6 +15,10 @@ pnpm dev
 `pnpm dev:host` 需要 AstrBot 注入宿主桥接器，直接打开会显示连接错误。
 正式使用从 AstrBot 插件卡片打开视图，见[使用说明](../docs/zh/guides/webui.md)。
 
+独立控制台开发使用 `pnpm dev:standalone`，连接页默认 API 为
+`http://127.0.0.1:8766/api/`。后端启动命令与管理员令牌说明见
+[本机独立控制台](../docs/zh/guides/webui.md#本机独立控制台)。生产构建既可由独立服务托管，也保留 AstrBot 页面桥接入口。
+
 ## 检查与构建
 
 ```bash
@@ -25,6 +29,9 @@ pnpm build
 `check` 包含生成类型检查、TypeScript、lint、测试和格式检查；格式修复使用 `pnpm format`。
 构建输出到 `../pages/memory/`，产物不提交 Git。安装包由 Release 流程生成，
 源码下载不包含预构建页面，见[发布说明](../CONTRIBUTING.md#release-packaging)。
+
+前端测试会启动临时本机 Python API，要求 Python 3.10+。
+可通过 `SEEKMEMORY_TEST_PYTHON=/absolute/path/to/python` 选择测试解释器。
 
 ## 接口契约与类型生成
 

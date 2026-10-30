@@ -325,16 +325,26 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
         tracer.begin(event)
         tracer.request(event, {"mode": "strict", "final_ids": [self.ids[0]],
                                "query": "NEVER_PERSIST_THIS"})
-        tracer.done(event, "ok")
+        tracer.response(event, "error")
+        tracer.done(event, "error")
         result = await self.call("traces")
         self.assertEqual(len(result["runs"]), 1)
         self.assertFalse(result["runs"][0]["delivered"])
         self.assertNotIn("NEVER_PERSIST_THIS", json.dumps(result))
         filtered = await self.call("traces", query={"state": "not_recalled"})
         self.assertEqual(filtered["runs"], [])
+        matched = await self.call("traces", query={"run_id": tracer.run_id(event),
+            "status": "error", "since": result["runs"][0]["updated_at"],
+            "until": result["runs"][0]["updated_at"]})
+        self.assertEqual(matched, result)
+        self.assertEqual([step["status"] for step in matched["events"]][-2:], ["error", "error"])
+        self.assertEqual((await self.call("traces", query={"status": "completed"}))["runs"], [])
         await self.call("traces", username="", expected=401)
         await self.call("traces", method="POST", expected=405)
         await self.call("traces", query={"state": "invalid"}, expected=400)
+        for field in ("run_id", "status", "since", "until"):
+            rejected = await self.call("traces", query={field: "PRIVATE_SENTINEL"}, expected=400)
+            self.assertNotIn("PRIVATE_SENTINEL", json.dumps(rejected))
 
     async def test_console_reads_writes_and_guards(self):
         for action in ("graph", "impressions", "dream", "packs", "pack"):

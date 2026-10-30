@@ -9,6 +9,8 @@ from collections import Counter
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from ...services.trace_query import query_traces
+
 if TYPE_CHECKING:
     from ...main import Main
 
@@ -176,7 +178,7 @@ class WebRoutes:
             return error_response("请求方法不支持", status_code=405)
         try:
             if action == "traces":
-                return json_response(plugin.run_traces.snapshot(request.query.get("state", "all")))
+                return json_response(query_traces(plugin.run_traces.snapshot, request.query))
             if action == "events":
                 kind = request.query.get("kind", "")
                 status = request.query.get("status", "")

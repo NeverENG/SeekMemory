@@ -34,7 +34,7 @@ Cache 仅持有 active Artifact，并维护 family、level、subject 索引。�
 
 ## 恢复与诊断
 
-Artifact 版本快照和证据是审计事实；ledger 的哈希链用于检查账本连续性。Runtime episodes、Dream 状态和 Run Trace 分属不同用途，不能拿诊断轨迹代替 Artifact 变更账本。旧行解析、schema 演进和仓储实现都留在 store。
+Artifact 版本快照和证据是审计事实；ledger 的哈希链用于检查账本连续性。Runtime episodes、Dream 状态和 Run Trace 分属不同用途，不能拿诊断轨迹代替 Artifact 变更账本。旧行解析、schema 演进和仓储实现都留在 store。TraceStore 的只读模式在内存中校验与筛选事件，拒绝追加，初始化和 snapshot 均不创建、裁剪或重写文件；写入模式继续由生产者执行持久化和保留清理。
 
 ## 接口与文件归属
 
@@ -65,6 +65,6 @@ Cache 先准备完整的临时索引，再替换现有视图并递增 `version`�
 
 SQLite、结构初始化或仓储构造的任一阶段失败时，关闭刚打开的连接，包含取消情况。`commit()` 和非空 `commit_many()` 在写入前验证同一允许操作清单；分组冲突仍使整组事务回滚。结构、迁移顺序、持久化值和时间转换不变。
 
-`TraceStore.append()` 在验证或文件写入失败时设置 `persistence_error` 并抛错，保留上次已保存的内存快照。面向宿主的 `RunTracer` 隔离普通诊断异常，因此失败追踪既不会被误确认为成功，也不会中断聊天。诊断快照读取可能裁剪保留行；裁剪失败时报告持久化状态，保留上次已保存状态。诊断不能替代业务提交凭据。
+`TraceStore.append()` 在验证或文件写入失败时设置 `persistence_error` 并抛错，保留上次已保存的内存快照。面向宿主的 `RunTracer` 隔离普通诊断异常，因此失败追踪既不会被误确认为成功，也不会中断聊天。生产者写入模式下，诊断快照读取可能裁剪保留行；裁剪失败时报告持久化状态，保留上次已保存状态。诊断不能替代业务提交凭据。
 
 `tests/test_store_failure_recovery.py` 覆盖缓存读取失败、部分重建或替换准备失败、连接清理、无效分组操作及追踪替换失败。撤销恢复提交无需数据迁移。

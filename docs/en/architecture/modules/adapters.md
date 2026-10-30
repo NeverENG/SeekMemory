@@ -6,6 +6,8 @@ adapters translates AstrBot events, providers, and message sending into applicat
 
 ## Composition root
 
+The standalone console has its own composition root in `adapters/console/runtime.py` and HTTP entry in `adapters/console/server.py`. It reuses management and recall services, existing stores, and PersonaPacks without loading the AstrBot SDK or starting chat, models, or maintenance workers. Its HTTP adapter owns authentication and loopback-origin checks; see [WebUI](webui.md).
+
 On start, AstrBotPlugin builds Store, Cache, TreeService, Graph, HybridRetriever, Source-backed Buffer, CheckpointManager, application services, AgentRuntime, Jobs, WebRoutes, and background services. On stop, it stops background and management tasks, unregisters its own routes, saves the buffer, flushes checkpoints, and finally closes Store.
 
 main.py defines the plugin entry point and delegates lifecycle; composition and wiring live in adapters/astrbot/plugin.py. AstrBotPlugin explicitly owns hooks and attention components instead of sharing host state through multiple inheritance. AstrBotHooks in adapters/astrbot/hooks.py maps host hooks to service calls: access decisions, input acceptance, memory injection, assistant-reply capture, post-send delivery recording, and runtime/tool observation. It does not implement extraction, capacity, or maintenance algorithms.

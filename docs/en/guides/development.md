@@ -89,8 +89,11 @@ check includes generated-type freshness, TypeScript, lint, frontend tests, and f
 The Mock console uses hash routes such as #/home, #/studio, #/memory,
 #/store, #/dream and #/system?section=traces. The preview selector includes
 loading, empty, error and a 1,000-node/2,000-edge stress fixture. Preview
-install/import/edit actions affect memory-only fixtures. dev:host and production
-builds require the authenticated AstrBot page bridge.
+install/import/edit actions affect memory-only fixtures. dev:host uses the
+authenticated AstrBot page bridge; dev:standalone uses the real local HTTP API.
+Production builds work with either the standalone server or AstrBot. See
+[local console operations](webui.md#local-standalone-console) for startup and tokens.
+Frontend tests start a temporary Python API; SEEKMEMORY_TEST_PYTHON selects a Python 3.10+ interpreter.
 
 Bundled persona files live at persona_seeds/&lt;id&gt;/persona.json. Add the ID to
 index.json, include a LICENSE and follow the [persona seed guide](persona-seed.md).

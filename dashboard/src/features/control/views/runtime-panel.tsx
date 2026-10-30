@@ -23,6 +23,7 @@ export function RuntimePanel({
   const policy = status?.extractionPolicy
   const capacity = status?.capacity
   const persona = status?.persona
+  const maintenanceAvailable = status?.capabilities?.maintenanceTasks !== false
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6 p-5 sm:p-8">
       <div className="workspace-intro">
@@ -33,10 +34,14 @@ export function RuntimePanel({
           ["定时任务", String(status?.schedulerCount ?? "—")],
           [
             "待抽取消息",
-            String(
-              status?.pending.reduce((total, item) => total + item.count, 0) ??
-                "—"
-            ),
+            maintenanceAvailable
+              ? String(
+                  status?.pending.reduce(
+                    (total, item) => total + item.count,
+                    0
+                  ) ?? "—"
+                )
+              : "—",
           ],
           ["当前操作", task?.kind ?? "空闲"],
           ["待提交强化记忆", String(status?.checkpointPending ?? "—")],
@@ -141,11 +146,13 @@ export function RuntimePanel({
       <div className="surface-panel space-y-4 p-6">
         <h2 className="text-lg font-semibold">维护操作</h2>
         <p className="text-sm leading-6 text-muted-foreground">
-          立即抽取会调用配置的模型并写入记忆；每周整理会遗忘、合并并提炼人格。操作共用后台任务锁，运行期间暂停人工编辑。
+          {maintenanceAvailable
+            ? "立即抽取会调用配置的模型并写入记忆；每周整理会遗忘、合并并提炼人格。操作共用后台任务锁，运行期间暂停人工编辑。"
+            : "独立控制台未启用模型与后台维护任务。你仍可查看和编辑记忆、管理人格包。"}
         </p>
         <div className="flex flex-wrap gap-3">
           <Button
-            disabled={busy || !!task || !status?.ready}
+            disabled={busy || !!task || !status?.ready || !maintenanceAvailable}
             onClick={() => {
               onAction("extract")
             }}
@@ -154,7 +161,7 @@ export function RuntimePanel({
           </Button>
           <Button
             variant="outline"
-            disabled={busy || !!task || !status?.ready}
+            disabled={busy || !!task || !status?.ready || !maintenanceAvailable}
             onClick={() => {
               onAction("weekly")
             }}
@@ -178,7 +185,7 @@ export function RuntimePanel({
           </p>
         )}
       </div>
-      {policy && (
+      {policy && maintenanceAvailable && (
         <section className="surface-panel space-y-3 p-6">
           <h2 className="font-semibold">抽取策略</h2>
           <dl className="grid gap-4 text-sm sm:grid-cols-3">
@@ -209,54 +216,63 @@ export function RuntimePanel({
           </p>
         </section>
       )}
-      <section className="surface-panel space-y-4 p-6">
-        <h2 className="font-semibold">
-          待抽取话题 · {status?.pendingTopics.length ?? "—"}
-        </h2>
-        {!status && (
-          <p className="text-sm text-muted-foreground">暂无运行数据。</p>
-        )}
-        {status?.pendingTopics.length === 0 && (
-          <p className="text-sm text-muted-foreground">没有待抽取的话题。</p>
-        )}
-        <ul className="divide-y">
-          {status?.pendingTopics.map((topic) => (
-            <li key={`${topic.session}:${topic.id}`} className="space-y-2 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <code className="text-xs wrap-anywhere">{topic.id}</code>
-                <Badge variant="outline">{topic.count} 条消息</Badge>
-              </div>
-              <p className="text-xs wrap-anywhere text-muted-foreground">
-                会话：{topic.session}
+      {maintenanceAvailable && (
+        <>
+          <section className="surface-panel space-y-4 p-6">
+            <h2 className="font-semibold">
+              待抽取话题 · {status?.pendingTopics.length ?? "—"}
+            </h2>
+            {!status && (
+              <p className="text-sm text-muted-foreground">暂无运行数据。</p>
+            )}
+            {status?.pendingTopics.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                没有待抽取的话题。
               </p>
+            )}
+            <ul className="divide-y">
+              {status?.pendingTopics.map((topic) => (
+                <li
+                  key={`${topic.session}:${topic.id}`}
+                  className="space-y-2 py-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <code className="text-xs wrap-anywhere">{topic.id}</code>
+                    <Badge variant="outline">{topic.count} 条消息</Badge>
+                  </div>
+                  <p className="text-xs wrap-anywhere text-muted-foreground">
+                    会话：{topic.session}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    最早消息：{topic.oldestAt ?? "时间未记录"}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <section className="space-y-3">
+              <h2 className="font-semibold">会话汇总</h2>
+              <ul className="space-y-2 text-sm">
+                {status?.pending.map((item) => (
+                  <li key={item.session} className="flex justify-between gap-3">
+                    <span className="wrap-anywhere">{item.session}</span>
+                    <span className="shrink-0">{item.count} 条</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+            <section className="space-y-3">
+              <h2 className="font-semibold">当前配置</h2>
               <p className="text-xs text-muted-foreground">
-                最早消息：{topic.oldestAt ?? "时间未记录"}
+                配置编辑使用 AstrBot
+                插件配置页。此处展示实际配置，不代表所有历史配置项均已接入执行路径。
               </p>
-            </li>
-          ))}
-        </ul>
-      </section>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="space-y-3">
-          <h2 className="font-semibold">会话汇总</h2>
-          <ul className="space-y-2 text-sm">
-            {status?.pending.map((item) => (
-              <li key={item.session} className="flex justify-between gap-3">
-                <span className="wrap-anywhere">{item.session}</span>
-                <span className="shrink-0">{item.count} 条</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-        <section className="space-y-3">
-          <h2 className="font-semibold">当前配置</h2>
-          <p className="text-xs text-muted-foreground">
-            配置编辑使用 AstrBot
-            插件配置页。此处展示实际配置，不代表所有历史配置项均已接入执行路径。
-          </p>
-          <JsonView value={status?.config ?? {}} />
-        </section>
-      </div>
+              <JsonView value={status?.config ?? {}} />
+            </section>
+          </div>
+        </>
+      )}
     </section>
   )
 }

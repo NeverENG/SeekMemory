@@ -89,7 +89,9 @@ check 包含类型生成检查、TypeScript、lint、前端测试和格式检查
 Mock 控制台使用 #/home、#/studio、#/memory、#/store、#/dream、
 #/system?section=traces 等 hash 路由。预览选择器提供加载、空、错误和
 1,000 节点／2,000 关联压力数据。预览中的安装、导入及编辑只操作内存数据。
-dev:host 和生产构建必须使用已认证的 AstrBot 页面桥接器。
+dev:host 使用已认证的 AstrBot 页面桥接器；dev:standalone 使用真实本机 HTTP API。
+生产构建可通过独立服务或 AstrBot 打开，启动和令牌配置见[管理界面操作](webui.md#本机独立控制台)。
+前端测试会启动临时 Python API，可用 SEEKMEMORY_TEST_PYTHON 指定 Python 3.10+ 解释器。
 
 内置人格文件位于 persona_seeds/&lt;id&gt;/persona.json。新增时在 index.json
 登记 ID，附带 LICENSE，并遵循[人格 seed 指南](persona-seed.md)。本地导入写入

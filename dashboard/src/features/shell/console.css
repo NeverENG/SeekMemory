@@ -15,6 +15,14 @@
 .console-workspace.sidebar-collapsed {
   grid-template-columns: 68px minmax(0, 1fr);
 }
+.standalone-console .console-workspace,
+.standalone-console .console-content {
+  min-height: calc(100svh - 48px);
+}
+.standalone-console .console-sidebar {
+  top: 48px;
+  height: calc(100svh - 48px);
+}
 .console-sidebar {
   position: sticky;
   top: 0;

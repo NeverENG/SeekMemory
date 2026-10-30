@@ -4,7 +4,7 @@
  */
 
 export interface paths {
-    "/astrbot_plugin_seekmemory/manage/records": {
+    "/manage/records": {
         parameters: {
             query?: never;
             header?: never;
@@ -21,7 +21,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/status": {
+    "/manage/status": {
         parameters: {
             query?: never;
             header?: never;
@@ -38,7 +38,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/detail": {
+    "/manage/detail": {
         parameters: {
             query?: never;
             header?: never;
@@ -55,7 +55,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/events": {
+    "/manage/events": {
         parameters: {
             query?: never;
             header?: never;
@@ -72,7 +72,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/update": {
+    "/manage/update": {
         parameters: {
             query?: never;
             header?: never;
@@ -89,7 +89,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/diagnose": {
+    "/manage/diagnose": {
         parameters: {
             query?: never;
             header?: never;
@@ -106,7 +106,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/task": {
+    "/manage/task": {
         parameters: {
             query?: never;
             header?: never;
@@ -123,7 +123,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/cancel": {
+    "/manage/cancel": {
         parameters: {
             query?: never;
             header?: never;
@@ -140,14 +140,17 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/traces": {
+    "/manage/traces": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** 仅管理员读取无正文的运行轨迹 */
+        /**
+         * 仅管理员读取无正文的运行轨迹
+         * @description 宿主无关的运行轨迹查询。筛选在既有白名单及保留窗口内执行；时间范围按运行最后事件时间匹配，响应保留匹配运行的完整可用时间轴。无参数时保留原响应行为。查询不访问内部业务表。
+         */
         get: operations["traces"];
         put?: never;
         post?: never;
@@ -157,7 +160,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/graph": {
+    "/manage/graph": {
         parameters: {
             query?: never;
             header?: never;
@@ -177,7 +180,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/impressions": {
+    "/manage/impressions": {
         parameters: {
             query?: never;
             header?: never;
@@ -194,7 +197,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/dream": {
+    "/manage/dream": {
         parameters: {
             query?: never;
             header?: never;
@@ -211,7 +214,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/packs": {
+    "/manage/packs": {
         parameters: {
             query?: never;
             header?: never;
@@ -228,7 +231,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/pack": {
+    "/manage/pack": {
         parameters: {
             query?: never;
             header?: never;
@@ -245,7 +248,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/persona": {
+    "/manage/persona": {
         parameters: {
             query?: never;
             header?: never;
@@ -262,7 +265,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/rollbackPersona": {
+    "/manage/rollbackPersona": {
         parameters: {
             query?: never;
             header?: never;
@@ -279,7 +282,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/packArtwork": {
+    "/manage/packArtwork": {
         parameters: {
             query?: never;
             header?: never;
@@ -296,7 +299,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/astrbot_plugin_seekmemory/manage/packExport": {
+    "/manage/packExport": {
         parameters: {
             query?: never;
             header?: never;
@@ -474,6 +477,9 @@ export interface components {
             seedVersion?: string;
         };
         RuntimeStatus: {
+            capabilities?: {
+                maintenanceTasks: boolean;
+            };
             ready: boolean;
             checks: {
                 name: string;
@@ -844,6 +850,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description 记忆或操作不存在 */
             404: {
                 headers: {
@@ -902,6 +917,15 @@ export interface operations {
             };
             /** @description 未登录管理员 */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -969,6 +993,15 @@ export interface operations {
             };
             /** @description 未登录管理员 */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1048,6 +1081,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description 记忆或操作不存在 */
             404: {
                 headers: {
@@ -1120,6 +1162,15 @@ export interface operations {
             };
             /** @description 未登录管理员 */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1224,6 +1275,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description 记忆或操作不存在 */
             404: {
                 headers: {
@@ -1314,6 +1374,15 @@ export interface operations {
             };
             /** @description 未登录管理员 */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1418,6 +1487,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description 记忆或操作不存在 */
             404: {
                 headers: {
@@ -1478,6 +1556,14 @@ export interface operations {
         parameters: {
             query?: {
                 state?: "all" | "not_recalled" | "recalled_but_withheld" | "recalled_and_injected" | "fallback_used";
+                /** @description 运行结果；unknown 工具结果不推断为成功或失败。 */
+                status?: "all" | "running" | "completed" | "error" | "interrupted";
+                /** @description 精确匹配生成的运行编号，不接受用户或会话标识。 */
+                run_id?: string;
+                /** @description 最后事件时间下界，含边界；必须含时区。 */
+                since?: string;
+                /** @description 最后事件时间上界，含边界；必须含时区且不早于 since。 */
+                until?: string;
             };
             header?: never;
             path?: never;
@@ -1505,6 +1591,15 @@ export interface operations {
             };
             /** @description 请求失败 */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1570,6 +1665,15 @@ export interface operations {
             };
             /** @description 未登录管理员 */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1662,6 +1766,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description 记忆或操作不存在 */
             404: {
                 headers: {
@@ -1738,6 +1851,15 @@ export interface operations {
             };
             /** @description 未登录管理员 */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1831,6 +1953,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description 记忆或操作不存在 */
             404: {
                 headers: {
@@ -1909,6 +2040,15 @@ export interface operations {
             };
             /** @description 未登录管理员 */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1997,6 +2137,15 @@ export interface operations {
             };
             /** @description 未登录管理员 */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2101,6 +2250,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description 记忆或操作不存在 */
             404: {
                 headers: {
@@ -2195,6 +2353,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description 记忆或操作不存在 */
             404: {
                 headers: {
@@ -2273,6 +2440,15 @@ export interface operations {
             };
             /** @description 未登录管理员 */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

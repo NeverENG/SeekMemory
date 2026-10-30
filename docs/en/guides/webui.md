@@ -4,7 +4,26 @@
 
 Install the SeekMemory Release plugin and reload it in AstrBot. Open the management interface from the SeekMemory plugin card's plugin-view entry. Plugin configuration remains in the AstrBot configuration page. Opening a static HTML page or running pnpm dev:host does not connect to the production plugin; use dashboard Mock mode for local previews.
 
-All management API calls require the host's authenticated administrator context. The interface can read the complete memory catalog and original evidence, so use it only in a trusted admin session.
+The AstrBot entry requires the host's authenticated administrator context; the standalone entry uses a separate administrator token. The interface can read the complete memory catalog and original evidence, so use it only in a trusted admin session.
+
+## Local standalone console
+
+From a source checkout with Python 3.10 or newer, build the page and start the service:
+
+```bash
+pnpm --dir dashboard install --frozen-lockfile
+pnpm --dir dashboard build
+export SEEKMEMORY_CONSOLE_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+python3 scripts/console_http.py --data-dir ./data/console --port 8766
+```
+
+Open `http://127.0.0.1:8766`, keep the default API address, and connect using the administrator token in the environment variable. Tokens require at least 32 non-whitespace ASCII characters and live only in page memory. Refreshing, disconnecting, or replacing the service token requires entering it again. The service binds only to `127.0.0.1` and provides no remote deployment entry.
+
+The data directory contains the existing `memory.db`, `persona_packs/`, and `run_traces.jsonl` formats. Start with a new directory. To inspect existing data, stop its host and back it up before copying the complete directory offline. Do not let AstrBot or another standalone process manage the same directory concurrently: each process owns an active cache that cannot track another process's edits. Existing AstrBot configuration and database formats are unchanged.
+
+The standalone console supports the memory list, details, manual revisions, persona packs, and recall diagnostics. It starts no chat host, model, extraction queue, or maintenance scheduler; maintenance buttons are unavailable. Lifecycle logs are empty. Run traces load an allowlisted offline snapshot from the selected directory read-only at startup. The trace API filters its in-memory view to seven days and at most 5,000 events by default. Starting, reading, and closing never rewrite the original file; the producer owns persisted retention. Restart after replacing an offline snapshot. Import-task status still awaits a real memory-import API; persona-pack import does not provide that task status.
+
+For development, run `pnpm --dir dashboard dev:standalone` and add `--allow-origin http://127.0.0.1:5176` to the service command. Enter `http://127.0.0.1:8766/api/` on the connection page. Allowed origins must be explicit local HTTP origins; other page origins are rejected by default. Stop with Ctrl+C. Restart reads the token from the environment and creates no token file.
 
 ## Memory library
 
@@ -29,6 +48,10 @@ Enter the query, full session UMO, and actual speaker ID to preview the assemble
 The lifecycle log helps locate business stages, durations, source locations, and error types. It is a bounded diagnostic record, not a permanent audit archive. Agent Run Trace shows correlated request, recall, tool, and send events without message text or model responses. “Memory injected” means content entered the request context; it does not prove the model used it.
 
 Capacity Trace is a separate runtime sample. These streams have different purposes and are not interchangeable as business facts.
+
+On the run trace page, query by full run ID, run result, and last-update time range. Times use the device timezone and include both boundaries. Combine or clear the conditions. The server returns every available step of matching runs inside its retention window; recall flags can further filter current results. Failure steps come directly from error events. “Previous run unfinished” means no end was recorded and does not identify a cause. The page marks timelines whose steps were not fully retained.
+
+Both entries use the same `GET manage/traces` query contract. For example, `?status=error&since=2026-10-29T00:00:00Z` selects failed runs last updated at or after that instant; add `run_id=<32-character-run-id>` for an exact match. Neither the interface nor the page needs internal business tables. See [runtime design](../architecture/modules/runtime.md#run-trace-event-boundary) for the allowlist and retention limits.
 
 See [development setup](development.md) for the dashboard mock and build workflow.
 

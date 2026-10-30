@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --mode mock",
     "dev:mock": "vite --mode mock",
-    "dev:host": "vite",
+    "dev:host": "vite --mode host",
+    "dev:standalone": "vite --mode standalone",
     "build": "tsc -b && vite build",
     "lint": "oxlint --type-aware --deny-warnings .",
     "format": "oxfmt --write .",

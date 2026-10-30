@@ -10,7 +10,7 @@ import {
   personaResultSchema,
   type ConsoleClient,
 } from "../features/shell/model.ts"
-interface Bridge {
+export interface Bridge {
   apiGet(endpoint: string, query?: Record<string, string>): Promise<unknown>
   apiPost(endpoint: string, body: unknown): Promise<unknown>
 }

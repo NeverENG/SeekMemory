@@ -361,8 +361,28 @@ let events: OperationEvent[] = [
 
 export const mockClient: ManagementClient = {
   console: mockConsole(() => records, details),
-  async traces() {
-    return demoTraces(base.id)
+  async traces(query = {}) {
+    const snapshot = demoTraces(base.id)
+    const runs = snapshot.runs.filter(
+      (run) =>
+        (!query.run_id || run.id === query.run_id) &&
+        (!query.status ||
+          query.status === "all" ||
+          run.status === query.status) &&
+        (!query.since ||
+          Date.parse(run.updated_at) >= Date.parse(query.since)) &&
+        (!query.until ||
+          Date.parse(run.updated_at) <= Date.parse(query.until)) &&
+        (!query.state ||
+          query.state === "all" ||
+          run.flags.includes(query.state))
+    )
+    const visible = new Set(runs.map((run) => run.id))
+    return {
+      ...snapshot,
+      runs,
+      events: snapshot.events.filter((event) => visible.has(event.run_id)),
+    }
   },
   async records() {
     return records

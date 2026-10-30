@@ -34,7 +34,7 @@ Cache holds active Artifacts only and indexes them by family, level, and subject
 
 ## Recovery and diagnostics
 
-Artifact version snapshots and evidence are audit facts; the ledger hash chain checks ledger continuity. Runtime episodes, Dream state, and Run Trace have separate purposes. A diagnostic timeline is not a substitute for the Artifact change ledger. Legacy row parsing, schema evolution, and repository implementation stay inside store.
+Artifact version snapshots and evidence are audit facts; the ledger hash chain checks ledger continuity. Runtime episodes, Dream state, and Run Trace have separate purposes. A diagnostic timeline is not a substitute for the Artifact change ledger. Legacy row parsing, schema evolution, and repository implementation stay inside store. TraceStore read-only mode validates and filters events in memory, rejects appends, and never creates, prunes, or rewrites files during initialization or snapshots. Producer write mode retains ownership of persistence and retention cleanup.
 
 ## Interface and file ownership
 
@@ -65,6 +65,6 @@ Cache rebuilds a complete temporary set of indices before replacing the live vie
 
 SQLite/schema initialization and repository construction close their newly opened connection if any stage fails, including cancellation. Both `commit()` and nonempty `commit_many()` validate the same accepted operation vocabulary before writes; group conflicts still roll back the entire transaction. Schema, migration order, persisted values and time conversion remain unchanged.
 
-`TraceStore.append()` sets `persistence_error` and raises on a failed validation/file write, leaving the last saved in-memory snapshot intact. Host-facing `RunTracer` contains ordinary diagnostic exceptions, so a failed trace cannot acknowledge success or interrupt chat. Diagnostic snapshot reads may compact retained rows; a failed compaction reports its persistence status and keeps the last saved state. These traces are not business commit receipts.
+`TraceStore.append()` sets `persistence_error` and raises on a failed validation/file write, leaving the last saved in-memory snapshot intact. Host-facing `RunTracer` contains ordinary diagnostic exceptions, so a failed trace cannot acknowledge success or interrupt chat. In producer write mode, diagnostic snapshot reads may compact retained rows; a failed compaction reports its persistence status and keeps the last saved state. These traces are not business commit receipts.
 
 `tests/test_store_failure_recovery.py` covers failed cache reads, partial rebuild/replacement preparation, connection cleanup, invalid group operations and trace replacement failures. Reverting the recovery commit requires no data migration.

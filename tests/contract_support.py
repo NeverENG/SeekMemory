@@ -23,7 +23,7 @@ def validate_contract(action: str, data: object, status: int = 200, *, request=F
         KeyError: 操作或响应状态未在契约中声明。
         jsonschema.ValidationError: 数据与契约不符。
     """
-    path = SPEC["paths"][f"/astrbot_plugin_seekmemory/manage/{action}"]
+    path = SPEC["paths"][f"/manage/{action}"]
     operation = next(iter(path.values()))
     body = operation["requestBody"] if request else operation["responses"][str(status)]
     schema = body["content"]["application/json"]["schema"]

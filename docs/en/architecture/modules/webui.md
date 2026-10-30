@@ -2,10 +2,18 @@
 
 ## Layers
 
-- `webui/` keeps host-neutral jobs, journal, and trace primitives; AstrBot management routes live in `adapters/astrbot/web.py`, where the adapter owns authentication, method/body limits, and status mapping.
+- `webui/` keeps host-neutral jobs, journal, trace primitives, and management dispatch in `console_api.py`. The independent HTTP boundary lives in `adapters/console/`; AstrBot management routes remain in `adapters/astrbot/web.py`.
 - services/management_service.py implements framework-independent catalog, detail, edit, persona bootstrap/rollback, and recall-diagnostic use cases.
 - dashboard/ is the React/TypeScript management interface, organized around memory library, control/diagnostics/logs/run traces/persona evidence workspaces.
-- The AstrBot page bridge sends authenticated host requests to the plugin API; a static page and development mock do not connect to the real database.
+- The AstrBot page bridge sends authenticated host requests to the plugin API. The standalone page uses a configurable HTTP API and administrator token. Mock mode operates only in memory.
+
+## Independent HTTP boundary
+
+`scripts/console_http.py` starts `adapters/console/server.py`. Its `runtime.py` composes the existing Store, Cache, RecallService, ManagementService, StatusService, and PersonaPacks. Production operations use application services; HTTP dispatch accesses no database and imports no AstrBot modules. HTTP connections read and write concurrently; parsed requests run serially on one management worker, which also creates and closes SQLite. Idle connections and incomplete request bodies do not occupy the database worker. Shutdown drains connection handlers before closing the database.
+
+`openapi.yaml` defines `/manage/<action>` paths with `/api` and `/astrbot_plugin_seekmemory` server prefixes. Existing AstrBot URLs, request bodies, and error envelopes remain compatible. Every standalone API read and write checks the Bearer token, Host, and origin. Binding is local, development origins require explicit permission, request sizes are bounded, and token-bearing requests disable caching and redirects. Static serving exposes only built entry files and assets, never the data directory.
+
+The frontend `management-client.ts` shares Zod response validation; `http-client.ts` and `astrbot-client.ts` implement HTTP and host transport separately. Components receive only ManagementClient. Standalone tokens never enter URLs, logs, or browser storage. Disconnect cancels requests; a 401 returns to the connection page. Optional status field `capabilities.maintenanceTasks=false` disables background tasks that the standalone service does not start. Older hosts without the field retain existing behavior.
 
 ## Management writes
 
@@ -20,6 +28,21 @@ Recall diagnostics reuse RecallService with dry_run, skipping designated given-s
 Jobs limit manual and scheduled maintenance to one active task. Journal stores bounded business-stage events and error types/source locations. Agent Run Trace is stored separately by TraceStore with an allowlist; capacity Trace is another in-memory ring. These streams have distinct purposes and must not store message text, model responses, or tool arguments/results.
 
 The root openapi.yaml is the management API source of truth. dashboard/src/contracts/generated.ts is maintained by code generation, while Zod continues to validate runtime inputs. See the [WebUI operations guide](../../guides/webui.md) and [dashboard development setup](../../guides/development.md).
+
+## Run trace queries
+
+Both authenticated entries share `services/trace_query.py` for `GET manage/traces`. It consumes the TraceStore allowlisted snapshot without business-table access or host objects. Requests without parameters preserve the original response. Optional filters combine:
+
+| Parameter | Meaning |
+|---|---|
+| `run_id` | Exact generated 32-character lowercase hexadecimal run ID; never a user or session identifier |
+| `status` | `all`, `running`, `completed`, `error`, or `interrupted` |
+| `since` / `until` | Timezone-aware timestamps matched inclusively against the run's last event; the end cannot precede the start |
+| `state` | Existing recall-flag filter, default `all`; flags may overlap |
+
+Queries cover only retained events and return every available step of matching runs; time bounds do not truncate the start of a timeline. Capacity and retention metadata remain intact. Invalid filters return 400 without echoing input. The page queries through ManagementClient, clears old results when filters change, and discards late responses. Time inputs use the device timezone. Error events identify recorded failure steps; unfinished runs show only the last known step without inferring a cause. Missing or evicted steps remain marked partial.
+
+There is currently no memory-import task API. Persona-pack import is separate from memory import. The console creates no fictional progress; task status awaits an actual service interface.
 
 ## Persona console read models (GitHub #82 / #83)
 

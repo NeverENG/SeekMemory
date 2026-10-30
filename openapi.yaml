@@ -2,12 +2,17 @@ openapi: 3.1.0
 info:
   title: SeekMemory 管理接口
   version: 1.0.0
-  description: 描述 Context.register_web_api 注册的插件路由与 JSON 正文。实际 HTTP 前缀、管理员认证及 iframe 通信由 AstrBot
-    宿主负责；前端通过 AstrBotPluginPage.apiGet/apiPost 使用 manage/<action>，不自行拼接 URL。成功响应直接返回数据，失败使用宿主错误结构；宿主代理还可能在进入插件前拒绝请求。本契约版本独立于插件发布版本。
+  description: 宿主无关的管理操作与 JSON 正文。独立控制台通过 /api/manage/<action> 和管理员 Bearer 令牌访问；AstrBot 保留 /astrbot_plugin_seekmemory/manage/<action> 与已认证页面桥接。两种传输共用请求和响应契约，独立入口不依赖宿主请求上下文。契约版本独立于插件发布版本。
+servers:
+- url: /api
+  description: 本机独立控制台
+- url: /astrbot_plugin_seekmemory
+  description: AstrBot 管理员页面桥接
 security:
+- ConsoleAdmin: []
 - AstrBotAdmin: []
 paths:
-  /astrbot_plugin_seekmemory/manage/records:
+  /manage/records:
     get:
       operationId: records
       summary: 列出全部家族、scope 和状态的记忆
@@ -18,6 +23,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RecordsResponse'
+        '403':
+          description: 请求来源不允许（独立控制台）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: 未登录管理员
           content:
@@ -48,7 +59,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /astrbot_plugin_seekmemory/manage/status:
+  /manage/status:
     get:
       operationId: status
       summary: 查看引擎、模型配置与任务状态
@@ -59,6 +70,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RuntimeStatus'
+        '403':
+          description: 请求来源不允许（独立控制台）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: 未登录管理员
           content:
@@ -89,7 +106,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /astrbot_plugin_seekmemory/manage/detail:
+  /manage/detail:
     get:
       operationId: detail
       summary: 查看原始正文、版本、来源与账本
@@ -100,6 +117,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArtifactDetail'
+        '403':
+          description: 请求来源不允许（独立控制台）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: 未登录管理员
           content:
@@ -136,7 +159,7 @@ paths:
         required: true
         schema:
           type: string
-  /astrbot_plugin_seekmemory/manage/events:
+  /manage/events:
     get:
       operationId: events
       summary: 读取最近的生命周期日志
@@ -147,6 +170,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/EventsResponse'
+        '403':
+          description: 请求来源不允许（独立控制台）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: 未登录管理员
           content:
@@ -196,7 +225,7 @@ paths:
         schema:
           type: string
         description: 消息或任务 ID 的子串，不区分大小写
-  /astrbot_plugin_seekmemory/manage/update:
+  /manage/update:
     post:
       operationId: update
       summary: 追加人工修订
@@ -209,6 +238,12 @@ paths:
                 $ref: '#/components/schemas/IdResponse'
         '400':
           description: 输入校验失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 请求来源不允许（独立控制台）
           content:
             application/json:
               schema:
@@ -262,7 +297,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateCommand'
-  /astrbot_plugin_seekmemory/manage/diagnose:
+  /manage/diagnose:
     post:
       operationId: diagnose
       summary: 只读预演召回
@@ -275,6 +310,12 @@ paths:
                 $ref: '#/components/schemas/Diagnostic'
         '400':
           description: 输入校验失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 请求来源不允许（独立控制台）
           content:
             application/json:
               schema:
@@ -328,7 +369,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/DiagnosticQuery'
-  /astrbot_plugin_seekmemory/manage/task:
+  /manage/task:
     post:
       operationId: task
       summary: 提交抽取或每周整理任务
@@ -341,6 +382,12 @@ paths:
                 $ref: '#/components/schemas/IdResponse'
         '400':
           description: 输入校验失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 请求来源不允许（独立控制台）
           content:
             application/json:
               schema:
@@ -394,7 +441,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/TaskCommand'
-  /astrbot_plugin_seekmemory/manage/cancel:
+  /manage/cancel:
     post:
       operationId: cancel
       summary: 取消指定的当前任务
@@ -407,6 +454,12 @@ paths:
                 $ref: '#/components/schemas/IdResponse'
         '400':
           description: 输入校验失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 请求来源不允许（独立控制台）
           content:
             application/json:
               schema:
@@ -460,10 +513,11 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CancelCommand'
-  /astrbot_plugin_seekmemory/manage/traces:
+  /manage/traces:
     get:
       operationId: traces
       summary: 仅管理员读取无正文的运行轨迹
+      description: 宿主无关的运行轨迹查询。筛选在既有白名单及保留窗口内执行；时间范围按运行最后事件时间匹配，响应保留匹配运行的完整可用时间轴。无参数时保留原响应行为。查询不访问内部业务表。
       parameters:
       - name: state
         in: query
@@ -475,6 +529,31 @@ paths:
           - recalled_but_withheld
           - recalled_and_injected
           - fallback_used
+      - name: status
+        in: query
+        description: 运行结果；unknown 工具结果不推断为成功或失败。
+        schema:
+          type: string
+          enum: [all, running, completed, error, interrupted]
+          default: all
+      - name: run_id
+        in: query
+        description: 精确匹配生成的运行编号，不接受用户或会话标识。
+        schema:
+          type: string
+          pattern: ^[a-f0-9]{32}$
+      - name: since
+        in: query
+        description: 最后事件时间下界，含边界；必须含时区。
+        schema:
+          type: string
+          format: date-time
+      - name: until
+        in: query
+        description: 最后事件时间上界，含边界；必须含时区且不早于 since。
+        schema:
+          type: string
+          format: date-time
       responses:
         '200':
           description: 操作成功
@@ -484,6 +563,12 @@ paths:
                 $ref: '#/components/schemas/TracesResponse'
         '400':
           description: 请求失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 请求来源不允许（独立控制台）
           content:
             application/json:
               schema:
@@ -512,7 +597,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /astrbot_plugin_seekmemory/manage/graph:
+  /manage/graph:
     get:
       operationId: graph
       summary: 控制台 graph
@@ -524,6 +609,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GraphResponse'
+        '403':
+          description: 请求来源不允许（独立控制台）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: 未登录管理员
           content:
@@ -566,7 +657,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /astrbot_plugin_seekmemory/manage/impressions:
+  /manage/impressions:
     get:
       operationId: impressions
       summary: 控制台 impressions
@@ -577,6 +668,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ImpressionsResponse'
+        '403':
+          description: 请求来源不允许（独立控制台）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: 未登录管理员
           content:
@@ -629,7 +726,7 @@ paths:
           minimum: 0
           maximum: 100000
           default: 0
-  /astrbot_plugin_seekmemory/manage/dream:
+  /manage/dream:
     get:
       operationId: dream
       summary: 控制台 dream
@@ -640,6 +737,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DreamResponse'
+        '403':
+          description: 请求来源不允许（独立控制台）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: 未登录管理员
           content:
@@ -682,7 +785,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /astrbot_plugin_seekmemory/manage/packs:
+  /manage/packs:
     get:
       operationId: packs
       summary: 控制台 packs
@@ -693,6 +796,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PacksResponse'
+        '403':
+          description: 请求来源不允许（独立控制台）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: 未登录管理员
           content:
@@ -746,7 +855,7 @@ paths:
           - mine
           default: official
       - *id001
-  /astrbot_plugin_seekmemory/manage/pack:
+  /manage/pack:
     get:
       operationId: pack
       summary: 控制台 pack
@@ -757,6 +866,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PackResponse'
+        '403':
+          description: 请求来源不允许（独立控制台）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: 未登录管理员
           content:
@@ -806,7 +921,7 @@ paths:
         schema:
           type: string
           pattern: ^(official|mine)/[a-z0-9][a-z0-9._-]{1,63}$
-  /astrbot_plugin_seekmemory/manage/persona:
+  /manage/persona:
     post:
       operationId: persona
       summary: 控制台 persona
@@ -819,6 +934,12 @@ paths:
                 $ref: '#/components/schemas/PersonaResult'
         '400':
           description: 输入无效或版本冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 请求来源不允许（独立控制台）
           content:
             application/json:
               schema:
@@ -872,7 +993,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PersonaCommand'
-  /astrbot_plugin_seekmemory/manage/rollbackPersona:
+  /manage/rollbackPersona:
     post:
       operationId: rollbackPersona
       summary: 将历史人格恢复为新版本，保留完整历史
@@ -885,6 +1006,12 @@ paths:
                 $ref: '#/components/schemas/PersonaRollbackResult'
         '400':
           description: 输入无效或版本冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 请求来源不允许（独立控制台）
           content:
             application/json:
               schema:
@@ -938,7 +1065,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PersonaRollbackCommand'
-  /astrbot_plugin_seekmemory/manage/packArtwork:
+  /manage/packArtwork:
     get:
       operationId: packArtwork
       summary: 读取人格封面（管理员鉴权，最大 2 MiB PNG）
@@ -949,6 +1076,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PersonaArtwork'
+        '403':
+          description: 请求来源不允许（独立控制台）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: 未登录管理员
           content:
@@ -998,7 +1131,7 @@ paths:
         schema:
           type: string
           pattern: ^(official|mine)/[a-z0-9][a-z0-9._-]{1,63}$
-  /astrbot_plugin_seekmemory/manage/packExport:
+  /manage/packExport:
     get:
       operationId: packExport
       summary: 导出完整人格包（不包含聊天来源和证据）
@@ -1009,6 +1142,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PersonaBundle'
+        '403':
+          description: 请求来源不允许（独立控制台）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: 未登录管理员
           content:
@@ -1060,6 +1199,10 @@ paths:
           pattern: ^(official|mine)/[a-z0-9][a-z0-9._-]{1,63}$
 components:
   securitySchemes:
+    ConsoleAdmin:
+      type: http
+      scheme: bearer
+      description: 独立服务从 SEEKMEMORY_CONSOLE_TOKEN 读取管理员令牌；浏览器仅在页面内存持有，不写入 URL 或本地存储。
     AstrBotAdmin:
       type: http
       scheme: bearer
@@ -1541,6 +1684,14 @@ components:
     RuntimeStatus:
       type: object
       properties:
+        capabilities:
+          type: object
+          properties:
+            maintenanceTasks:
+              type: boolean
+          required:
+          - maintenanceTasks
+          additionalProperties: false
         ready:
           type: boolean
         checks:

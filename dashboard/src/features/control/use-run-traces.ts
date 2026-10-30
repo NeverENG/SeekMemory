@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import type { TraceQuery } from "../../contracts/api.ts"
 import type { ManagementClient } from "./model.ts"
 import {
   filterRuns,
@@ -8,6 +9,9 @@ import {
 } from "./trace-model.ts"
 
 export function useRunTraces(client: ManagementClient, initialRun = "") {
+  const [query, setQuery] = useState<TraceQuery>(
+    initialRun ? { run_id: initialRun } : {}
+  )
   const [snapshot, setSnapshot] = useState<TraceSnapshot | null>(null)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(true)
@@ -18,7 +22,7 @@ export function useRunTraces(client: ManagementClient, initialRun = "") {
   const load = useCallback((): Promise<void> => {
     const version = ++generation.current
     return Promise.resolve()
-      .then(() => client.traces())
+      .then(() => client.traces(query))
       .then((result) => {
         if (version !== generation.current) return
         setSnapshot(result)
@@ -32,7 +36,7 @@ export function useRunTraces(client: ManagementClient, initialRun = "") {
       .finally(() => {
         if (version === generation.current) setLoading(false)
       })
-  }, [client])
+  }, [client, query])
   useEffect(() => {
     void load()
     return () => {
@@ -49,6 +53,14 @@ export function useRunTraces(client: ManagementClient, initialRun = "") {
   const timeline = snapshot && active ? runTimeline(snapshot, active.id) : []
   return {
     snapshot,
+    applyQuery: (next: TraceQuery) => {
+      generation.current += 1
+      setLoading(true)
+      setError("")
+      setSnapshot(null)
+      setLimit(50)
+      setQuery(next)
+    },
     error,
     loading,
     filter,

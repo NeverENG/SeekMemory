@@ -6,6 +6,8 @@ adapters 把 AstrBot 事件、provider 和消息发送映射到应用端口。�
 
 ## 组合根
 
+独立控制台的组合根位于 `adapters/console/runtime.py`，HTTP 入口位于 `adapters/console/server.py`。它复用管理与召回用例、现有存储及 PersonaPacks，不加载 AstrBot SDK，也不启动聊天、模型或后台维护。认证和本机来源限制由 HTTP 适配层负责，详见 [WebUI](webui.md)。
+
 AstrBotPlugin 在 start 时建立 Store、Cache、TreeService、Graph、HybridRetriever、Source-backed Buffer、CheckpointManager、各应用服务、AgentRuntime、Jobs、WebRoutes 与后台服务；stop 时依次停止后台任务与管理任务、注销本实例路由、保存缓冲、flush checkpoint，最后关闭 Store。
 
 main.py 定义插件入口并委托 lifecycle；组合和 wiring 位于 adapters/astrbot/plugin.py。AstrBotPlugin 显式持有 hooks 与 attention 组件，不再通过多继承共享宿主状态。AstrBotHooks 在 adapters/astrbot/hooks.py 把宿主 hook 映射为服务调用：访问策略、输入接收、记忆注入、助手回复捕获、实际发送后的交付记录、运行时/工具观测。它不实现抽取、容量或维护算法。

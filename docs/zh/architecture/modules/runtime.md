@@ -39,6 +39,22 @@ runtime_gate_enabled 默认 false。关闭时，等待和后台 deferred dispatc
 
 RunRecorder 是 Source、pending projection、checkpoint 和 episode 的唯一运行时写回协调者，以 run_id 和确定性 Source ID 防止重复回调重复写入。runtime_episodes 是追加式业务审计元数据；RunTracer/TraceStore 是受字段白名单约束的诊断时间线。二者不保存对话正文，不互相替代。
 
+### 运行轨迹事件边界
+
+`app/runtime/tracing.py` 的 RunTracer 是宿主无关生产者，事件仅需要 get_extra/set_extra 关联状态；`core/domain/operations/trace.py` 拥有字段清理与运行投影，`store/run_trace.py` 拥有 JSONL 持久化。管理查询消费同一快照，见 [WebUI](webui.md#运行轨迹查询)。
+
+| 事件 | 记录时机 |
+|---|---|
+| `agent_begin` | 运行开始，关联随机生成的 run_id |
+| `llm_request` / `llm_response` | 请求编号、召回白名单摘要与可用耗时；不含模型输入输出 |
+| `tool_call` / `tool_result` | 工具名及可用耗时；不含参数或返回正文，未知结果保持 unknown |
+| `agent_done` | 运行结束状态 |
+| `message_sent` | 已观察到发送成功；独立于记忆注入 |
+
+公共事件字段只有 run_id、sequence、at、event、request_index、status、duration_ms、tool、recall。recall 仅保留有界生成 ID、计数、固定 mode/fallback/disclosure 枚举和 gate 数值；不保存消息、提示词、响应、来源正文、工具参数/结果、用户/会话标识或凭据。写入和重载均重新清理未知字段。事件状态为 running/ok/error/unknown；运行状态沿用投影：结束错误为 error，其他结束或发送成功为 completed，重启前未结束为 interrupted，其余为 running。
+
+TraceStore 默认保留 7 天、最多 5000 条事件。生产者清理过期与超量记录；诊断写入失败不阻断主流程，并通过 persistence_error 提示记录可能不完整。记录保留或缺失不能用来证明未执行某步骤。独立控制台在启动时只读加载离线文件；替换快照后需重启服务，不与运行中的宿主共用数据目录。
+
 ToolPolicy 在模型请求前可从 req.func_tool 移除不允许的工具；观察工具调用的 hook 只是诊断信号，不能单独阻止执行。实际过滤由 runtime_tool_filter_enabled 控制，默认关闭。
 
 ## 交付后补写

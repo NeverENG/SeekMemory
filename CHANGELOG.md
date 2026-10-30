@@ -126,6 +126,12 @@
 
 - 将 core 的领域实现归入 `core/domain/`，图存储协议归入 `core/port/`；旧模块导入与 `core.ports` 保留同一对象的兼容入口。移除 `main.py` 整文件 40 行上限测试，保留入口职责边界检查。未改模型调用、持久化格式或公开配置。
 
+- 运行轨迹新增宿主无关的运行编号、结果及时间范围查询，AstrBot 与独立 HTTP 共用契约；控制台可定位已记录的失败步骤，并标明未结束或不完整时间轴。保留既有白名单、只读边界和响应格式；切换查询时丢弃迟到结果，不新增数据库或公开配置。
+
+- 修复独立控制台启动和读取时隐式裁剪历史 trace；轨迹只读筛选，不改写原文件。HTTP 连接并行读写，管理操作继续在单个 SQLite 所属线程串行执行，避免空闲连接阻塞正常请求；保持 API、配置与数据格式兼容。
+
+- 新增本机独立控制台：无需启动 AstrBot 即可通过 HTTP API 查看和编辑记忆、管理人格包及运行只读诊断。支持可配置 API 地址和独立管理员令牌；令牌仅在页面内存保存，断开或过期后需重新连接。新增 `SEEKMEMORY_CONSOLE_TOKEN` 与独立启动参数，保留旧宿主入口及数据格式；首版不运行后台维护、远程部署或导入任务 API。
+
 - app 卫生：保留兼容入口，内部区分纯规则、状态变化、执行和补写；全量规范中英双语源码说明，同步双语文件职责、接口及验证入口。存储和宿主转接暂留原处，供后续跨模块整理。
 
 - 运行时：确认发送后保留进程内凭据，写回失败仅补状态、原始消息/队列及审计；关闭后台发言及停止时仍补写。保存失败可被编排识别，文件失败不覆盖旧状态，新增审计使用稳定运行编号。不改数据库结构或旧记录，不保证断电后绝对不重发。
@@ -183,6 +189,12 @@
 ### English
 
 - Group core domain implementations under `core/domain/` and the graph storage protocol under `core/port/`; legacy module imports and `core.ports` still resolve to the same objects. Remove the whole-file 40-line limit test for `main.py` while retaining entry-point ownership checks. Model calls, persisted formats and public configuration are unchanged.
+
+- Add host-neutral run ID, result and time-range queries with a shared contract for AstrBot and standalone HTTP. The console locates recorded failure steps and marks unfinished or partial timelines. Preserve the allowlist, read-only boundary and response format, discard late query results, and add no database or public configuration changes.
+
+- Fix implicit pruning of historical traces when starting or reading the standalone console; filter traces read-only without rewriting the original file. Handle HTTP connections concurrently while serializing management operations on the SQLite owner thread, so idle connections do not block normal requests. API, configuration, and data formats remain compatible.
+
+- Add a local standalone console for HTTP-based memory inspection/editing, persona packs, and read-only diagnostics without starting AstrBot. API addresses and independent administrator tokens are configurable; tokens remain in page memory and require reconnection after disconnect or expiry. Add `SEEKMEMORY_CONSOLE_TOKEN` and standalone CLI options while preserving the host entry and data formats. The first version starts no maintenance workers and includes no remote deployment or import-task API.
 
 - Clarify app pure rules, transitions, dispatch and write-back behind compatible entries; standardize bilingual source documentation and update mirrored responsibility/interface/verification maps. Storage and host adapters remain in place pending cross-module inventory.
 

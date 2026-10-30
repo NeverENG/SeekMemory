@@ -3,6 +3,7 @@ import type {
   ApiRequest,
   ApiResponse,
   ApiSchemas,
+  TraceQuery,
 } from "../../contracts/api.ts"
 import type { MemoryRecord } from "../memory/model.ts"
 import type { TraceSnapshot } from "./trace-model.ts"
@@ -45,6 +46,7 @@ export const personaRevisionSchema = z.object({
   sourceIds: z.array(z.string()).default([]),
 })
 export const statusSchema = z.object({
+  capabilities: z.object({ maintenanceTasks: z.boolean() }).exactOptional(),
   ready: z.boolean(),
   checks: z.array(
     z.object({ name: z.string(), ok: z.boolean(), detail: z.string() })
@@ -175,7 +177,7 @@ export type DiagnosticQuery = ApiRequest<"diagnose">
 
 export interface ManagementClient {
   console?: import("../shell/model.ts").ConsoleClient
-  traces(): Promise<TraceSnapshot>
+  traces(query?: TraceQuery): Promise<TraceSnapshot>
   records(): Promise<readonly MemoryRecord[]>
   status(): Promise<RuntimeStatus>
   detail(id: string): Promise<ArtifactDetail>

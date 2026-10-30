@@ -14,6 +14,7 @@ services combines domain objects, app ports, and perceive, recall, and maintain 
 | CapacityService | Reads a capacity snapshot, evaluates CapacityGovernor, and applies backpressure, deferred release, batch/recall reduction, or maintenance actions |
 | MaintenanceService | Runs self-impression aggregation, decay, merge, and persona consolidation/synthesis in order |
 | ManagementService | Queries catalog, detail, versions, and evidence; validates admin edits and rollback; reuses RecallService for diagnostics |
+| trace_query | Validates run ID, status and time filters over the existing allowlisted snapshot; shared by both management entries without business-table access |
 | StatusService | Supplies persona timeline and ledger-chain health to management UI |
 | BackgroundService | Owns periodic, idle, and Dream cadence; delegates work to the services above |
 | TreeService | Reads children and impressions; coordinates memory revisions, cache updates, and parent/child storage |

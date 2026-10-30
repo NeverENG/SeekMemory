@@ -11,6 +11,7 @@ import {
   type TraceSnapshot,
 } from "../src/features/control/trace-model.ts"
 import type { ManagementClient } from "../src/features/control/model.ts"
+import type { TraceQuery } from "../src/contracts/api.ts"
 import { mockClient } from "../src/dev/mock-client.ts"
 import { demoTraces } from "../src/dev/mock-traces.ts"
 
@@ -141,4 +142,44 @@ void test("a late response from a replaced client cannot overwrite fresh traces"
   })
   assert.equal(h.vm.total, 0)
   assert.equal(h.vm.loading, false)
+})
+
+void test("changing query clears old results and ignores late responses; clearing and retry use the active query", async (t) => {
+  const old = deferred<TraceSnapshot>()
+  const next = deferred<TraceSnapshot>()
+  const queries: TraceQuery[] = []
+  let failed = false
+  const h = await mountTraces({
+    ...mockClient,
+    async traces(query = {}) {
+      queries.push(query)
+      if (queries.length === 1) return old.promise
+      if (queries.length === 2) return next.promise
+      if (failed) throw new Error("offline")
+      return demoTraces("fresh")
+    },
+  })
+  t.after(() => h.close())
+  await act(async () =>
+    h.vm.applyQuery({ status: "error", run_id: "4".repeat(32) })
+  )
+  assert.equal(h.vm.loading, true)
+  assert.equal(h.vm.active, null)
+  await act(async () => old.resolve(demoTraces("stale")))
+  assert.equal(h.vm.total, 0)
+  assert.equal(h.vm.loading, true)
+  await act(async () =>
+    next.resolve({ ...demoTraces("filtered"), runs: [], events: [] })
+  )
+  assert.equal(h.vm.loading, false)
+  assert.equal(h.vm.total, 0)
+  assert.deepEqual(queries[1], { status: "error", run_id: "4".repeat(32) })
+  failed = true
+  await act(async () => h.vm.applyQuery({}))
+  assert.equal(h.vm.error, "offline")
+  failed = false
+  await act(async () => h.vm.refresh())
+  assert.equal(h.vm.error, "")
+  assert.equal(h.vm.total, 4)
+  assert.deepEqual(queries.slice(-2), [{}, {}])
 })
