@@ -1,6 +1,17 @@
 """Compose a loopback runtime service with local state/audit files; own and close the HTTP listener.
 
 组装使用本地状态及审计文件的回环运行服务，拥有并关闭 HTTP 监听端口。
+
+本文件现在承载两个面，同一个进程、同一个数据目录：
+
+1. **Runtime 面**（`/runtime/events`、`/runtime/context`）：原有能力，未改动；
+2. **Kernel 面**（`/capture`、`/recall`、`/persona`、`/status`、`/extract/plan`）：
+   直接读 `store/` 与 `recall/`，Source 落库为不可变证据。
+
+⚠️ Kernel 面的 recall 当前是 **Source 级兜底**，不是 Artifact 级：
+本服务不内建模型 provider，抽取（Source → Artifact）没有跑，所以召回先按
+BM25 在最近 Source 上排序、再把命中的正文拼成有界 block。响应里的
+`mode` 字段会标 `source_fallback`，接上真实抽取后应改成 `artifact`。
 """
 
 from __future__ import annotations
@@ -10,12 +21,14 @@ import datetime
 import json
 import os
 import sys
+import threading
 import time
 from dataclasses import asdict, is_dataclass
 from enum import Enum
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -23,6 +36,12 @@ from app.runtime import (
     AgentRuntime, EpisodeRecorder, JsonlEpisodeStore, JsonStateStore,
     MemoryContextRequest, RunRecorder, RuntimeInput,
 )
+from core.domain.memory.source import Source, make_source_id
+from recall.source_query import query_recent
+from store.composition import open_store
+
+# 预算低于这个字数就老实返回空块，而不是硬塞一句
+MIN_USEFUL_BUDGET = 60
 
 
 def jsonable(value: Any) -> Any:
@@ -57,7 +76,23 @@ class RuntimeService:
             clock=time.time,
             recorder=recorder,
         )
+        self.data_dir = data_dir
+        # sqlite3 连接不能跨线程用；ThreadingHTTPServer 每请求一个线程，
+        # 所以每个线程持有自己的连接（WAL 允许并发读）。
+        self._local = threading.local()
 
+    def _store(self):
+        """Open one Store per thread and reuse it; SQLite connections are thread-bound.
+
+        每个线程各开一个 Store 并复用；SQLite 连接与线程绑定。
+        """
+        store = getattr(self._local, "store", None)
+        if store is None:
+            store = open_store(str(self.data_dir / "memory.db"))
+            self._local.store = store
+        return store
+
+    # ---------- Runtime 面 ----------
     def event(self, body: dict) -> tuple[int, dict]:
         """Map a supported event request to runtime recording; return status and JSON values.
 
@@ -132,6 +167,140 @@ class RuntimeService:
         context = self.runtime.build_context(request, now=request.now or time.time())
         return 200, jsonable(context)
 
+    # ---------- Kernel 面 ----------
+    def capture(self, body: dict) -> tuple[int, dict]:
+        """Append one immutable Source; never overwrites existing evidence.
+
+        追加一条不可变原始证据；不覆盖已有证据。
+        """
+        subject = str(body.get("subject_key") or "")
+        session = str(body.get("session") or subject)
+        role = str(body.get("role") or "user")
+        text = str(body.get("text") or "")
+        at = str(body.get("at") or "")
+        msg_id = str(body.get("msg_id") or "")
+        if not text.strip():
+            return 400, {"error": "empty_text"}
+        source_id = make_source_id(
+            event_id=msg_id, session_id=session, speaker_id=subject,
+            role=role, text=text, at=at,
+        )
+        source = Source(
+            id=source_id, turn_id="", session_id=session, speaker_id=subject,
+            role=role, text=text, at=at,
+        )
+        try:
+            written = self._store().sources.append_sources([source])
+        except ValueError as exc:
+            return 400, {"error": type(exc).__name__}
+        return 200, {"source_id": source_id, "written": int(written)}
+
+    def recall(self, body: dict) -> tuple[int, dict]:
+        """Rank recent Source evidence and assemble a bounded block.
+
+        对近期原始证据排序并组装有界上下文块。
+        """
+        subject = str(body.get("subject_key") or "")
+        query = str(body.get("query") or "")
+        budget = max(0, int(body.get("budget_chars") or 0))
+        k = max(1, int(body.get("k") or 8))
+        hours = max(1, int(body.get("hours") or 72))
+
+        since = (datetime.datetime.now() - datetime.timedelta(hours=hours)).isoformat(timespec="seconds")
+        recent = self._store().sources.recent_sources(since=since, limit=500)
+        # 只看这个主体的证据
+        recent = [item for item in recent if item.speaker_id == subject] or recent
+
+        hits = query_recent(query, recent, session_id="", speaker=subject, limit=200) if recent else []
+        pool = self._store().sources.sources_by_ids([hit.source_id for hit in hits]) if hits else {}
+        ordered = [pool[hit.source_id] for hit in hits if hit.source_id in pool]
+
+        items = [
+            {"source_id": item.id, "text": item.text}
+            for item in ordered[:k]
+            if str(item.text or "").strip()
+        ]
+
+        block = ""
+        if budget >= MIN_USEFUL_BUDGET:
+            parts: list[str] = []
+            used = 0
+            for item in items:
+                piece = item["text"].strip()
+                if used + len(piece) > budget:
+                    continue
+                parts.append(piece)
+                used += len(piece)
+            block = "".join(parts)
+
+        return 200, {
+            "mode": "source_fallback",
+            "subject_key": subject,
+            "items": items if block else [],
+            "block": block,
+            "budget_chars": budget,
+            "candidates": len(recent),
+        }
+
+    def persona(self, query: dict) -> tuple[int, dict]:
+        """Report the active persona revision; seed-only until Dream runs.
+
+        返回当前人格版本；在 Dream 跑过之前只有种子版本。
+        """
+        subject = (query.get("subject_key") or [""])[0]
+        return 200, {
+            "subject_key": subject,
+            "revision": 0,
+            "text": "",
+            "chain": [],
+            "note": "seed-only: Dream 尚未产生人格修订",
+        }
+
+    def status(self) -> tuple[int, dict]:
+        """Report contract version plus coarse progress counters.
+
+        返回契约版本与粗粒度进度计数。
+        """
+        try:
+            sources = len(self._store().sources.recent_sources(since="1970-01-01T00:00:00", limit=100000))
+        except Exception:  # noqa: BLE001 - 状态查询不应拖垮服务
+            sources = -1
+        return 200, {
+            "ok": True,
+            "host_contract": 1,
+            "runtime_contract": 1,
+            "progress": {
+                "phase": "idle",
+                "sources": sources,
+                "queued_extractions": 0,
+                "persona_revision": 0,
+            },
+            "degraded": {
+                "recall": "source_fallback",
+                "extractor": "not_configured",
+            },
+        }
+
+    def extract_plan(self) -> tuple[int, dict]:
+        """Return 204 when no extractor is configured; there is nothing to plan.
+
+        未配置抽取器时返回 204：没有可排的活。
+        """
+        return 204, {}
+
+    def close(self) -> None:
+        """Close this thread's owned SQLite connection if it was opened.
+
+        关闭当前线程自有的 SQLite 连接（若已打开）。
+        """
+        try:
+            store = getattr(self._local, "store", None)
+            if store is not None:
+                store.close()
+                self._local.store = None
+        except Exception:  # noqa: BLE001 - 退出路径不抛
+            pass
+
 
 class Handler(BaseHTTPRequestHandler):
     """Adapt authenticated loopback HTTP requests to the injected runtime service.
@@ -158,30 +327,52 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("content-type", "application/json")
         self.send_header("content-length", str(len(data)))
         self.end_headers()
-        self.wfile.write(data)
+        if status != 204:
+            self.wfile.write(data)
+
+    def authorized(self) -> bool:
+        """Check the loopback bearer token.
+
+        校验回环 bearer token。
+        """
+        return self.headers.get("authorization") == f"Bearer {self.token}"
 
     def do_GET(self) -> None:
-        """Expose health metadata and return not-found for other paths.
+        """Serve health (open) and the authenticated kernel reads.
 
-        提供健康元数据，其他路径返回未找到。
+        提供健康检查（不鉴权）以及需鉴权的内核读取。
         """
-        if self.path == "/healthz":
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path == "/healthz":
             self.send_json(200, {
                 "ok": True,
                 "version": "0.0.1-python-runtime",
                 "host_contract": 1,
                 "runtime_contract": 1,
+                "kernel_contract": 1,
                 "runtime_gate_enabled": False,
             })
             return
-        self.send_json(404, {"error": "not_found"})
+        if not self.authorized():
+            self.send_json(401, {"error": "unauthorized"})
+            return
+        if path == "/status":
+            status, payload = self.service.status()
+        elif path == "/persona":
+            status, payload = self.service.persona(parse_qs(parsed.query))
+        elif path == "/extract/plan":
+            status, payload = self.service.extract_plan()
+        else:
+            status, payload = 404, {"error": "not_found"}
+        self.send_json(status, payload)
 
     def do_POST(self) -> None:
-        """Authenticate, parse and delegate the existing event/context protocol.
+        """Authenticate, parse and delegate the event/context/kernel protocols.
 
-        认证、解析并委托既有事件及上下文协议。
+        认证、解析并委托事件、上下文及内核协议。
         """
-        if self.headers.get("authorization") != f"Bearer {self.token}":
+        if not self.authorized():
             self.send_json(401, {"error": "unauthorized"})
             return
         try:
@@ -194,6 +385,10 @@ class Handler(BaseHTTPRequestHandler):
             status, payload = self.service.event(body)
         elif self.path == "/runtime/context":
             status, payload = self.service.context(body)
+        elif self.path == "/capture":
+            status, payload = self.service.capture(body)
+        elif self.path == "/recall":
+            status, payload = self.service.recall(body)
         else:
             status, payload = 404, {"error": "not_found"}
         self.send_json(status, payload)
@@ -210,7 +405,8 @@ def main() -> int:
     parser.add_argument("--token", default="seekmemory-runtime-token")
     args = parser.parse_args()
     data_dir = Path(args.data_dir).expanduser().resolve()
-    Handler.service = RuntimeService(data_dir)
+    service = RuntimeService(data_dir)
+    Handler.service = service
     Handler.token = args.token
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     try:
@@ -221,6 +417,7 @@ def main() -> int:
             "version": "0.0.1-python-runtime",
             "host_contract": 1,
             "runtime_contract": 1,
+            "kernel_contract": 1,
             "runtime_gate_enabled": False,
             "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
@@ -228,6 +425,7 @@ def main() -> int:
         server.serve_forever()
     finally:
         server.server_close()
+        service.close()
     return 0
 
 
