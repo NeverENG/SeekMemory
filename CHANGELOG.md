@@ -6,6 +6,16 @@
 
 ### English
 
+## 0.6.0 — 2026-10-31
+
+### 中文
+
+- 正式版沿用 0.6.0-rc.1 已合并的功能与数据契约，无额外行为变更。发布前在服务器隔离数据上验证了 AstrBot SDK 导入、插件运行时测试，以及 DSH 与真实 Python 本机服务的桥接、抽取和召回；未验证真实聊天平台与付费模型端到端链路，也未升级线上插件。
+
+### English
+
+- Final release carries the merged 0.6.0-rc.1 features and data contracts without further behavior changes. Pre-release server checks used isolated data to verify the AstrBot SDK import and runtime tests, plus DSH bridging, extraction and recall against the real Python loopback service. Live chat-platform and paid-model end-to-end paths remain unverified; the production plugin was not upgraded.
+
 ## 0.6.0-rc.1 — 2026-10-31
 
 ### 中文
