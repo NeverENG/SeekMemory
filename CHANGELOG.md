@@ -4,7 +4,11 @@
 
 ### 中文
 
+- 修复到期清理及容量统计忽略较早 valid_to 的问题：任一截止日期已过即判定到期，保留截止当天有效的边界和 Source，无数据格式或配置变化（#201，第 2 项）。
+
 ### English
+
+- Fix expiry cleanup and capacity metrics overlooking an earlier valid_to: either elapsed deadline expires the Artifact, preserving inclusive date boundaries and Sources. No data-format or configuration changes (#201, item 2).
 
 ## 0.6.0-rc.1 — 2026-10-31
 
