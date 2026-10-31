@@ -80,11 +80,22 @@ class LoopbackServerContractTest(unittest.TestCase):
             self.assertEqual(code, 200)
             self.assertTrue(captured["source_id"])
             code, plan = request("/extract/plan")
-            self.assertEqual((code, plan["error"]), (501, "not_implemented"))
+            self.assertEqual(code, 200)
+            self.assertIn("hello", plan["chat_request"]["prompt"])
+            self.assertEqual(request("/extract/commit", method="POST", body={
+                "task_id": "unknown", "source_ids": plan["source_ids"],
+                "chat_response": {"text": "[]"},
+            })[0], 409)
+            self.assertEqual(request("/extract/commit", method="POST", body={
+                "task_id": plan["task_id"], "source_ids": ["forged"],
+                "chat_response": {"text": "[]"},
+            })[0], 409)
             code, committed = request("/extract/commit", method="POST", body={
-                "task_id": "t1", "chat_response": {"text": "[]"},
+                "task_id": plan["task_id"], "chat_response": {"text": "[]"},
             })
-            self.assertEqual((code, committed["error"]), (501, "not_implemented"))
+            self.assertEqual(code, 200)
+            self.assertEqual(committed["skipped"], 1)
+            self.assertEqual(request("/extract/plan")[0], 204)
             code, failure = request("/capture", method="POST", body=["sensitive"],
                                     authorized=True)
             self.assertEqual((code, failure), (500, {"error": "internal_error"}))

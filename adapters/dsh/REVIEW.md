@@ -71,4 +71,4 @@ scripts\postinstall-check.cmd web <一个隔离 DSH_HOME>
 
 - 导入期失败不跳闸（安全模式修不了坏代码）；替代方案是发布前 import 冒烟 + `dump-config` 自检。
 - 安全模式自愈**不封顶**（按开发者意图），永久坏的插件会周期性崩溃一次。
-- 内核侧 `adapters/loopback/` 通过 `scripts/serve.py` 启动；`/extract/plan`（有任务时）和 `/extract/commit` 尚未实现，真内核的契约/冒烟检查明确报告 INCOMPLETE，不能作为完整端到端抽取验收。
+- 内核侧 `adapters/loopback/` 通过 `scripts/serve.py` 启动；`/extract/plan` 和 `/extract/commit` 已提供拉取任务与写回；但没有真实模型执行的冒烟检查仍报告召回 INCOMPLETE，不能作为完整端到端抽取验收。

@@ -14,6 +14,27 @@ except ImportError:
     from perceive.absorb import ExtractionPlan
 
 
+@dataclass(frozen=True)
+class ExtractionTask:
+    """Hold one pull-style extraction task for a host-owned model call.
+
+    保存一个供宿主自行调用模型的拉取式抽取任务；不含模型调用或持久化。
+    """
+
+    task_id: str
+    source_ids: tuple[str, ...]
+    session_id: str = ""
+    topic_id: str = ""
+    system_prompt: str = ""
+    prompt: str = ""
+    require_evidence: bool = False
+
+    @property
+    def turns(self) -> int:
+        """Read the bounded number of dialogue rows / 读取受限的对话行数。"""
+        return len(self.source_ids)
+
+
 @dataclass
 class PreparedExtraction:
     """Own one plan's durable and follow-up stages, separate from model retry.

@@ -41,7 +41,7 @@ AccessService 基于完整 session UMO、sender ID、owner/trusted 配置和 obs
 
 `adapters/loopback/runtime.py` 组装现有 Store、Buffer、RecallService 和 StatusService；`adapters/loopback/server.py` 负责本机 HTTP、令牌验证、请求映射及资源关闭。`scripts/serve.py` 只负责解析命令行并保留原来的启动方式（`python scripts/serve.py --data-dir <dir>`）。这属于宿主传输与组合根，不属于 core 规则或 services 用例；不依赖 AstrBot SDK。`scripts/runtime_http.py` 仍是独立的 AgentRuntime 桥接验证入口，不与记忆服务混为一体。
 
-此入口的 `/capture` 保存 Source 并排队，`/recall` 读取已有 Artifact；`/extract/plan` 空队列返回 204，有任务但尚无可执行 ChatRequest 时返回 501；`/extract/commit` 也返回 501。不能把只含 Source ID 的伪计划或有待抽取的空召回当成端到端成功。契约和冒烟脚本对未完成项报告 `INCOMPLETE` 并返回非零退出码；只有真正在已抽取内容上验证召回、隐私与预算才报告全通过。HTTP 错误不向调用方回显底层异常文本；无认证的健康检查不暴露本地数据库路径。新建数据目录使用仅所有者权限，运行时令牌元数据以仅所有者权限原子替换；调用方仍需保证传入的既有数据目录本身私有。数据格式、公开配置和端点路径不变。
+此入口的 `/capture` 保存 Source 并排队，`/recall` 读取已有 Artifact；`/extract/plan` 返回就绪话题的可执行 ChatRequest（无任务返回 204），`/extract/commit` 只接受同一进程发出的任务编号和对应来源 ID，以既有验证和 CAS 提交流水线写入；错误模型输出保留排队数据供重试，重复或未知任务返回 409。正在补偿的写入保持任务状态并返回 503，不在 GET 计划请求中偷偷写入；任务仅保存在本机进程内，进程重启后旧编号失效，宿主须重新取计划。契约检查用本地捕获的消息做真正的提交，不会消费无关主题的任务；未抽取的召回仍标为未完成，不宣称已验证。HTTP 错误不向调用方回显底层异常文本；无认证的健康检查不暴露本地数据库路径。新建数据目录使用仅所有者权限，运行时令牌元数据以仅所有者权限原子替换；调用方仍需保证传入的既有数据目录本身私有。数据格式、公开配置和端点路径不变。
 
 ## DSH 协议桥
 

@@ -85,7 +85,7 @@ node scripts/check-kernel-contract.mjs --runtime .tmp/mock/runtime.json
 
 `npm run lint` = 第 1 步；`npm run test` = 第 2 步；`npm run build` = 第 3 步；第 4 步的两个脚本分别对应 `npm run smoke` 与 `npm run contract:kernel`。
 
-`check-kernel-contract.mjs` 验的是**内核是否符合契约**（/healthz、/capture、/recall、/persona、/status、/extract/plan、/extract/commit 七端点 + 错 token 401 + 未知路径 404），所以对端可以是 mock，也可以是真正的 `scripts/serve.py`。真内核当前在有待抽取任务时 `/extract/plan` 返回 501，`/extract/commit` 也返回 501，测试标记 `INCOMPLETE`、退出码 2，**不代表完整端到端通过**；只有 commit、召回正向对照与隐私/预算断言实际通过才会显示 `ALL PASS`。服务实现位于 `adapters/loopback/`，`scripts/serve.py` 是兼容启动命令。
+`check-kernel-contract.mjs` 验的是**内核是否符合契约**（/healthz、/capture、/recall、/persona、/status、/extract/plan、/extract/commit 七端点 + 错 token 401 + 未知路径 404），所以对端可以是 mock，也可以是真正的 `scripts/serve.py`。真内核的 `/extract/plan` 已返回可执行的 ChatRequest，`/extract/commit` 可写回已派发的任务；契约检查会验证真实提交。但没有执行模型抽取的冒烟脚本仍标记召回场景 `INCOMPLETE`、退出码 2，**不代表完整端到端通过**；只有抽取后的召回正向对照与隐私/预算断言实际通过才会显示 `ALL PASS`。服务实现位于 `adapters/loopback/`，`scripts/serve.py` 是兼容启动命令。
 
 `local-e2e.mjs` 更进一步：它起一个**隔离的 DSH 宿主**（`--home` 拒绝指向 `~/.dsh`），把 `runtimePath` 写进 profile 的 patch 层（原文件备份为 `cordis.patch.yml.bak-local-e2e`），跑一轮 agent loop 后读插件日志，断言 apply / 已连接 / 无 not_configured / 钩子注册与回收，再顺带跑上面两个契约脚本，最后出「通 / 不通」的结论。
 

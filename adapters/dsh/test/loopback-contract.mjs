@@ -12,7 +12,7 @@ const cli = fileURLToPath(new URL('../../../scripts/serve.py', import.meta.url))
 const contract = fileURLToPath(new URL('../scripts/check-kernel-contract.mjs', import.meta.url));
 const smoke = fileURLToPath(new URL('../scripts/smoke-contract.mjs', import.meta.url));
 
-test('real loopback reports unimplemented extraction as incomplete, never all-pass',
+test('real loopback commits a task but reports unextracted recall as incomplete',
   { timeout: 20_000 }, async (t) => {
     const dir = mkdtempSync(path.join(tmpdir(), 'seekmemory-loopback-contract-'));
     const child = spawn(python, [cli, '--data-dir', dir, '--port', '0', '--quiet'], {
@@ -27,12 +27,15 @@ test('real loopback reports unimplemented extraction as incomplete, never all-pa
       catch { await pause(20); }
     }
     assert.equal(endpoint?.host_contract, 1, 'CLI must publish the endpoint');
-    for (const script of [contract, smoke]) {
-      const result = spawnSync(process.execPath, [script, '--runtime', runtimePath], {
-        encoding: 'utf8', timeout: 10_000, windowsHide: true,
-      });
-      assert.equal(result.status, 2, result.stdout + result.stderr);
-      assert.match(result.stdout, /INCOMPLETE/);
-      assert.doesNotMatch(result.stdout, /ALL PASS/);
-    }
+    const checked = spawnSync(process.execPath, [contract, '--runtime', runtimePath], {
+      encoding: 'utf8', timeout: 10_000, windowsHide: true,
+    });
+    assert.equal(checked.status, 0, checked.stdout + checked.stderr);
+    assert.match(checked.stdout, /ALL PASS/);
+    const observed = spawnSync(process.execPath, [smoke, '--runtime', runtimePath], {
+      encoding: 'utf8', timeout: 10_000, windowsHide: true,
+    });
+    assert.equal(observed.status, 2, observed.stdout + observed.stderr);
+    assert.match(observed.stdout, /INCOMPLETE/);
+    assert.doesNotMatch(observed.stdout, /ALL PASS/);
   });

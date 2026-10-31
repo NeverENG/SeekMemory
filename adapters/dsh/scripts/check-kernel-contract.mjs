@@ -133,32 +133,38 @@ const payload = {
   expect('status 返回对象', isObj, `实际 ${Array.isArray(r.data) ? 'array' : typeof r.data}`);
 }
 
-// 6. extract/plan（204 = 没事干，是合法契约的一部分）
+// 6. extract/plan: a runnable task is required when the real kernel has pending input.
+let task = null;
 {
   const r = await call(`/extract/plan?subject_key=${encodeURIComponent(SUBJECT)}`);
   if (r.status === 501) {
-    incomplete('GET /extract/plan', '501：有待抽取任务但尚不能生成可执行 chat_request');
+    incomplete('GET /extract/plan', '有待处理任务但尚不能生成 ChatRequest');
   } else {
-    const runnable = r.status === 200 && typeof r.data?.task_id === 'string'
-      && typeof r.data?.chat_request?.prompt === 'string' && r.data.chat_request.prompt.length > 0;
+    task = r.status === 200 ? r.data : null;
+    const runnable = task && typeof task.task_id === 'string'
+      && Array.isArray(task.source_ids) && task.source_ids.length > 0
+      && typeof task.chat_request?.prompt === 'string' && task.chat_request.prompt.length > 0;
     expect('GET /extract/plan → 可执行任务或 204', r.status === 204 || runnable, `status=${r.status}`);
   }
 }
 
-// 7. extract/commit
+// 7. Only submit the task issued for our own capture; never consume unrelated work.
 {
-  const r = await call('/extract/commit', {
-    method: 'POST',
-    body: { task_id: 'contract-task-1', chat_response: { text: '[]', usage_in: 0, usage_out: 0 } },
-  });
-  // 501 是未完成，不是端到端契约通过；保留单独状态供调用方识别。
-  if (r.status === 501) {
-    incomplete('POST /extract/commit', '501：抽取提交未实现，不能宣称完整端到端');
-  } else {
+  if (task && task.session_id === SUBJECT) {
+    const body = { task_id: task.task_id, chat_response: { text: '[]', usage_in: 0, usage_out: 0 } };
+    const r = await call('/extract/commit', { method: 'POST', body });
     expect('POST /extract/commit → 200', r.status === 200, `status=${r.status}`);
-    const okShape = typeof r.data?.written === 'number' || typeof r.data?.skipped === 'number';
-    expect('commit 返回 written 或 skipped', okShape,
-      `written=${JSON.stringify(r.data?.written)} skipped=${JSON.stringify(r.data?.skipped)}`);
+    expect('commit 返回 written 或 skipped',
+      typeof r.data?.written === 'number' || typeof r.data?.skipped === 'number');
+    const again = await call('/extract/commit', { method: 'POST', body });
+    expect('重复提交 → 409', again.status === 409, `status=${again.status}`);
+  } else {
+    const r = await call('/extract/commit', {
+      method: 'POST', body: { task_id: 'contract-task-1', chat_response: { text: '[]' } },
+    });
+    if (r.status === 501) incomplete('POST /extract/commit', '未实现');
+    else expect('POST /extract/commit → 200（mock）或 409（未知任务）',
+      r.status === 200 || r.status === 409, `status=${r.status}`);
   }
 }
 

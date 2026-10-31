@@ -106,6 +106,7 @@ class MemoryService:
             owner_id=lambda: self.owner,
             logger=self.logger,
         )
+        self.tasks: dict[str, Any] = {}
         self.status_service = StatusService(
             artifacts=self.store.artifacts, ledger=self.store.ledger,
         )
@@ -166,39 +167,67 @@ class MemoryService:
         return 200, {
             "host_contract": HOST_CONTRACT,
             "phase": "idle",
-            "progress": {"phase": "idle", "pending": 0, "running": 0},
+            "progress": {"phase": "idle", "pending": len(self.buffer.items), "running": 0},
             "ledger_valid": bool(self.status_service.ledger_valid()),
             "uptime_s": round(time.time() - STARTED_AT),
         }
 
     def extract_plan(self, query: dict) -> tuple[int, dict]:
-        """Return idle or an honest error until a public ChatRequest plan exists.
-
-        A list of Source IDs is not a runnable plan: DSH needs chat_request.prompt.
-        """
-        if not self.store.extraction.ready_extraction_ids():
-            return 204, {}
-        return 501, {"error": "not_implemented",
-                     "detail": "pull-style plan requires a public ChatRequest API"}
+        """Issue a bounded, in-process task without invoking the model / 生成限量任务，模型由宿主调用。"""
+        if self.tasks:
+            task = next(iter(self.tasks.values()))
+            if query.get("subject_key") and task.session_id != str(query["subject_key"]):
+                return 204, {}
+        else:
+            task = self.ingest.next_extraction_task(
+                subject_key=str(query.get("subject_key") or ""),
+            )
+            if task is None:
+                return 204, {}
+            self.tasks[task.task_id] = task
+        return 200, {
+            "task_id": task.task_id,
+            "source_ids": list(task.source_ids),
+            "session_id": task.session_id,
+            "topic_id": task.topic_id,
+            "turns": task.turns,
+            "chat_request": {
+                "system_prompt": task.system_prompt,
+                "prompt": task.prompt,
+                "max_tokens": 800,
+                "temperature": 0,
+            },
+        }
 
     def extract_commit(self, body: dict) -> tuple[int, dict]:
-        """显式未实现：内核还没有跨进程的 plan→commit 公开 API。
-
-        现有路径是 IngestService.extract(rows, model) 在一次调用里完成
-        「调模型 → build_plan → _persist_plan」。要在独立进程里做 pull-style
-        提交，需要内核暴露「用宿主回传的 chat_response 持久化」的公开入口
-        （内部等价于 build_plan + PreparedExtraction + _persist_plan）。
-        在那之前这里返回 501，而不是伪造一个 200。
-        """
+        """Accept only this process's issued task; preserve unfinished writes for retry."""
         task_id = str(body.get("task_id") or "")
-        if not task_id:
-            return 400, {"error": "task_id is required"}
-        if body.get("chat_response") is None:
-            return 400, {"error": "chat_response is required"}
-        return 501, {
-            "error": "not_implemented",
-            "detail": "pull-style commit needs a public kernel API (build_plan + persist)",
-        }
+        task = self.tasks.get(task_id)
+        if task is None:
+            return 409, {"error": "task_stale"}
+        if "source_ids" in body and body["source_ids"] != list(task.source_ids):
+            return 409, {"error": "task_stale"}
+        response = body.get("chat_response")
+        if not isinstance(response, dict) or not isinstance(response.get("text"), str) or not response["text"].strip():
+            return 400, {"error": "chat_response.text is required"}
+        try:
+            usage = (int(response.get("usage_in") or 0), int(response.get("usage_cached") or 0),
+                     int(response.get("usage_out") or 0))
+        except (TypeError, ValueError):
+            return 400, {"error": "invalid_usage"}
+        try:
+            outcome = self.ingest.commit_extraction(task.source_ids, response["text"], usage=usage)
+        except Exception:
+            self.tasks.pop(task_id, None)
+            return 422, {"error": "invalid_extraction", "retryable": True}
+        if "task_stale" in outcome.errors:
+            self.tasks.pop(task_id, None)
+            return 409, {"error": "task_stale"}
+        if outcome.retryable:
+            return 503, {"error": "writeback_pending", "retryable": True}
+        self.tasks.pop(task_id, None)
+        return 200, {"written": outcome.written, "skipped": outcome.skipped,
+                     "ids": list(outcome.ids), "errors": list(outcome.errors), "retryable": False}
 
 
 STARTED_AT = time.time()
