@@ -80,6 +80,25 @@ class ConfigDefaultsTest(unittest.TestCase):
 
 
 class ConfigReadAuditTest(unittest.TestCase):
+    def test_production_config_has_no_astrbot_or_yaml_import(self):
+        """Documentation and OpenAPI tooling may use YAML; policy loading may not."""
+        import ast
+
+        config_dir = SCHEMA.parent / "app" / "config"
+        for path in config_dir.glob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imports = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    imports = [node.module or ""] if node.level == 0 else []
+                else:
+                    continue
+                self.assertFalse(
+                    any(name.split(".")[0] in {"astrbot", "yaml"} for name in imports),
+                    str(path),
+                )
+
     def test_literal_policy_reads_are_registered_and_have_consistent_fallbacks(self):
         """Audit static keys without claiming to cover computed policy keys."""
         import ast
