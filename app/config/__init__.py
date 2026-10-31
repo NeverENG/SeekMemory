@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from .catalog import FIELDS, ConfigField
 from .defaults import DEFAULTS, GROUPS
 from .runtime import RuntimeSettings
 
@@ -30,4 +31,4 @@ class Settings:
             return type(default)(fallback) if default is not None else fallback
 
 
-__all__ = ["DEFAULTS", "GROUPS", "Settings", "RuntimeSettings"]
+__all__ = ["DEFAULTS", "GROUPS", "FIELDS", "ConfigField", "Settings", "RuntimeSettings"]

@@ -4,7 +4,7 @@ import json
 import unittest
 from pathlib import Path
 
-from app.config import DEFAULTS, GROUPS, RuntimeSettings, Settings
+from app.config import DEFAULTS, FIELDS, GROUPS, RuntimeSettings, Settings
 
 
 SCHEMA = Path(__file__).resolve().parents[1] / "_conf_schema.json"
@@ -40,6 +40,14 @@ class ConfigDefaultsTest(unittest.TestCase):
         self.assertEqual(updated.tick_seconds, 2.0)
         self.assertEqual(updated.dispatch_max_attempts, 4)
         self.assertEqual(original.effective_wait_seconds, 0)
+
+    def test_each_key_has_seekmemory_metadata(self):
+        self.assertEqual(set(FIELDS), set(DEFAULTS))
+        self.assertEqual({key: spec.default for key, spec in FIELDS.items()}, dict(DEFAULTS))
+        self.assertEqual(FIELDS["owner_umo"].level, "basic")
+        self.assertEqual(FIELDS["recall_min_ev_abs"].level, "internal")
+        self.assertEqual(FIELDS["runtime_gate_enabled"].stability, "experimental")
+        self.assertEqual(FIELDS["ingest_enabled"].group, "ingest")
 
     def test_host_schema_projects_shared_defaults(self):
         schema = json.loads(SCHEMA.read_text(encoding="utf-8"))

@@ -8,6 +8,8 @@ app provides shared application values, external capability declarations, and po
 
 Host-neutral `app/config/` owns defaults grouped by host identity, ingest, recall, maintenance, observability, relationship, and Runtime. An empty configuration is supported; AstrBot’s `_conf_schema.json` remains a compatibility input and UI projection of existing keys, not the owner of defaults. Console uses the same entry point. Services still pass legacy fallbacks during incremental migration; subsequent changes must preserve existing default behavior.
 
+`app/config/catalog.py` inventories each existing key by group, basic/advanced/internal level and stability. This is classification, not an AstrBot UI or behavior change. “Internal” means not recommended as a normal user-facing tuning option; existing public keys remain accepted for compatibility.
+
 `app/config/runtime.py` provides a typed, immutable snapshot of Runtime scheduling options. Startup determines the wait duration; the worker re-reads options when polling to retain the existing live-override behavior.
 
 ## Two interface entry points
