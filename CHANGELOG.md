@@ -4,7 +4,11 @@
 
 ### 中文
 
+- 修复 Source 查询对不同时区时间的筛选和排序：已知时刻按实际时间查询，旧无时区及仅日期值保留既有行为；候选有界合并后读取正文，不改写原始证据，无数据格式或配置变化（#201，第 1 项）。
+
 ### English
+
+- Fix Source filtering and ordering across timezones: compare known instants chronologically, retain legacy naive/date-only behavior, and read bodies after merging bounded candidates. Raw evidence, data formats and configuration remain unchanged (#201, item 1).
 
 ## 0.6.0-rc.1 — 2026-10-31
 
