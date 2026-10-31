@@ -15,7 +15,7 @@ from astrbot.api import logger, star
 from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 
 from ...app.budget import budget_from_config
-from ...app.config import Settings
+from ...app.config import RuntimeSettings, Settings
 from ...app.checkpoint import CheckpointManager
 from ...app.cache_repair import CacheRepairs
 from ...app.dream import DreamCycle
@@ -219,6 +219,7 @@ class AstrBotPlugin(star.Star):
             cache=self.cache,
             clock=self.clock,
         )
+        runtime_settings = RuntimeSettings.read(self.settings.get)
         runtime = AgentRuntime(
             state_store,
             policy=DefaultAttentionPolicy(
@@ -229,10 +230,7 @@ class AstrBotPlugin(star.Star):
             clock=self.clock,
             memory_context=SeekMemoryContextAdapter(self._runtime_memory_context),
             context_recorder=SeekMemoryContextAdapter(self._runtime_memory_context, self._record_memory_context),
-            wait_seconds=(
-                int(self._c("runtime_wait_seconds", 5))
-                if bool(self._c("runtime_gate_enabled", False)) else 0
-            ),
+            wait_seconds=runtime_settings.effective_wait_seconds,
             model_gateway=AstrBotModelGateway(self.context),
             action_executor=self.action_executor,
             recorder=recorder,
@@ -305,15 +303,15 @@ class AstrBotPlugin(star.Star):
         runtime_worker = RuntimeWorker(
             runtime=runtime,
             scheduler=scheduler,
-            enabled=lambda: bool(self._c("runtime_gate_enabled", False)),
+            enabled=lambda: RuntimeSettings.read(self.settings.get).gate_enabled,
             session_ids=lambda limit: (
                 self.store.runtime_state.sessions(limit=limit)
                 if self.store is not None else []
             ),
             run_context=self._make_run_context,
-            interval_seconds=lambda: float(self._c("runtime_tick_seconds", 5)),
-            max_attempts=lambda: int(self._c("runtime_dispatch_max_attempts", 3)),
-            base_seconds=lambda: float(self._c("runtime_dispatch_backoff_seconds", 2)),
+            interval_seconds=lambda: RuntimeSettings.read(self.settings.get).tick_seconds,
+            max_attempts=lambda: RuntimeSettings.read(self.settings.get).dispatch_max_attempts,
+            base_seconds=lambda: RuntimeSettings.read(self.settings.get).dispatch_backoff_seconds,
             trace=self.trace,
             clock=self.clock,
             proactive_policy=DefaultProactivePolicy(

@@ -4,7 +4,7 @@ import json
 import unittest
 from pathlib import Path
 
-from app.config import DEFAULTS, GROUPS, Settings
+from app.config import DEFAULTS, GROUPS, RuntimeSettings, Settings
 
 
 SCHEMA = Path(__file__).resolve().parents[1] / "_conf_schema.json"
@@ -25,6 +25,21 @@ class ConfigDefaultsTest(unittest.TestCase):
         self.assertTrue(settings.get("dream_enabled", True))
         self.assertEqual(settings.get("open_to", "owner_only"), "everyone")
         self.assertEqual(Settings({"recall_k": "bad"}).get("recall_k", 8), 8)
+
+    def test_runtime_settings_can_be_reread_without_freezing_host_overrides(self):
+        overrides: dict[str, object] = {}
+        settings = Settings(overrides)
+        original = RuntimeSettings.read(settings.get)
+        self.assertEqual(original.effective_wait_seconds, 0)
+        self.assertFalse(original.gate_enabled)
+        self.assertEqual(original.tick_seconds, 5.0)
+        overrides.update(runtime_gate_enabled=True, runtime_wait_seconds=12,
+                         runtime_tick_seconds=2, runtime_dispatch_max_attempts=4)
+        updated = RuntimeSettings.read(settings.get)
+        self.assertEqual(updated.effective_wait_seconds, 12)
+        self.assertEqual(updated.tick_seconds, 2.0)
+        self.assertEqual(updated.dispatch_max_attempts, 4)
+        self.assertEqual(original.effective_wait_seconds, 0)
 
     def test_host_schema_projects_shared_defaults(self):
         schema = json.loads(SCHEMA.read_text(encoding="utf-8"))

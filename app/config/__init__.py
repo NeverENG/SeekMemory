@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from .defaults import DEFAULTS, GROUPS
+from .runtime import RuntimeSettings
 
 
 class Settings:
@@ -29,4 +30,4 @@ class Settings:
             return type(default)(fallback) if default is not None else fallback
 
 
-__all__ = ["DEFAULTS", "GROUPS", "Settings"]
+__all__ = ["DEFAULTS", "GROUPS", "Settings", "RuntimeSettings"]
