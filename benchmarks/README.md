@@ -124,6 +124,100 @@ pending 0→17（其中 9 个标注为重要），3 晚模拟每晚线性增长 
   harness 使用内存 SQLite、固定时钟和确定性 provider，CI 在 Linux 上应复现相同计数。
 - 详细政策见 [`results/README.md`](results/README.md)。
 
+## 长周期（7/30/60/90 天）人格与情绪/关系评测（ISSUE-0092）
+
+确定性长周期 benchmark：同一份冻结场景卡、假时钟、假模型适配器，跑真实
+Source 捕获、`IngestService` 抽取、召回与 `MaintenanceService` 维护边界，输出 7/30/60/90
+天检查点的分维成绩单。默认运行**不访问网络、不使用真实提供方**。
+
+```bash
+python -m benchmarks.long_horizon.run
+python -m benchmarks.long_horizon.run --scenario fact_correction --baseline seekmemory
+python -m benchmarks.long_horizon.run --check          # CI：硬失败时返回非零
+```
+
+规范产物是 `results/long_horizon.json`（带 `schema=seekmemory.long_horizon.v1` 的结构化报告）
+和 `results/long_horizon.md`（人类可读分维看板），两者都由同一次运行生成，不要手改。
+报告只保存计数、判定与哈希，不保存回复正文、上下文正文或提示词。
+
+### 四个 baseline
+
+| baseline | 捕获/抽取 | 召回 | 每周维护（人格/关系/衰退/合并） | 用途 |
+|---|---|---|---|---|
+| `no-memory` | 否 | 否 | 否 | 只有固定人设的下限 |
+| `rolling-summary` | 否 | 否 | 否 | 把最近 24 轮对话拼进上下文，衡量“短期窗口”上限 |
+| `seekmemory-nomaint` | 是 | 是 | 否 | 隔离“人格与关系演化”本身的贡献 |
+| `seekmemory` | 是 | 是 | 是 | 完整生产路径 |
+
+四个 baseline 使用同一份场景卡、同一事件序列、同一假时钟、同一提示与预算口径；
+差别只在“记忆系统提供了什么上下文”。
+
+### 场景卡与三步闭环
+
+场景包定义在 `data/long_horizon_manifest.json`，当前四张卡：重复话题（周三健身房）、
+事实纠正（城市从上海改为杭州）、关系冲突与修复、隐私边界（只告诉主人的记号）。
+
+每张卡在任何 baseline 运行**之前**冻结：角色与人设种子、证据词表、事件序列
+（含 `extract` 期望产出）、各检查点的探针问题、期望/禁止词、期望动作、情绪目标区间、
+允许的关系档位、隐私标记，以及 `restart` / `rollback` 生命周期节点。
+
+三步闭环：
+
+1. **导演卡（预测）**：卡片与目标区间先冻结，运行时不改；
+2. **自然演出（观察）**：事件经真实捕获/抽取/召回/维护边界，检查点收集可见回复并按卡评分；
+3. **一次喊咔（恢复）**：`fact_correction` 在 61 天回滚到种子人格，检查“恢复来源、之后仍能继续演化”，
+   自然成绩与回滚成绩分开报告。卡片上标记 `"correction": true` 的检查点还会做一次可选纠偏：
+   从**同一份上下文与人格快照**复跑一次，报告是否恢复、是否过度纠偏、是否隐私违规、额外调用与
+   token；自然成绩保持第一轮原样，干预不能掩盖首轮失败，也不能凭空补出上下文里没有的证据。
+
+情绪不在隐藏状态上打分：演员只按“上下文里是否有证据、关系档位、人格是否演化”合成可见措辞，
+观察者只用卡片声明的措辞与 0–100 外显强度反推，报告区间差距与跨检查点方向，
+不采信模型自报数值。
+
+### 指标与硬失败
+
+分维（不做加权总分，也不作为发布门禁）：
+
+| 维度 | 含义 |
+|---|---|
+| `memory_continuity` | 检查点回复是否包含冻结的期望事实 |
+| `correction_recovery` | 纠正后新事实必须出现、旧事实不得出现在回复/上下文、旧记忆必须失效；含人格回滚恢复 |
+| `emotion_trajectory` | 观测外显强度与预注册目标区间的吻合度及轨迹方向 |
+| `role_action_coherence` | 期望动作（recall/repair/ask）是否真的出现 |
+| `relationship_boundary` | 关系档位是否落在允许区间；无关系状态记 0 |
+| `privacy_evidence` | 隐私标记不得进入其他会话上下文或共享人格；每条记忆必须有可解析证据 |
+| `efficiency` | 仅报告 tokens/检查点与耗时，不评分（`fake_simulated`） |
+
+隐私泄漏、伪造/断链证据、检查点缺失、baseline 缺失是**硬失败**，其他维度的高分不能抵消；
+`verdict.acceptable` 只表示“评测跑通且无硬失败”，不表示 SeekMemory 达到人类级人格质量。
+
+### 如何新增一个场景
+
+1. 在 `data/long_horizon_manifest.json` 追加一张卡，或复制现有卡修改 `id`；
+2. 声明 `role`（人设种子）、`tokens`（证据词表，`privacy` 前缀的键会被当作隐私标记）、
+   `emotion`（信号与三档措辞/强度）、`actions`（`recall` 必须含 `{tok}` 占位符）、
+   `events`（每天的角色、正文与期望 `extract`，`evidence` 是本事件内的轮次下标）、
+   `milestones`（`restart` / `rollback`）与 `checkpoints`（四个周期都必须有）；
+3. 运行 `python -m benchmarks.long_horizon.run --check`，清单校验失败会直接报错并指出字段；
+4. 目标区间必须写在运行之前；如果结果不达标，保留失败并报告，不要事后放宽区间。
+
+### 如何新增一个 baseline
+
+在 `benchmarks/long_horizon/harness.py` 的 `SPECS` 里加一条
+`BaselineSpec(id, label, captures, maintains, recalls, window, description)`，
+再在 `benchmarks/long_horizon/__init__.py` 的 `BASELINES` 中登记（顺序即报告顺序）。
+新增 baseline 不需要改指标代码：报告按维度名索引，缺失关系状态会如实地记 0。
+
+### 复现与限制
+
+同一 `seed` + 同一包版本 + 同一清单应得到相同的 `reproducibility.result_digest`；
+耗时、平台、生成时间是机器相关字段，已被排除在指纹之外。用量统一标记
+`fake_simulated`（由字数估算），`unavailable` 表示该 baseline 根本没有这个阶段，
+未知用量不当作零。
+
+限制：合成场景与假模型只能做回归代理，不能证明人类级人格质量，也不替代
+#88 的短中期生命周期测试、#89 的隐私回归、#80 的 Dream 成本/质量评测。
+
 ## 文件职责及既有质量限制
 
 `dream_eval.py` 是同一冻结语料的执行与计数工具，`dream_tradeoff.py` 负责版本比较和较长的双语报告模板；两者各自承担连贯职责，本轮不为减少行数再拆报告模板。新的固定记忆回归不替代 Dream 质量门槛。

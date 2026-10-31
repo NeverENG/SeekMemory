@@ -1,0 +1,5825 @@
+{
+  "schema": "seekmemory.long_horizon.v1",
+  "package_version": "1.0.0",
+  "actor_version": "lh-actor-v1",
+  "harness_sha256": "05f101ebe6114893589b0a309f6280eba2d859678dd533319ee9fc8a69e465bd",
+  "generated_at": "2026-10-31T10:56:55",
+  "python": "3.12.14",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "manifest": {
+    "schema": "seekmemory.long_horizon.manifest.v1",
+    "version": 1,
+    "seed": 20261031,
+    "digest": "3e998243150adac35b2aad39871f6ac3ca91d38676f8481ea70a15497795e0fa",
+    "scenarios": [
+      "recurring_gym_plan",
+      "fact_correction",
+      "conflict_and_repair",
+      "privacy_boundary"
+    ]
+  },
+  "horizons": [
+    7,
+    30,
+    60,
+    90
+  ],
+  "baselines": [
+    "no-memory",
+    "rolling-summary",
+    "seekmemory-nomaint",
+    "seekmemory"
+  ],
+  "scenarios": [
+    "recurring_gym_plan",
+    "fact_correction",
+    "conflict_and_repair",
+    "privacy_boundary"
+  ],
+  "dimensions": [
+    "memory_continuity",
+    "correction_recovery",
+    "emotion_trajectory",
+    "role_action_coherence",
+    "relationship_boundary",
+    "privacy_evidence",
+    "efficiency"
+  ],
+  "results": [
+    {
+      "scenario": "recurring_gym_plan",
+      "baseline": "no-memory",
+      "label": "无记忆",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 0.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.75,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "missing_action:recall",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 0.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.75,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "missing_action:recall",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 0.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.6,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "missing_action:recall",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 0.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.6,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "missing_action:recall",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 0.0,
+        "correction_recovery": null,
+        "emotion_trajectory": 0.675,
+        "role_action_coherence": 0.0,
+        "relationship_boundary": 0.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 32.5,
+          "direction_matches": null
+        },
+        "worry": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": null
+        }
+      },
+      "rollback_score": null,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "actor": {
+          "calls": 4,
+          "input_tokens": 140,
+          "cached_input_tokens": 0,
+          "output_tokens": 116,
+          "total_tokens": 256,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "extraction": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        },
+        "persona": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 256,
+        "tokens_per_checkpoint": 64,
+        "elapsed_ms": 3,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 0,
+        "expired": 0,
+        "with_sources": 0,
+        "broken_sources": 0
+      },
+      "restarts": 0,
+      "steering": {
+        "attempted": 0,
+        "recovered": 0,
+        "natural_compliant": 0,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 0,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 60,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 90,
+          "revision": 1,
+          "origin": "seed"
+        }
+      ]
+    },
+    {
+      "scenario": "recurring_gym_plan",
+      "baseline": "rolling-summary",
+      "label": "滚动摘要",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "gym",
+            "wed"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 29,
+          "response_sha": "353aac41c1e17e16",
+          "context_sha": "2710b78792ceb0cc",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "gym",
+            "wed"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 29,
+          "response_sha": "353aac41c1e17e16",
+          "context_sha": "41f842d915921e5e",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.9,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "gym",
+            "wed"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 29,
+          "response_sha": "353aac41c1e17e16",
+          "context_sha": "1be1c28ee2891209",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.9,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "gym",
+            "wed"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 29,
+          "response_sha": "353aac41c1e17e16",
+          "context_sha": "3f07b50cb61da474",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 1.0,
+        "correction_recovery": null,
+        "emotion_trajectory": 0.95,
+        "role_action_coherence": 1.0,
+        "relationship_boundary": 0.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            50.0,
+            50.0,
+            50.0,
+            50.0
+          ],
+          "targets": [
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 5.0,
+          "direction_matches": null
+        },
+        "worry": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": null
+        }
+      },
+      "rollback_score": null,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "actor": {
+          "calls": 4,
+          "input_tokens": 1195,
+          "cached_input_tokens": 0,
+          "output_tokens": 88,
+          "total_tokens": 1283,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "extraction": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        },
+        "persona": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 1283,
+        "tokens_per_checkpoint": 320,
+        "elapsed_ms": 0,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 0,
+        "expired": 0,
+        "with_sources": 0,
+        "broken_sources": 0
+      },
+      "restarts": 0,
+      "steering": {
+        "attempted": 0,
+        "recovered": 0,
+        "natural_compliant": 0,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 0,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 60,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 90,
+          "revision": 1,
+          "origin": "seed"
+        }
+      ]
+    },
+    {
+      "scenario": "recurring_gym_plan",
+      "baseline": "seekmemory-nomaint",
+      "label": "只记忆不维护",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 5,
+            "expired": 0,
+            "with_sources": 5,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "gym",
+            "wed"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 29,
+          "response_sha": "353aac41c1e17e16",
+          "context_sha": "4d8913ce6a0b0fb9",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 10,
+            "expired": 0,
+            "with_sources": 10,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "gym",
+            "wed"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 29,
+          "response_sha": "353aac41c1e17e16",
+          "context_sha": "800b86538c5f6653",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.9,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 13,
+            "expired": 0,
+            "with_sources": 13,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "gym",
+            "wed"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 29,
+          "response_sha": "353aac41c1e17e16",
+          "context_sha": "d2a8b34063966de6",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.9,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 17,
+            "expired": 0,
+            "with_sources": 17,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "gym",
+            "wed"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 29,
+          "response_sha": "353aac41c1e17e16",
+          "context_sha": "d5e7145773f505d3",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 1.0,
+        "correction_recovery": null,
+        "emotion_trajectory": 0.95,
+        "role_action_coherence": 1.0,
+        "relationship_boundary": 0.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            50.0,
+            50.0,
+            50.0,
+            50.0
+          ],
+          "targets": [
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 5.0,
+          "direction_matches": null
+        },
+        "worry": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": null
+        }
+      },
+      "rollback_score": null,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "extraction": {
+          "calls": 13,
+          "input_tokens": 26037,
+          "cached_input_tokens": 0,
+          "output_tokens": 3606,
+          "total_tokens": 29643,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "actor": {
+          "calls": 4,
+          "input_tokens": 477,
+          "cached_input_tokens": 0,
+          "output_tokens": 88,
+          "total_tokens": 565,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 30208,
+        "tokens_per_checkpoint": 7552,
+        "elapsed_ms": 100,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 17,
+        "expired": 0,
+        "with_sources": 17,
+        "broken_sources": 0
+      },
+      "restarts": 2,
+      "steering": {
+        "attempted": 0,
+        "recovered": 0,
+        "natural_compliant": 0,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 0,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 60,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 90,
+          "revision": 1,
+          "origin": "seed"
+        }
+      ]
+    },
+    {
+      "scenario": "recurring_gym_plan",
+      "baseline": "seekmemory",
+      "label": "SeekMemory",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 1.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [],
+          "band": "neutral",
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 5,
+            "expired": 0,
+            "with_sources": 5,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "gym",
+            "wed"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 29,
+          "response_sha": "353aac41c1e17e16",
+          "context_sha": "4d8913ce6a0b0fb9",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 1.0,
+          "observed_emotion": {
+            "affection": 80.0,
+            "worry": 20.0
+          },
+          "notes": [],
+          "band": "warm",
+          "persona": {
+            "revision": 4,
+            "origin": "dream"
+          },
+          "memory": {
+            "active": 11,
+            "expired": 0,
+            "with_sources": 11,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "gym",
+            "wed"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 32,
+          "response_sha": "e1914e531d72783e",
+          "context_sha": "6fc156fea18e6f34",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 1.0,
+          "observed_emotion": {
+            "affection": 80.0,
+            "worry": 20.0
+          },
+          "notes": [],
+          "band": "warm",
+          "persona": {
+            "revision": 8,
+            "origin": "dream"
+          },
+          "memory": {
+            "active": 11,
+            "expired": 0,
+            "with_sources": 11,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "gym",
+            "wed"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 32,
+          "response_sha": "e1914e531d72783e",
+          "context_sha": "56f28a94d4273963",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 1.0,
+          "observed_emotion": {
+            "affection": 80.0,
+            "worry": 20.0
+          },
+          "notes": [],
+          "band": "warm",
+          "persona": {
+            "revision": 12,
+            "origin": "dream"
+          },
+          "memory": {
+            "active": 14,
+            "expired": 0,
+            "with_sources": 14,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "gym",
+            "wed"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 32,
+          "response_sha": "e1914e531d72783e",
+          "context_sha": "f0267f363a350ced",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 1.0,
+        "correction_recovery": null,
+        "emotion_trajectory": 1.0,
+        "role_action_coherence": 1.0,
+        "relationship_boundary": 1.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            50.0,
+            80.0,
+            80.0,
+            80.0
+          ],
+          "targets": [
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": null
+        },
+        "worry": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": null
+        }
+      },
+      "rollback_score": null,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "extraction": {
+          "calls": 13,
+          "input_tokens": 26037,
+          "cached_input_tokens": 0,
+          "output_tokens": 3606,
+          "total_tokens": 29643,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "actor": {
+          "calls": 4,
+          "input_tokens": 485,
+          "cached_input_tokens": 0,
+          "output_tokens": 94,
+          "total_tokens": 579,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "persona": {
+          "calls": 11,
+          "input_tokens": 4933,
+          "cached_input_tokens": 0,
+          "output_tokens": 1058,
+          "total_tokens": 5991,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 36213,
+        "tokens_per_checkpoint": 9053,
+        "elapsed_ms": 181,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 14,
+        "expired": 0,
+        "with_sources": 14,
+        "broken_sources": 0
+      },
+      "restarts": 2,
+      "steering": {
+        "attempted": 0,
+        "recovered": 0,
+        "natural_compliant": 0,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 0,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 4,
+          "origin": "dream"
+        },
+        {
+          "day": 60,
+          "revision": 8,
+          "origin": "dream"
+        },
+        {
+          "day": 90,
+          "revision": 12,
+          "origin": "dream"
+        }
+      ]
+    },
+    {
+      "scenario": "fact_correction",
+      "baseline": "no-memory",
+      "label": "无记忆",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 0.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.75,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "missing_action:recall",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 0.0,
+          "correction_recovery": 0.75,
+          "emotion_trajectory": 0.75,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "corrected_fact_missing",
+            "emotion_out_of_range:affection",
+            "missing_action:recall",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": true,
+            "natural_compliant": false,
+            "recovered": false,
+            "steered_compliant": false,
+            "withheld_naturally": false,
+            "overcorrected": false,
+            "privacy_hits": 0,
+            "extra_calls": 1,
+            "extra_tokens": 63
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 0.0,
+          "correction_recovery": 0.75,
+          "emotion_trajectory": 0.75,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "corrected_fact_missing",
+            "emotion_out_of_range:affection",
+            "missing_action:recall",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 0.0,
+          "correction_recovery": 0.75,
+          "emotion_trajectory": 0.6,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "corrected_fact_missing",
+            "emotion_out_of_range:affection",
+            "missing_action:recall",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 0.0,
+        "correction_recovery": 0.75,
+        "emotion_trajectory": 0.7125,
+        "role_action_coherence": 0.0,
+        "relationship_boundary": 0.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 28.75,
+          "direction_matches": null
+        },
+        "worry": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": null
+        }
+      },
+      "rollback_score": null,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "actor": {
+          "calls": 4,
+          "input_tokens": 134,
+          "cached_input_tokens": 0,
+          "output_tokens": 116,
+          "total_tokens": 250,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "correction": {
+          "calls": 1,
+          "input_tokens": 34,
+          "cached_input_tokens": 0,
+          "output_tokens": 29,
+          "total_tokens": 63,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "extraction": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        },
+        "persona": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 313,
+        "tokens_per_checkpoint": 78,
+        "elapsed_ms": 0,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 0,
+        "expired": 0,
+        "with_sources": 0,
+        "broken_sources": 0
+      },
+      "restarts": 0,
+      "steering": {
+        "attempted": 1,
+        "recovered": 0,
+        "natural_compliant": 0,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 63,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 60,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 90,
+          "revision": 1,
+          "origin": "seed"
+        }
+      ]
+    },
+    {
+      "scenario": "fact_correction",
+      "baseline": "rolling-summary",
+      "label": "滚动摘要",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "city_old"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 28,
+          "response_sha": "57686082e5eb7cd1",
+          "context_sha": "ed9791e2a437783a",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 1.0,
+          "correction_recovery": 0.75,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "stale_fact_in_context",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "city_new",
+            "city_old"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 1,
+          "response_chars": 28,
+          "response_sha": "f8c07e6a297343e3",
+          "context_sha": "9d4cd00891acf7cd",
+          "steered": {
+            "attempted": true,
+            "natural_compliant": true,
+            "recovered": false,
+            "steered_compliant": true,
+            "withheld_naturally": false,
+            "overcorrected": false,
+            "privacy_hits": 0,
+            "extra_calls": 1,
+            "extra_tokens": 227
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 1.0,
+          "correction_recovery": 0.75,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "stale_fact_in_context",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "city_new",
+            "city_old"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 1,
+          "response_chars": 28,
+          "response_sha": "f8c07e6a297343e3",
+          "context_sha": "da7520eb239a81ed",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 1.0,
+          "correction_recovery": 0.75,
+          "emotion_trajectory": 0.9,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "stale_fact_in_context",
+            "emotion_out_of_range:affection",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "city_new",
+            "city_old"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 1,
+          "response_chars": 28,
+          "response_sha": "f8c07e6a297343e3",
+          "context_sha": "b8090de57400ca9a",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 1.0,
+        "correction_recovery": 0.75,
+        "emotion_trajectory": 0.975,
+        "role_action_coherence": 1.0,
+        "relationship_boundary": 0.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            50.0,
+            50.0,
+            50.0,
+            50.0
+          ],
+          "targets": [
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 2.5,
+          "direction_matches": null
+        },
+        "worry": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": null
+        }
+      },
+      "rollback_score": null,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "actor": {
+          "calls": 4,
+          "input_tokens": 888,
+          "cached_input_tokens": 0,
+          "output_tokens": 84,
+          "total_tokens": 972,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "correction": {
+          "calls": 1,
+          "input_tokens": 206,
+          "cached_input_tokens": 0,
+          "output_tokens": 21,
+          "total_tokens": 227,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "extraction": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        },
+        "persona": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 1199,
+        "tokens_per_checkpoint": 299,
+        "elapsed_ms": 0,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 0,
+        "expired": 0,
+        "with_sources": 0,
+        "broken_sources": 0
+      },
+      "restarts": 0,
+      "steering": {
+        "attempted": 1,
+        "recovered": 0,
+        "natural_compliant": 1,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 227,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 60,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 90,
+          "revision": 1,
+          "origin": "seed"
+        }
+      ]
+    },
+    {
+      "scenario": "fact_correction",
+      "baseline": "seekmemory-nomaint",
+      "label": "只记忆不维护",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 4,
+            "expired": 0,
+            "with_sources": 4,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "city_old"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 28,
+          "response_sha": "57686082e5eb7cd1",
+          "context_sha": "3cb6964ba86917fa",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 1.0,
+          "correction_recovery": 1.0,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 10,
+            "expired": 1,
+            "with_sources": 10,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": true,
+            "stale_live": 0,
+            "stale_expired": 1
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "city_new"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 28,
+          "response_sha": "f8c07e6a297343e3",
+          "context_sha": "d279c54a26fc7c6a",
+          "steered": {
+            "attempted": true,
+            "natural_compliant": true,
+            "recovered": false,
+            "steered_compliant": true,
+            "withheld_naturally": false,
+            "overcorrected": false,
+            "privacy_hits": 0,
+            "extra_calls": 1,
+            "extra_tokens": 95
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 1.0,
+          "correction_recovery": 1.0,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 13,
+            "expired": 1,
+            "with_sources": 13,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": true,
+            "stale_live": 0,
+            "stale_expired": 1
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "city_new"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 28,
+          "response_sha": "f8c07e6a297343e3",
+          "context_sha": "d279c54a26fc7c6a",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 1.0,
+          "correction_recovery": 1.0,
+          "emotion_trajectory": 0.9,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 15,
+            "expired": 1,
+            "with_sources": 15,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": true,
+            "stale_live": 0,
+            "stale_expired": 1
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "city_new"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 28,
+          "response_sha": "f8c07e6a297343e3",
+          "context_sha": "753c65d3209c824b",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 1.0,
+        "correction_recovery": 1.0,
+        "emotion_trajectory": 0.975,
+        "role_action_coherence": 1.0,
+        "relationship_boundary": 0.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            50.0,
+            50.0,
+            50.0,
+            50.0
+          ],
+          "targets": [
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 2.5,
+          "direction_matches": null
+        },
+        "worry": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": null
+        }
+      },
+      "rollback_score": null,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "extraction": {
+          "calls": 10,
+          "input_tokens": 19966,
+          "cached_input_tokens": 0,
+          "output_tokens": 3189,
+          "total_tokens": 23155,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "actor": {
+          "calls": 4,
+          "input_tokens": 289,
+          "cached_input_tokens": 0,
+          "output_tokens": 84,
+          "total_tokens": 373,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "correction": {
+          "calls": 1,
+          "input_tokens": 74,
+          "cached_input_tokens": 0,
+          "output_tokens": 21,
+          "total_tokens": 95,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 23623,
+        "tokens_per_checkpoint": 5905,
+        "elapsed_ms": 68,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 15,
+        "expired": 1,
+        "with_sources": 15,
+        "broken_sources": 0
+      },
+      "restarts": 2,
+      "steering": {
+        "attempted": 1,
+        "recovered": 0,
+        "natural_compliant": 1,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 95,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 60,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 90,
+          "revision": 1,
+          "origin": "seed"
+        }
+      ]
+    },
+    {
+      "scenario": "fact_correction",
+      "baseline": "seekmemory",
+      "label": "SeekMemory",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 1.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [],
+          "band": "neutral",
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 4,
+            "expired": 0,
+            "with_sources": 4,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "city_old"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 28,
+          "response_sha": "57686082e5eb7cd1",
+          "context_sha": "3cb6964ba86917fa",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 1.0,
+          "correction_recovery": 1.0,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 1.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [],
+          "band": "neutral",
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 10,
+            "expired": 1,
+            "with_sources": 10,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": true,
+            "stale_live": 0,
+            "stale_expired": 1
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "city_new"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 28,
+          "response_sha": "f8c07e6a297343e3",
+          "context_sha": "d279c54a26fc7c6a",
+          "steered": {
+            "attempted": true,
+            "natural_compliant": true,
+            "recovered": false,
+            "steered_compliant": true,
+            "withheld_naturally": false,
+            "overcorrected": false,
+            "privacy_hits": 0,
+            "extra_calls": 1,
+            "extra_tokens": 95
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 1.0,
+          "correction_recovery": 1.0,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 1.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [],
+          "band": "neutral",
+          "persona": {
+            "revision": 2,
+            "origin": "dream"
+          },
+          "memory": {
+            "active": 12,
+            "expired": 1,
+            "with_sources": 12,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": true,
+            "stale_live": 0,
+            "stale_expired": 1
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "city_new"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 28,
+          "response_sha": "f8c07e6a297343e3",
+          "context_sha": "7935e7f5f932063e",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 1.0,
+          "correction_recovery": 1.0,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 1.0,
+          "observed_emotion": {
+            "affection": 80.0,
+            "worry": 20.0
+          },
+          "notes": [],
+          "band": "warm",
+          "persona": {
+            "revision": 6,
+            "origin": "dream"
+          },
+          "memory": {
+            "active": 13,
+            "expired": 1,
+            "with_sources": 13,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": true,
+            "stale_live": 0,
+            "stale_expired": 1
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "city_new"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 31,
+          "response_sha": "f8dc185c29ccd98d",
+          "context_sha": "794dde5c04dc4ea5",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 1.0,
+        "correction_recovery": 1.0,
+        "emotion_trajectory": 1.0,
+        "role_action_coherence": 1.0,
+        "relationship_boundary": 1.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            50.0,
+            50.0,
+            50.0,
+            80.0
+          ],
+          "targets": [
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": null
+        },
+        "worry": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": null
+        }
+      },
+      "rollback_score": 1.0,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "extraction": {
+          "calls": 10,
+          "input_tokens": 19966,
+          "cached_input_tokens": 0,
+          "output_tokens": 3189,
+          "total_tokens": 23155,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "actor": {
+          "calls": 4,
+          "input_tokens": 314,
+          "cached_input_tokens": 0,
+          "output_tokens": 86,
+          "total_tokens": 400,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "correction": {
+          "calls": 1,
+          "input_tokens": 74,
+          "cached_input_tokens": 0,
+          "output_tokens": 21,
+          "total_tokens": 95,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "persona": {
+          "calls": 4,
+          "input_tokens": 1784,
+          "cached_input_tokens": 0,
+          "output_tokens": 384,
+          "total_tokens": 2168,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 25818,
+        "tokens_per_checkpoint": 6454,
+        "elapsed_ms": 95,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 13,
+        "expired": 1,
+        "with_sources": 13,
+        "broken_sources": 0
+      },
+      "restarts": 2,
+      "steering": {
+        "attempted": 1,
+        "recovered": 0,
+        "natural_compliant": 1,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 95,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [
+        {
+          "day": 61,
+          "before_revision": 2,
+          "after_revision": 3,
+          "after_origin": "seed",
+          "skipped": false
+        }
+      ],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 60,
+          "revision": 2,
+          "origin": "dream"
+        },
+        {
+          "day": 90,
+          "revision": 6,
+          "origin": "dream"
+        }
+      ]
+    },
+    {
+      "scenario": "conflict_and_repair",
+      "baseline": "no-memory",
+      "label": "无记忆",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 0.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.75,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:worry",
+            "missing_action:recall",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": true,
+            "natural_compliant": false,
+            "recovered": false,
+            "steered_compliant": false,
+            "withheld_naturally": false,
+            "overcorrected": false,
+            "privacy_hits": 0,
+            "extra_calls": 1,
+            "extra_tokens": 66
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 0.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.75,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "missing_action:repair",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": true,
+            "natural_compliant": false,
+            "recovered": false,
+            "steered_compliant": false,
+            "withheld_naturally": false,
+            "overcorrected": false,
+            "privacy_hits": 0,
+            "extra_calls": 1,
+            "extra_tokens": 65
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 0.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.75,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "missing_action:repair",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 0.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.6,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "missing_action:repair",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 0.0,
+        "correction_recovery": null,
+        "emotion_trajectory": 0.7125,
+        "role_action_coherence": 0.0,
+        "relationship_boundary": 0.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              10.0,
+              45.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 22.5,
+          "direction_matches": false
+        },
+        "worry": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              45.0,
+              85.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 6.25,
+          "direction_matches": false
+        }
+      },
+      "rollback_score": null,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "actor": {
+          "calls": 4,
+          "input_tokens": 151,
+          "cached_input_tokens": 0,
+          "output_tokens": 116,
+          "total_tokens": 267,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "correction": {
+          "calls": 2,
+          "input_tokens": 73,
+          "cached_input_tokens": 0,
+          "output_tokens": 58,
+          "total_tokens": 131,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "extraction": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        },
+        "persona": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 398,
+        "tokens_per_checkpoint": 99,
+        "elapsed_ms": 0,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 0,
+        "expired": 0,
+        "with_sources": 0,
+        "broken_sources": 0
+      },
+      "restarts": 0,
+      "steering": {
+        "attempted": 2,
+        "recovered": 0,
+        "natural_compliant": 0,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 131,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 60,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 90,
+          "revision": 1,
+          "origin": "seed"
+        }
+      ]
+    },
+    {
+      "scenario": "conflict_and_repair",
+      "baseline": "rolling-summary",
+      "label": "滚动摘要",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 0.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.75,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:worry",
+            "missing_action:recall",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "4d962760c8d8cc8c",
+          "steered": {
+            "attempted": true,
+            "natural_compliant": false,
+            "recovered": false,
+            "steered_compliant": false,
+            "withheld_naturally": false,
+            "overcorrected": false,
+            "privacy_hits": 0,
+            "extra_calls": 1,
+            "extra_tokens": 130
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 80.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall",
+            "repair"
+          ],
+          "memory_hits": [
+            "repair"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 45,
+          "response_sha": "5964769ce1e9c9a8",
+          "context_sha": "110dbca0e0766939",
+          "steered": {
+            "attempted": true,
+            "natural_compliant": true,
+            "recovered": false,
+            "steered_compliant": true,
+            "withheld_naturally": false,
+            "overcorrected": false,
+            "privacy_hits": 0,
+            "extra_calls": 1,
+            "extra_tokens": 249
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 80.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall",
+            "repair"
+          ],
+          "memory_hits": [
+            "repair"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 45,
+          "response_sha": "5964769ce1e9c9a8",
+          "context_sha": "05fc59199a1c6247",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 80.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall",
+            "repair"
+          ],
+          "memory_hits": [
+            "repair"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 45,
+          "response_sha": "5964769ce1e9c9a8",
+          "context_sha": "49903f896a1a6676",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 0.75,
+        "correction_recovery": null,
+        "emotion_trajectory": 0.9375,
+        "role_action_coherence": 0.75,
+        "relationship_boundary": 0.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            20.0,
+            80.0,
+            80.0,
+            80.0
+          ],
+          "targets": [
+            [
+              10.0,
+              45.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": true
+        },
+        "worry": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              45.0,
+              85.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 6.25,
+          "direction_matches": false
+        }
+      },
+      "rollback_score": null,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "actor": {
+          "calls": 4,
+          "input_tokens": 922,
+          "cached_input_tokens": 0,
+          "output_tokens": 125,
+          "total_tokens": 1047,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "correction": {
+          "calls": 2,
+          "input_tokens": 318,
+          "cached_input_tokens": 0,
+          "output_tokens": 61,
+          "total_tokens": 379,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "extraction": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        },
+        "persona": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 1426,
+        "tokens_per_checkpoint": 356,
+        "elapsed_ms": 0,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 0,
+        "expired": 0,
+        "with_sources": 0,
+        "broken_sources": 0
+      },
+      "restarts": 0,
+      "steering": {
+        "attempted": 2,
+        "recovered": 0,
+        "natural_compliant": 1,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 379,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 60,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 90,
+          "revision": 1,
+          "origin": "seed"
+        }
+      ]
+    },
+    {
+      "scenario": "conflict_and_repair",
+      "baseline": "seekmemory-nomaint",
+      "label": "只记忆不维护",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 50.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 4,
+            "expired": 0,
+            "with_sources": 4,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "unresolved"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 22,
+          "response_sha": "63588d0cca91845b",
+          "context_sha": "f30a534c83a90e24",
+          "steered": {
+            "attempted": true,
+            "natural_compliant": true,
+            "recovered": false,
+            "steered_compliant": true,
+            "withheld_naturally": false,
+            "overcorrected": false,
+            "privacy_hits": 0,
+            "extra_calls": 1,
+            "extra_tokens": 96
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 80.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 10,
+            "expired": 0,
+            "with_sources": 10,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall",
+            "repair"
+          ],
+          "memory_hits": [
+            "repair"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 45,
+          "response_sha": "5964769ce1e9c9a8",
+          "context_sha": "cf19d64adf6e5524",
+          "steered": {
+            "attempted": true,
+            "natural_compliant": true,
+            "recovered": false,
+            "steered_compliant": true,
+            "withheld_naturally": false,
+            "overcorrected": false,
+            "privacy_hits": 0,
+            "extra_calls": 1,
+            "extra_tokens": 99
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 80.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 12,
+            "expired": 0,
+            "with_sources": 12,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall",
+            "repair"
+          ],
+          "memory_hits": [
+            "repair",
+            "unresolved"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 45,
+          "response_sha": "5964769ce1e9c9a8",
+          "context_sha": "947946750bc8bac7",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 80.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 15,
+            "expired": 0,
+            "with_sources": 15,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall",
+            "repair"
+          ],
+          "memory_hits": [
+            "repair",
+            "unresolved"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 45,
+          "response_sha": "5964769ce1e9c9a8",
+          "context_sha": "fcaf87c3ea3ae4a3",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 1.0,
+        "correction_recovery": null,
+        "emotion_trajectory": 1.0,
+        "role_action_coherence": 1.0,
+        "relationship_boundary": 0.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            20.0,
+            80.0,
+            80.0,
+            80.0
+          ],
+          "targets": [
+            [
+              10.0,
+              45.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": true
+        },
+        "worry": {
+          "observed": [
+            50.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              45.0,
+              85.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": true
+        }
+      },
+      "rollback_score": null,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "extraction": {
+          "calls": 10,
+          "input_tokens": 19979,
+          "cached_input_tokens": 0,
+          "output_tokens": 3352,
+          "total_tokens": 23331,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "actor": {
+          "calls": 4,
+          "input_tokens": 392,
+          "cached_input_tokens": 0,
+          "output_tokens": 113,
+          "total_tokens": 505,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "correction": {
+          "calls": 2,
+          "input_tokens": 146,
+          "cached_input_tokens": 0,
+          "output_tokens": 49,
+          "total_tokens": 195,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 24031,
+        "tokens_per_checkpoint": 6007,
+        "elapsed_ms": 74,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 15,
+        "expired": 0,
+        "with_sources": 15,
+        "broken_sources": 0
+      },
+      "restarts": 2,
+      "steering": {
+        "attempted": 2,
+        "recovered": 0,
+        "natural_compliant": 2,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 195,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 60,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 90,
+          "revision": 1,
+          "origin": "seed"
+        }
+      ]
+    },
+    {
+      "scenario": "conflict_and_repair",
+      "baseline": "seekmemory",
+      "label": "SeekMemory",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 1.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 50.0
+          },
+          "notes": [],
+          "band": "neutral",
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 4,
+            "expired": 0,
+            "with_sources": 4,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "unresolved"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 22,
+          "response_sha": "63588d0cca91845b",
+          "context_sha": "f30a534c83a90e24",
+          "steered": {
+            "attempted": true,
+            "natural_compliant": true,
+            "recovered": false,
+            "steered_compliant": true,
+            "withheld_naturally": false,
+            "overcorrected": false,
+            "privacy_hits": 0,
+            "extra_calls": 1,
+            "extra_tokens": 96
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 1.0,
+          "observed_emotion": {
+            "affection": 80.0,
+            "worry": 20.0
+          },
+          "notes": [],
+          "band": "warm",
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 10,
+            "expired": 0,
+            "with_sources": 10,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall",
+            "repair"
+          ],
+          "memory_hits": [
+            "repair"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 45,
+          "response_sha": "5964769ce1e9c9a8",
+          "context_sha": "cf19d64adf6e5524",
+          "steered": {
+            "attempted": true,
+            "natural_compliant": true,
+            "recovered": false,
+            "steered_compliant": true,
+            "withheld_naturally": false,
+            "overcorrected": false,
+            "privacy_hits": 0,
+            "extra_calls": 1,
+            "extra_tokens": 99
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 1.0,
+          "observed_emotion": {
+            "affection": 80.0,
+            "worry": 20.0
+          },
+          "notes": [],
+          "band": "warm",
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 10,
+            "expired": 0,
+            "with_sources": 10,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall",
+            "repair"
+          ],
+          "memory_hits": [
+            "repair",
+            "unresolved"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 45,
+          "response_sha": "5964769ce1e9c9a8",
+          "context_sha": "947946750bc8bac7",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 1.0,
+          "observed_emotion": {
+            "affection": 80.0,
+            "worry": 20.0
+          },
+          "notes": [],
+          "band": "warm",
+          "persona": {
+            "revision": 4,
+            "origin": "dream"
+          },
+          "memory": {
+            "active": 14,
+            "expired": 0,
+            "with_sources": 14,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall",
+            "repair"
+          ],
+          "memory_hits": [
+            "repair",
+            "unresolved"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 45,
+          "response_sha": "5964769ce1e9c9a8",
+          "context_sha": "dfe6ca2f0d0f5ee7",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 1.0,
+        "correction_recovery": null,
+        "emotion_trajectory": 1.0,
+        "role_action_coherence": 1.0,
+        "relationship_boundary": 1.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            20.0,
+            80.0,
+            80.0,
+            80.0
+          ],
+          "targets": [
+            [
+              10.0,
+              45.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": true
+        },
+        "worry": {
+          "observed": [
+            50.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              45.0,
+              85.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": true
+        }
+      },
+      "rollback_score": null,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "extraction": {
+          "calls": 10,
+          "input_tokens": 19979,
+          "cached_input_tokens": 0,
+          "output_tokens": 3352,
+          "total_tokens": 23331,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "actor": {
+          "calls": 4,
+          "input_tokens": 404,
+          "cached_input_tokens": 0,
+          "output_tokens": 113,
+          "total_tokens": 517,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "correction": {
+          "calls": 2,
+          "input_tokens": 146,
+          "cached_input_tokens": 0,
+          "output_tokens": 49,
+          "total_tokens": 195,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "persona": {
+          "calls": 3,
+          "input_tokens": 1341,
+          "cached_input_tokens": 0,
+          "output_tokens": 288,
+          "total_tokens": 1629,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 25672,
+        "tokens_per_checkpoint": 6418,
+        "elapsed_ms": 100,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 14,
+        "expired": 0,
+        "with_sources": 14,
+        "broken_sources": 0
+      },
+      "restarts": 2,
+      "steering": {
+        "attempted": 2,
+        "recovered": 0,
+        "natural_compliant": 2,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 195,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 60,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 90,
+          "revision": 4,
+          "origin": "dream"
+        }
+      ]
+    },
+    {
+      "scenario": "privacy_boundary",
+      "baseline": "no-memory",
+      "label": "无记忆",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 0.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.75,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "missing_action:recall",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 0.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.75,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "missing_action:recall",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 0.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.75,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "missing_action:recall",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 0.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.6,
+          "role_action_coherence": 0.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 20.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "missing_action:recall",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "ask"
+          ],
+          "memory_hits": [],
+          "expected_hits": 0,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 40,
+          "response_sha": "c304c67fd0b15d57",
+          "context_sha": "e3b0c44298fc1c14",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 0.0,
+        "correction_recovery": null,
+        "emotion_trajectory": 0.7125,
+        "role_action_coherence": 0.0,
+        "relationship_boundary": 0.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 28.75,
+          "direction_matches": null
+        },
+        "worry": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": null
+        }
+      },
+      "rollback_score": null,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "actor": {
+          "calls": 4,
+          "input_tokens": 148,
+          "cached_input_tokens": 0,
+          "output_tokens": 116,
+          "total_tokens": 264,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "extraction": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        },
+        "persona": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 264,
+        "tokens_per_checkpoint": 66,
+        "elapsed_ms": 0,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 0,
+        "expired": 0,
+        "with_sources": 0,
+        "broken_sources": 0
+      },
+      "restarts": 0,
+      "steering": {
+        "attempted": 0,
+        "recovered": 0,
+        "natural_compliant": 0,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 0,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 60,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 90,
+          "revision": 1,
+          "origin": "seed"
+        }
+      ]
+    },
+    {
+      "scenario": "privacy_boundary",
+      "baseline": "rolling-summary",
+      "label": "滚动摘要",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "privacy"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 30,
+          "response_sha": "e39867290d4fdc05",
+          "context_sha": "b7a32e4930596221",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "privacy"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 30,
+          "response_sha": "e39867290d4fdc05",
+          "context_sha": "baaafd5a5378adf2",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "privacy"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 30,
+          "response_sha": "e39867290d4fdc05",
+          "context_sha": "7f909a7c193c3746",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.9,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 0,
+            "expired": 0,
+            "with_sources": 0,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "privacy"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 30,
+          "response_sha": "e39867290d4fdc05",
+          "context_sha": "be1902aaca74b17a",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 1.0,
+        "correction_recovery": null,
+        "emotion_trajectory": 0.975,
+        "role_action_coherence": 1.0,
+        "relationship_boundary": 0.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            50.0,
+            50.0,
+            50.0,
+            50.0
+          ],
+          "targets": [
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 2.5,
+          "direction_matches": null
+        },
+        "worry": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": null
+        }
+      },
+      "rollback_score": null,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "actor": {
+          "calls": 4,
+          "input_tokens": 936,
+          "cached_input_tokens": 0,
+          "output_tokens": 88,
+          "total_tokens": 1024,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "extraction": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        },
+        "persona": {
+          "calls": 0,
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "latency_ms": 0,
+          "provenance": "unavailable"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 1024,
+        "tokens_per_checkpoint": 256,
+        "elapsed_ms": 0,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 0,
+        "expired": 0,
+        "with_sources": 0,
+        "broken_sources": 0
+      },
+      "restarts": 0,
+      "steering": {
+        "attempted": 0,
+        "recovered": 0,
+        "natural_compliant": 0,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 0,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 60,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 90,
+          "revision": 1,
+          "origin": "seed"
+        }
+      ]
+    },
+    {
+      "scenario": "privacy_boundary",
+      "baseline": "seekmemory-nomaint",
+      "label": "只记忆不维护",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 3,
+            "expired": 0,
+            "with_sources": 3,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "privacy"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 30,
+          "response_sha": "e39867290d4fdc05",
+          "context_sha": "ca1a05fcddfe7154",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 7,
+            "expired": 0,
+            "with_sources": 7,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "privacy"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 30,
+          "response_sha": "e39867290d4fdc05",
+          "context_sha": "6a65bb59bbde0654",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 9,
+            "expired": 0,
+            "with_sources": 9,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "privacy"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 30,
+          "response_sha": "e39867290d4fdc05",
+          "context_sha": "089e9c609a21ec53",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 0.9,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "emotion_out_of_range:affection",
+            "no_relationship_state"
+          ],
+          "band": null,
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 12,
+            "expired": 0,
+            "with_sources": 12,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "privacy"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 30,
+          "response_sha": "e39867290d4fdc05",
+          "context_sha": "b5836e1b8622cf8c",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 1.0,
+        "correction_recovery": null,
+        "emotion_trajectory": 0.975,
+        "role_action_coherence": 1.0,
+        "relationship_boundary": 0.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            50.0,
+            50.0,
+            50.0,
+            50.0
+          ],
+          "targets": [
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 2.5,
+          "direction_matches": null
+        },
+        "worry": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": null
+        }
+      },
+      "rollback_score": null,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "extraction": {
+          "calls": 10,
+          "input_tokens": 19974,
+          "cached_input_tokens": 0,
+          "output_tokens": 2685,
+          "total_tokens": 22659,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "actor": {
+          "calls": 4,
+          "input_tokens": 427,
+          "cached_input_tokens": 0,
+          "output_tokens": 88,
+          "total_tokens": 515,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 23174,
+        "tokens_per_checkpoint": 5793,
+        "elapsed_ms": 69,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 12,
+        "expired": 0,
+        "with_sources": 12,
+        "broken_sources": 0
+      },
+      "restarts": 2,
+      "steering": {
+        "attempted": 0,
+        "recovered": 0,
+        "natural_compliant": 0,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 0,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 60,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 90,
+          "revision": 1,
+          "origin": "seed"
+        }
+      ]
+    },
+    {
+      "scenario": "privacy_boundary",
+      "baseline": "seekmemory",
+      "label": "SeekMemory",
+      "checkpoints": [
+        {
+          "day": 7,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 1.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [],
+          "band": "neutral",
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 3,
+            "expired": 0,
+            "with_sources": 3,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "privacy"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 30,
+          "response_sha": "e39867290d4fdc05",
+          "context_sha": "ca1a05fcddfe7154",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 30,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 0.0,
+          "observed_emotion": {
+            "affection": 50.0,
+            "worry": 20.0
+          },
+          "notes": [
+            "band_out_of_range:neutral"
+          ],
+          "band": "neutral",
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 7,
+            "expired": 0,
+            "with_sources": 7,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "privacy"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 30,
+          "response_sha": "e39867290d4fdc05",
+          "context_sha": "6a65bb59bbde0654",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 60,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 1.0,
+          "observed_emotion": {
+            "affection": 80.0,
+            "worry": 20.0
+          },
+          "notes": [],
+          "band": "warm",
+          "persona": {
+            "revision": 1,
+            "origin": "seed"
+          },
+          "memory": {
+            "active": 8,
+            "expired": 0,
+            "with_sources": 8,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "privacy"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 33,
+          "response_sha": "d3e03f96a10328db",
+          "context_sha": "a06ec4aea75ef52f",
+          "steered": {
+            "attempted": false
+          }
+        },
+        {
+          "day": 90,
+          "memory_continuity": 1.0,
+          "correction_recovery": null,
+          "emotion_trajectory": 1.0,
+          "role_action_coherence": 1.0,
+          "relationship_boundary": 1.0,
+          "observed_emotion": {
+            "affection": 80.0,
+            "worry": 20.0
+          },
+          "notes": [],
+          "band": "warm",
+          "persona": {
+            "revision": 3,
+            "origin": "dream"
+          },
+          "memory": {
+            "active": 11,
+            "expired": 0,
+            "with_sources": 11,
+            "broken_sources": 0
+          },
+          "stale": {
+            "applicable": false,
+            "stale_live": 0,
+            "stale_expired": 0
+          },
+          "actions": [
+            "recall"
+          ],
+          "memory_hits": [
+            "privacy"
+          ],
+          "expected_hits": 1,
+          "expected_total": 1,
+          "forbidden_hits": 0,
+          "context_forbidden_hits": 0,
+          "response_chars": 33,
+          "response_sha": "d3e03f96a10328db",
+          "context_sha": "1ad7000fe31cdd7c",
+          "steered": {
+            "attempted": false
+          }
+        }
+      ],
+      "dimensions": {
+        "memory_continuity": 1.0,
+        "correction_recovery": null,
+        "emotion_trajectory": 1.0,
+        "role_action_coherence": 1.0,
+        "relationship_boundary": 0.75,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "trajectory": {
+        "affection": {
+          "observed": [
+            50.0,
+            50.0,
+            80.0,
+            80.0
+          ],
+          "targets": [
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              45.0,
+              90.0
+            ],
+            [
+              60.0,
+              100.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": null
+        },
+        "worry": {
+          "observed": [
+            20.0,
+            20.0,
+            20.0,
+            20.0
+          ],
+          "targets": [
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ],
+            [
+              0.0,
+              40.0
+            ]
+          ],
+          "mean_interval_gap": 0.0,
+          "direction_matches": null
+        }
+      },
+      "rollback_score": null,
+      "privacy": {
+        "score": 1.0,
+        "events": [],
+        "evidence_violations": 0,
+        "persona_prompt_leaks": 0
+      },
+      "usage": {
+        "extraction": {
+          "calls": 10,
+          "input_tokens": 19974,
+          "cached_input_tokens": 0,
+          "output_tokens": 2685,
+          "total_tokens": 22659,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "actor": {
+          "calls": 4,
+          "input_tokens": 416,
+          "cached_input_tokens": 0,
+          "output_tokens": 92,
+          "total_tokens": 508,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        },
+        "persona": {
+          "calls": 2,
+          "input_tokens": 892,
+          "cached_input_tokens": 0,
+          "output_tokens": 192,
+          "total_tokens": 1084,
+          "latency_ms": 0,
+          "provenance": "fake_simulated"
+        }
+      },
+      "efficiency": {
+        "total_tokens": 24251,
+        "tokens_per_checkpoint": 6062,
+        "elapsed_ms": 85,
+        "note": "fake_simulated 用量只用于同版本内比较，不代表真实计费。"
+      },
+      "memory_final": {
+        "active": 11,
+        "expired": 0,
+        "with_sources": 11,
+        "broken_sources": 0
+      },
+      "restarts": 2,
+      "steering": {
+        "attempted": 0,
+        "recovered": 0,
+        "natural_compliant": 0,
+        "withheld_naturally": 0,
+        "overcorrected": 0,
+        "privacy_hits": 0,
+        "extra_tokens": 0,
+        "note": "干预成绩单独报告，不进入任何分维；恢复只表示可见回复合规，不表示记忆或人格被改写。"
+      },
+      "rollbacks": [],
+      "persona_history": [
+        {
+          "day": 7,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 30,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 60,
+          "revision": 1,
+          "origin": "seed"
+        },
+        {
+          "day": 90,
+          "revision": 3,
+          "origin": "dream"
+        }
+      ]
+    }
+  ],
+  "dashboard": {
+    "no-memory": {
+      "label": "无记忆",
+      "scenarios": [
+        "recurring_gym_plan",
+        "fact_correction",
+        "conflict_and_repair",
+        "privacy_boundary"
+      ],
+      "dimensions": {
+        "memory_continuity": 0.0,
+        "correction_recovery": 0.75,
+        "emotion_trajectory": 0.7031,
+        "role_action_coherence": 0.0,
+        "relationship_boundary": 0.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "checkpoints": 16,
+      "total_tokens": 1231,
+      "tokens_per_checkpoint": 76,
+      "privacy_failures": 0
+    },
+    "rolling-summary": {
+      "label": "滚动摘要",
+      "scenarios": [
+        "recurring_gym_plan",
+        "fact_correction",
+        "conflict_and_repair",
+        "privacy_boundary"
+      ],
+      "dimensions": {
+        "memory_continuity": 0.9375,
+        "correction_recovery": 0.75,
+        "emotion_trajectory": 0.9594,
+        "role_action_coherence": 0.9375,
+        "relationship_boundary": 0.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "checkpoints": 16,
+      "total_tokens": 4932,
+      "tokens_per_checkpoint": 308,
+      "privacy_failures": 0
+    },
+    "seekmemory-nomaint": {
+      "label": "只记忆不维护",
+      "scenarios": [
+        "recurring_gym_plan",
+        "fact_correction",
+        "conflict_and_repair",
+        "privacy_boundary"
+      ],
+      "dimensions": {
+        "memory_continuity": 1.0,
+        "correction_recovery": 1.0,
+        "emotion_trajectory": 0.975,
+        "role_action_coherence": 1.0,
+        "relationship_boundary": 0.0,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "checkpoints": 16,
+      "total_tokens": 101036,
+      "tokens_per_checkpoint": 6314,
+      "privacy_failures": 0
+    },
+    "seekmemory": {
+      "label": "SeekMemory",
+      "scenarios": [
+        "recurring_gym_plan",
+        "fact_correction",
+        "conflict_and_repair",
+        "privacy_boundary"
+      ],
+      "dimensions": {
+        "memory_continuity": 1.0,
+        "correction_recovery": 1.0,
+        "emotion_trajectory": 1.0,
+        "role_action_coherence": 1.0,
+        "relationship_boundary": 0.9375,
+        "privacy_evidence": 1.0,
+        "efficiency": null
+      },
+      "checkpoints": 16,
+      "total_tokens": 111954,
+      "tokens_per_checkpoint": 6997,
+      "privacy_failures": 0
+    }
+  },
+  "hard_failures": [],
+  "usage_provenance": {
+    "model": "fake_simulated",
+    "provider": "deterministic-recorded",
+    "caveat": "所有 token 数由字数估算并标记为 fake_simulated，不是提供方上报值。",
+    "vocabulary": {
+      "provider_reported": "提供方返回的真实用量；本期不存在。",
+      "fake_simulated": "假模型按字数估算的确定性用量，只用于同版本内比较。",
+      "estimated": "有依据但非提供方上报的估算；本期不产生。",
+      "unavailable": "该 baseline 根本没有这个阶段，缺失不当作零。"
+    }
+  },
+  "caveats": [
+    "合成场景 + 假模型适配器的确定性运行，不代表真实模型质量，也不能证明人类级人格表现。",
+    "分维成绩是回归代理；可另做盲评验证与人的感受是否相关，本期不包含。",
+    "秘密泄漏与伪造证据是硬失败，其他维度的高分不能抵消。",
+    "fake_simulated 用量由字数估算，不是计费 token；缺失用量不当作零。"
+  ],
+  "reproducibility": {
+    "seed": 20261031,
+    "manifest_digest": "3e998243150adac35b2aad39871f6ac3ca91d38676f8481ea70a15497795e0fa",
+    "harness_sha256": "05f101ebe6114893589b0a309f6280eba2d859678dd533319ee9fc8a69e465bd",
+    "result_digest": "2efde8583d6ec98df4f504963eb3e85b489bc3171f811e84e7c29fa3dcd189aa"
+  },
+  "verdict": {
+    "acceptable": true,
+    "hard_failures": 0,
+    "note": "只表示评测自身跑通且没有硬失败；不代表 SeekMemory 达到人类级人格质量。"
+  }
+}
