@@ -11,13 +11,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import os
+import datetime
+import logging
 import tempfile
 from app.contracts import DialogueTurn
 from core.artifact import make
 from core.source import Source
 from perceive.buffer import Buffer
 from store import open_store
+from core.capacity import CapacityGovernor
+from services.capacity_service import CapacityService
 from webui.journal import Journal
+from webui.trace import Trace
 
 class ExtractionProjectionTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -105,6 +110,30 @@ class ExtractionProjectionTest(unittest.TestCase):
         self.assertEqual(self.db.extraction.release_deferred(10), 1)
         self.assertEqual(buffer.reload(), 1)
         self.assertEqual([row.text for row in buffer.items], ["Travel itinerary"])
+
+    def test_capacity_recovers_deferred_backlog_after_restart(self) -> None:
+        count = 200
+        at = datetime.datetime.now().isoformat(timespec="seconds")
+        for index in range(count):
+            source = Source(f"s{index}", f"t{index}", "umo:a", "u1", "user", "queued message", at)
+            self.db.extraction.enqueue_extraction(source, "topic", deferred=True)
+        self.db.close()
+        self.db = open_store(os.path.join(self.temp.name, "memory.db"))
+        buffer = Buffer(extraction=self.db.extraction)
+        capacity = CapacityService(
+            metrics=self.db.metrics, extraction=self.db.extraction, maintenance=None,
+            trace=Trace(), journal=Journal(Path(self.temp.name) / "journal.jsonl"),
+            governor=CapacityGovernor(), config=lambda key, default: default,
+            logger=logging.getLogger(__name__), on_release=buffer.reload,
+        )
+        for _ in range(count // capacity.thresholds.release_batch):
+            capacity.apply_maintenance(capacity.observe())
+            self.assertTrue(buffer.items)
+            self.assertLessEqual(len(buffer.items), capacity.thresholds.release_batch)
+            buffer.mark_succeeded(list(buffer.items))
+        counts = self.db.extraction.queue_counts()
+        self.assertEqual((counts["pending"], counts["deferred"], counts["extracted"]), (0, 0, count))
+        self.assertEqual(self.db.metrics.capacity_usage()["source_rows"], count)
 
     def test_projection_has_no_two_hundred_row_truncation(self) -> None:
         buffer = Buffer(extraction=self.db.extraction)

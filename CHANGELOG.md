@@ -4,7 +4,11 @@
 
 ### 中文
 
+- 修复 deferred 积压达到软阈值后无法恢复抽取的问题：按 pending 余量有界放行，保留输入背压、批次上限和 Source，无数据格式或配置变化（#201，第 3 项）。
+
 ### English
+
+- Fix deferred extraction stalling at its soft threshold: release bounded batches according to pending headroom, preserving admission backpressure, batch limits and Sources. No data-format or configuration changes (#201, item 3).
 
 ## 0.6.0-rc.1 — 2026-10-31
 
