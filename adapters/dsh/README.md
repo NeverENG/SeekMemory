@@ -169,11 +169,14 @@ $env:SEEKMEMORY_DISABLE = '1'
 | `budgetChars` | `600` | 每轮注入字符上限 |
 | `k` | `8` | 每轮最多几条 |
 | `subjectKey` / `subjectMode` | 空 / `auto` | 主体键；`auto` 取会话元数据，取不到退固定键并**告警一次** |
+
 | `injectRecall` / `injectPersona` | `true` | 可只捕获不注入（与别的记忆插件共存的过渡期用） |
 | `extractEnabled` | `false` | 抽取循环开关；开之前必须先配下面两项 |
 | `llmProvider` / `llmModel` | 空 | 抽取用的宿主侧模型；留空则跳过并记原因，**绝不猜宿主默认模型** |
 | `safeModeAfterFailures` | `1` | 启动阶段连续几次没走完就跳闸（1–10） |
 | `safeModeAutoRetry` | `3` | 安全模式里连续几次启动后自动重试一次（0 = 永不） |
+
+若多个平台同时连接同一个 `scripts/serve.py` 数据目录，请把每个宿主的主体键配置为内核 `owner_umo`（默认 `loopback:default`）；DSH 建议 `subjectMode=fixed` 并显式设置相同的 `subjectKey`。不同主体键会被真内核以 403 拒绝（不可仅依赖 DSH `auto` 推断）。当前共享的是**一个主体的记忆与 Persona**，不是不同用户共用一个库；历史混存库须先审计/拆分。真内核契约检查可加 `--subject <owner_umo>`。
 
 ## 已知偏离与待办（诚实清单）
 

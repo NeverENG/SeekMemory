@@ -75,7 +75,7 @@ async function call(path, { method = 'GET', body, auth = token } = {}) {
   return { status: res.status, data };
 }
 
-const SUBJECT = 'contract:test:subject';
+const SUBJECT = arg('--subject', 'contract:test:subject');
 const payload = {
   subject_key: SUBJECT,
   session: 'contract-session',

@@ -111,6 +111,13 @@ class MemoryService:
             artifacts=self.store.artifacts, ledger=self.store.ledger,
         )
 
+    def _same_subject(self, requested: Any) -> bool:
+        """One database owns one logical subject; hosts may share its stable key.
+
+        一个数据库只属于一个逻辑主体；多个宿主可以共用该稳定键。
+        """
+        return not requested or str(requested) == self.owner
+
     # ---------- 端点 ----------
     def healthz(self) -> tuple[int, dict]:
         return 200, {
@@ -121,6 +128,8 @@ class MemoryService:
         }
 
     def capture(self, body: dict) -> tuple[int, dict]:
+        if not self._same_subject(body.get("subject_key")):
+            return 403, {"error": "subject_mismatch"}
         text = str(body.get("text") or "").strip()
         if not text:
             return 400, {"error": "text is required"}
@@ -137,6 +146,8 @@ class MemoryService:
         return 200, {"accepted": True, "source_id": turn.source_id}
 
     def recall(self, body: dict) -> tuple[int, dict]:
+        if not self._same_subject(body.get("subject_key")):
+            return 403, {"error": "subject_mismatch"}
         subject = str(body.get("subject_key") or self.owner)
         query = str(body.get("query") or "")
         try:
@@ -170,6 +181,8 @@ class MemoryService:
         }
 
     def persona(self, query: dict) -> tuple[int, dict]:
+        if not self._same_subject(query.get("subject_key")):
+            return 403, {"error": "subject_mismatch"}
         row = self.status_service.persona() or {}
         text = str(row.get("text") or "")
         return 200, {
@@ -189,13 +202,15 @@ class MemoryService:
 
     def extract_plan(self, query: dict) -> tuple[int, dict]:
         """Issue a bounded, in-process task without invoking the model / 生成限量任务，模型由宿主调用。"""
+        if not self._same_subject(query.get("subject_key")):
+            return 403, {"error": "subject_mismatch"}
         if self.tasks:
             task = next(iter(self.tasks.values()))
             if query.get("subject_key") and task.session_id != str(query["subject_key"]):
                 return 204, {}
         else:
             task = self.ingest.next_extraction_task(
-                subject_key=str(query.get("subject_key") or ""),
+                subject_key=self.owner,
             )
             if task is None:
                 return 204, {}

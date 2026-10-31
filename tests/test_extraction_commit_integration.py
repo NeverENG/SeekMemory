@@ -201,10 +201,41 @@ class LoopbackEndpointTest(unittest.TestCase):
             "chat_response": {"text": _payload(source_id)},
         })
         self.assertEqual((code, payload["error"]), (409, "task_stale"))
-        self.assertEqual(self.service.extract_plan({"subject_key": "different"})[0], 204)
+        self.assertEqual(self.service.extract_plan({"subject_key": "different"})[0], 403)
         self.assertEqual(self.service.extract_plan({"subject_key": "u1"})[0], 200)
         self.assertEqual(len(self.service.buffer.items), 1)
         self.assertEqual(list(self.service.cache.active("memory")), [])
+
+    def test_shared_subject_across_hosts_rejects_foreign_subject(self) -> None:
+        # Two host clients may use one fixed identity and one database; a
+        # different identity must not write, read, or consume their work.
+        code, captured = self.service.capture({
+            "subject_key": "u1", "text": "我周末要去医院检查眼睛", "role": "user",
+            "at": "2026-10-29T10:00:00",
+        })
+        self.assertEqual(code, 200, captured)
+        for method, payload in (
+            (self.service.capture, {"subject_key": "u2", "text": "foreign"}),
+            (self.service.recall, {"subject_key": "u2", "query": "医院 检查 眼睛"}),
+            (self.service.persona, {"subject_key": "u2"}),
+            (self.service.extract_plan, {"subject_key": "u2"}),
+        ):
+            self.assertEqual(method(payload), (403, {"error": "subject_mismatch"}))
+        self.assertEqual(len(self.service.buffer.items), 1)
+        self.assertEqual(self.service.extract_plan({"subject_key": "u1"})[0], 200)
+        # A second client with the same logical subject still sees the task.
+        self.assertEqual(self.service.extract_plan({"subject_key": "u1"})[0], 200)
+        self.assertEqual(self.service.persona({"subject_key": "u1"})[0], 200)
+
+    def test_default_plan_never_extracts_preexisting_foreign_pending_source(self) -> None:
+        # A legacy mixed database may contain foreign pending rows: no-key
+        # planning must not consume them for the configured single subject.
+        self.service.buffer.add("u2", "other user", "speaker", "foreign-id", "")
+        self.assertEqual(self.service.extract_plan({})[0], 204)
+        self.assertEqual(self.service.capture({"subject_key": "u1", "text": "my note"})[0], 200)
+        code, plan = self.service.extract_plan({})
+        self.assertEqual(code, 200)
+        self.assertEqual(plan["session_id"], "u1")
 
     def test_real_commit_recall_observes_artifact(self) -> None:
         code, captured = self.service.capture({"text": "我周末要去医院检查眼睛", "role": "user",

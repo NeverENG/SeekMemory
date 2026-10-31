@@ -63,7 +63,7 @@ async function call(pathname, opts = {}) {
   return { status: res.status, json, text };
 }
 
-const subject = 'test:user:1';
+const subject = arg('--subject', 'test:user:1');
 
 // 1. healthz
 try {

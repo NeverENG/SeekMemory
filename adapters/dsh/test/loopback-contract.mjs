@@ -27,12 +27,12 @@ test('real loopback commits a task but reports unextracted recall as incomplete'
       catch { await pause(20); }
     }
     assert.equal(endpoint?.host_contract, 1, 'CLI must publish the endpoint');
-    const checked = spawnSync(process.execPath, [contract, '--runtime', runtimePath], {
+    const checked = spawnSync(process.execPath, [contract, '--runtime', runtimePath, '--subject', 'loopback:default'], {
       encoding: 'utf8', timeout: 10_000, windowsHide: true,
     });
     assert.equal(checked.status, 0, checked.stdout + checked.stderr);
     assert.match(checked.stdout, /ALL PASS/);
-    const observed = spawnSync(process.execPath, [smoke, '--runtime', runtimePath], {
+    const observed = spawnSync(process.execPath, [smoke, '--runtime', runtimePath, '--subject', 'loopback:default'], {
       encoding: 'utf8', timeout: 10_000, windowsHide: true,
     });
     assert.equal(observed.status, 2, observed.stdout + observed.stderr);

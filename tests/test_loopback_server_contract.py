@@ -74,11 +74,21 @@ class LoopbackServerContractTest(unittest.TestCase):
             self.assertEqual(request("/status", authorized=False)[0], 401)
             self.assertEqual(request("/extract/plan")[0], 204)
             code, captured = request("/capture", method="POST", body={
-                "subject_key": "test:local:owner", "role": "user", "text": "hello",
+                "subject_key": "loopback:default", "role": "user", "text": "hello",
                 "msg_id": "m1", "at": "2026-10-31T00:00:00+08:00",
             })
             self.assertEqual(code, 200)
             self.assertTrue(captured["source_id"])
+            self.assertEqual(request("/capture", method="POST", body={
+                "subject_key": "other:owner", "text": "foreign",
+            }), (403, {"error": "subject_mismatch"}))
+            self.assertEqual(request("/recall", method="POST", body={
+                "subject_key": "other:owner", "query": "hello",
+            }), (403, {"error": "subject_mismatch"}))
+            self.assertEqual(request("/persona?subject_key=other:owner"),
+                             (403, {"error": "subject_mismatch"}))
+            self.assertEqual(request("/extract/plan?subject_key=other:owner"),
+                             (403, {"error": "subject_mismatch"}))
             code, plan = request("/extract/plan")
             self.assertEqual(code, 200)
             self.assertIn("hello", plan["chat_request"]["prompt"])

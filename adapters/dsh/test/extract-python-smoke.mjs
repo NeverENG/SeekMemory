@@ -30,7 +30,7 @@ test('DSH extraction bridge captures, commits and recalls through real Python lo
     assert.equal(endpoint?.host_contract, 1);
     const logger = { info() {}, warn() {}, error() {} };
     const config = {
-      runtimePath, hostContract: 1, logPrefix: '[test]', subjectKey: 'local:integration:user',
+      runtimePath, hostContract: 1, logPrefix: '[test]', subjectKey: 'loopback:default',
       llmProvider: 'test', llmModel: 'deterministic', captureTimeoutMs: 3000,
       recallTimeoutMs: 3000, budgetChars: 600, k: 8,
     };
@@ -43,6 +43,11 @@ test('DSH extraction bridge captures, commits and recalls through real Python lo
     });
     assert.equal(captured.ok, true);
     const sourceId = captured.data.source_id;
+    const otherHost = new KernelClient({ config: { ...config }, logger });
+    assert.equal((await otherHost.plan(config.subjectKey)).ok, true);
+    assert.equal((await otherHost.capture({ subject_key: 'other:user', text: 'foreign' })).ok, false);
+    assert.equal((await otherHost.recall({ subjectKey: 'other:user', query: '医院' })).ok, false);
+    assert.equal((await otherHost.persona('other:user')).ok, false);
     const answer = JSON.stringify([{
       level: 'fact', text: '用户周末要去医院检查眼睛', tags: '医院 检查 眼睛 周末',
       about: 'other', subject_kind: 'speaker', subject_id: 'user(local-user)',
@@ -63,6 +68,7 @@ test('DSH extraction bridge captures, commits and recalls through real Python lo
     assert.equal(JSON.parse(committed.detail).written, 1, committed.detail);
     const recalled = await kernel.recall({ subjectKey: config.subjectKey, query: '医院 检查 眼睛' });
     assert.equal(recalled.ok, true);
+    assert.equal((await otherHost.recall({ subjectKey: config.subjectKey, query: '医院 检查 眼睛' })).ok, true);
     assert.ok(recalled.data.items.length > 0, `recall must actually render an Artifact: chars=${recalled.data.chars} mode=${recalled.data.info?.mode} picked=${recalled.data.info?.picked} candidates=${recalled.data.info?.candidates} gate=${JSON.stringify(recalled.data.info?.gate)}`);
     const tinyBudget = new KernelClient({ config: { ...config, budgetChars: 1 }, logger });
     const limited = await tinyBudget.recall({ subjectKey: config.subjectKey, query: '医院 检查 眼睛' });
