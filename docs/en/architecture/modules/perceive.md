@@ -19,6 +19,10 @@ Topics are built within one session. A user and actual reply are paired through 
 5. For same-session multi-topic batches, every item must cite evidence from its own single topic in that batch. A behavior memory also needs a valid pair consisting of an assistant Source and its actual user parent.
 6. ExtractionPlan returns candidate Artifacts and skip/error information. IngestService performs CAS commits, updates Cache, revises duplicate impressions, and creates similarity/time relations.
 
+Subject normalization applies only to newly extracted candidates. An exact `user(id)` label with kind `owner`, `speaker`, `third_party`, or unspecified is unwrapped only when the candidate's own cited, same-session user Source verifies that speaker_id. Compatible facts without citations use only current input Sources, never unrelated context. Normalization precedes deduplication and construction so payload and header use the same subject. Unverified, nested and non-user labels, and self/world/relation semantics are not reassigned to the owner; source-less legacy input gains no verified identity. The prompt requests bare IDs.
+
+The chosen compatibility strategy is **future extraction only; preserve existing data**. No existing Artifact, Source, version or ledger is migrated or rewritten, and schema, configuration keys, disclosure thresholds and recall reads are unchanged. Existing wrapped subjects may still receive reduced disclosure; revision or re-extraction needs a separate decision. After rollback, new bare IDs remain readable, but future extraction may again save wrapped labels.
+
 ## Dream triage and recovery
 
 importance.py uses deterministic rules to rank identity, preference, relationship, plan, privacy boundary, significant event, and user-correction signals. Assistant behavior contributes only when the same topic also has user text; assistant-only topics do not independently trigger model work. This triage is used only by Dream and does not change ordinary nightly/idle FIFO topic selection.
@@ -45,7 +49,7 @@ After success, queue rows become extracted. Model or commit failures keep them p
 | `model.py` | Compatible `ProviderChatModel` provider adapter | Low: external call, timeout and cancellation; caller owns provider |
 | `compress.py`, `calls.py` | Legacy pure compression helpers and bounded content-free call logging | Separate compatibility roles; compression has no production extraction caller |
 
-The provider adapter stays at its original path to avoid an engine → adapter → engine import cycle. Prompt literals, evidence pairing, subject/scope semantics, scoring values and time conversion remain unchanged. `tests/test_perceive_interface_contract.py` and fresh top-level/plugin import-order checks protect interfaces; extraction, privacy, queue, topic and HTTP scenarios exercise behavior without live paid model calls.
+The provider adapter stays at its original path to avoid an engine → adapter → engine import cycle. The prompt specifies bare subject IDs; evidence pairing, scope semantics, scoring values and time conversion remain unchanged. `tests/test_perceive_interface_contract.py` and fresh top-level/plugin import-order checks protect interfaces; extraction, privacy, queue, topic and HTTP scenarios exercise behavior without live paid model calls.
 
 ## Pending publication and file recovery
 
