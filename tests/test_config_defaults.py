@@ -48,6 +48,9 @@ class ConfigDefaultsTest(unittest.TestCase):
         self.assertEqual(FIELDS["recall_min_ev_abs"].level, "internal")
         self.assertEqual(FIELDS["runtime_gate_enabled"].stability, "experimental")
         self.assertEqual(FIELDS["ingest_enabled"].group, "ingest")
+        self.assertEqual(FIELDS["attention_policy_enabled"].group, "attention")
+        self.assertEqual(FIELDS["proactive_enabled"].group, "proactive")
+        self.assertEqual(FIELDS["dream_enabled"].group, "dream")
 
     def test_host_schema_projects_shared_defaults(self):
         schema = json.loads(SCHEMA.read_text(encoding="utf-8"))

@@ -7,7 +7,7 @@ from typing import Mapping
 
 # Grouping describes ownership, not a set of user-facing settings.
 _GROUPS: dict[str, dict[str, object]] = {
-    'host': {
+    'project': {
         'owner_umo': '',
         'open_to': 'owner_only',
         'observe_groups': True,
@@ -43,8 +43,6 @@ _GROUPS: dict[str, dict[str, object]] = {
         'history_messages': 24,
     },
     'maintenance': {
-        'summary_time': '23:50',
-        'weekly_day': 6,
         'enable_reflect': True,
         'max_episodes': 500,
         'checkpoint_seconds': 1800,
@@ -53,6 +51,10 @@ _GROUPS: dict[str, dict[str, object]] = {
         'persona_synthesis_interval_days': 7,
         'persona_synthesis_evidence_limit': 8,
         'persona_synthesis_evidence_chars': 2400,
+    },
+    'dream': {
+        'summary_time': '23:50',
+        'weekly_day': 6,
         'dream_enabled': True,
         'dream_time': '03:30',
         'dream_max_batches': 12,
@@ -73,6 +75,16 @@ _GROUPS: dict[str, dict[str, object]] = {
         'relationship_low_private_reply_probability': 0.8,
         'relationship_dislike_private_reply_probability': 0.5,
     },
+    'attention': {
+        'attention_address_names': '大肥鱼,肥鱼',
+        'attention_policy_enabled': True,
+        'attention_followup_rounds': 3,
+        'attention_owner_always_reply': True,
+    },
+    'proactive': {
+        'proactive_enabled': False,
+        'proactive_idle_seconds': 1800,
+    },
     'runtime': {
         'runtime_gate_enabled': False,
         'runtime_wait_seconds': 5,
@@ -80,12 +92,6 @@ _GROUPS: dict[str, dict[str, object]] = {
         'runtime_dispatch_max_attempts': 3,
         'runtime_dispatch_backoff_seconds': 2,
         'runtime_tool_filter_enabled': False,
-        'attention_address_names': '大肥鱼,肥鱼',
-        'proactive_enabled': False,
-        'proactive_idle_seconds': 1800,
-        'attention_policy_enabled': True,
-        'attention_followup_rounds': 3,
-        'attention_owner_always_reply': True,
     },
 }
 
