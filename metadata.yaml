@@ -2,7 +2,7 @@ name: astrbot_plugin_seekmemory
 display_name: SeekMemory
 desc: 像人一样记忆：会忘、会守口、会翻旧账、会反省
 author: SeekMemory
-version: 0.6.0-rc.1
+version: 0.6.0
 repo: ""
 short_desc: 让她真的记得你
 astrbot_version: ">=4.24.1"
