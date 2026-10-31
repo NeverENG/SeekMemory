@@ -37,12 +37,16 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback = '') => {
   const i = argv.indexOf(name);
   return i >= 0 ? (argv[i + 1] ?? fallback) : fallback;
 };
+
+// 脚本自身的目录：不依赖调用方的 cwd，否则从仓库根跑就找不到同目录的契约脚本。
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 const home = arg('--home');
 const runtimePath = arg('--runtime');
@@ -99,7 +103,10 @@ console.log(`已写 patch: ${patchPath}`);
 console.log(`   runtimePath = ${yamlPath}`);
 
 // ---------- 2. 起 DSH（隔离 home，RUN_AS_NODE，不加载 Electron app 层） ----------
-const cli = path.join(path.dirname(dshExe), 'resources', 'app.asar', 'dsh', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
+const resources = process.platform === 'darwin'
+  ? path.join(path.dirname(path.dirname(dshExe)), 'Resources')
+  : path.join(path.dirname(dshExe), 'resources');
+const cli = path.join(resources, 'app.asar', 'dsh', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
 const logPath = path.join(home, 'seekmemory-logs', 'seekmemory.log');
 const before = existsSync(logPath) ? readFileSync(logPath, 'utf8').length : 0;
 
@@ -131,23 +138,34 @@ expect('钩子注册完成', has('钩子注册完成'));
 expect('卸载时钩子全部回收', has('钩子全部回收'));
 
 // ---------- 4. 顺带跑两个契约级脚本 ----------
+// 宿主刚退出时内核可能还在收尾上一条连接（单线程 HTTPServer），立刻发请求会被
+// 阻塞到超时。等一小会儿再验，避免把时序问题误判成契约问题。
+await new Promise((resolve) => setTimeout(resolve, 1500));
 console.log('\n--- 内核端点契约 ---');
-const contract = spawnSync(process.execPath, [path.join('scripts', 'check-kernel-contract.mjs'), '--runtime', runtimePath], {
+const contract = spawnSync(process.execPath, [path.join(HERE, 'check-kernel-contract.mjs'), '--runtime', runtimePath], {
   encoding: 'utf8',
   windowsHide: true,
+  cwd: process.cwd(),
 });
 process.stdout.write(contract.stdout ?? '');
-if (contract.status !== 0) expect('内核端点契约（15 项）', false, `exit=${contract.status}`);
-else expect('内核端点契约（15 项）', true);
+if (contract.status !== 0) {
+  process.stderr.write(contract.stderr ?? '');
+  expect('内核端点契约（含抽取提交）', false,
+    contract.status === 2 ? '未完成：抽取计划/提交返回 501' : `exit=${contract.status}`);
+} else expect('内核端点契约（含抽取提交）', true);
 
 console.log('--- 适配器通路冒烟 ---');
-const smoke = spawnSync(process.execPath, [path.join('scripts', 'smoke-contract.mjs'), '--runtime', runtimePath], {
+const smoke = spawnSync(process.execPath, [path.join(HERE, 'smoke-contract.mjs'), '--runtime', runtimePath], {
   encoding: 'utf8',
   windowsHide: true,
+  cwd: process.cwd(),
 });
 process.stdout.write(smoke.stdout ?? '');
-if (smoke.status !== 0) expect('适配器通路冒烟（11 项）', false, `exit=${smoke.status}`);
-else expect('适配器通路冒烟（11 项）', true);
+if (smoke.status !== 0) {
+  process.stderr.write(smoke.stderr ?? '');
+  expect('适配器通路冒烟（11 项）', false,
+    smoke.status === 2 ? '未完成：须先用模型抽取记忆才能验证召回/隐私/预算' : `exit=${smoke.status}`);
+} else expect('适配器通路冒烟（11 项）', true);
 
 // ---------- 5. 结论 ----------
 const failed = results.filter((x) => !x.ok);

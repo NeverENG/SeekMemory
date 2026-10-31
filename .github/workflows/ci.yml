@@ -28,6 +28,8 @@ jobs:
         run: SCALE_USERS=8 SCALE_DAYS=30 SCALE_MSGS=40 python benchmarks/scale.py
       - name: BM25 旧集不退化与冻结验收
         run: python benchmarks/bm25.py
+      - name: 长周期人格/关系评测（观察模式，不作为发布门禁）
+        run: python -m benchmarks.long_horizon.run --quiet
 
   frontend-contract:
     runs-on: ubuntu-latest
