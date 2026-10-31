@@ -35,6 +35,8 @@ AccessService uses full session UMO, sender ID, owner/trusted configuration, and
 
 ## Current boundaries
 
+When `runtime_gate_enabled` is explicit, AstrBotRuntimeAdapter maps `REPLY` / `must_reply` to `should_call_llm(False)`: the host parameter **prohibits the default model request**. Other actions and enforced relationship denial map to `True`. A disabled gate leaves the existing host flag untouched. This mapping preserves the host's wake, already-sent and provider checks; it does not enable independent plugin model requests.
+
 Hook registration must use the real plugin module path, so callbacks stay discoverable after reload. Runtime tool filtering runs before a model request; a tool observation hook after invocation is not enforcement. Host API limitations and plugin startup failures are handled at the outer boundary and must not leak AstrBot dependencies into business modules.
 
 Relationship denial is enforced independently of the opt-in base Runtime gate; an allowed or neutral relationship never enables that gate. Low/dislike ordinary private statements use stable `0.8`/`0.5` Source-ID sampling, while actual questions and direct host signals remain required replies. Low/dislike group ambient is denied. Relationship Artifacts remain excluded from Recall and the management catalog.

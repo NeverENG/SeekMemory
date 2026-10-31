@@ -4,7 +4,11 @@
 
 ### 中文
 
+- #202 修复 AstrBot 运行时 gate 的反向映射：启用后允许正常回复，强制关系拒绝阻止默认模型请求；关闭时不干预宿主标记。保留宿主唤醒检查，无数据格式或配置键变化。
+
 ### English
+
+- #202 Fix the reversed AstrBot runtime gate mapping: allow normal replies and block default model requests on enforced relationship denial when enabled; preserve the host flag when disabled. Host wake checks remain in place, with no data-format or configuration-key changes.
 
 ## 0.6.0-rc.1 — 2026-10-31
 
