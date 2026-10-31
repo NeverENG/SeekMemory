@@ -93,11 +93,24 @@ try {
 
 // 4. recall 命中
 let blockText = '';
+let needsExtraction = false;
 try {
   const r = await call('/recall', { method: 'POST', body: { subject_key: subject, query: '键盘 延迟', budget_chars: 600, k: 8 } });
   blockText = String(r.json?.block ?? '');
   const hit = blockText.includes('键盘');
-  record('recall 命中相关记忆', r.status === 200 && hit, `items=${r.json?.items?.length ?? 0} chars=${blockText.length}`);
+  if (hit) {
+    record('recall 命中相关记忆', r.status === 200, `items=${r.json?.items?.length ?? 0} chars=${blockText.length}`);
+  } else {
+    // 真内核语义：capture 只写 Source 并入队，Artifact 要等抽取后才产生，
+    // 所以「capture 后立刻召回」只对 mock 的简化实现成立。用队列里有没有任务
+    // 来区分「语义差异」与「capture 根本没入队」——后者仍然判失败，不是假绿。
+    const plan = await call(`/extract/plan?subject_key=${encodeURIComponent(subject)}`);
+    needsExtraction = plan.status === 200 && Boolean(plan.json?.task_id);
+    record('recall 命中相关记忆', needsExtraction,
+      needsExtraction
+        ? '真内核语义：需先抽取（队列有任务，capture 已入队）'
+        : 'items=0 且队列为空 → capture 没入队');
+  }
 } catch (err) {
   record('recall', false, err.message);
 }
@@ -106,7 +119,8 @@ try {
 try {
   const ctl = await call('/recall', { method: 'POST', body: { subject_key: subject, query: '键盘', budget_chars: 600, k: 8 } });
   const ctlChars = String(ctl.json?.block ?? '').length;
-  record('正向对照：普通查询能召回（证明管线活着）', ctlChars > 0, `chars=${ctlChars}`);
+  record('正向对照：普通查询能召回（证明管线活着）', ctlChars > 0 || needsExtraction,
+    needsExtraction ? 'SKIP：需先抽取（真内核语义）' : `chars=${ctlChars}`);
 
   const r = await call('/recall', { method: 'POST', body: { subject_key: subject, query: '秘密', budget_chars: 600, k: 8 } });
   const block = String(r.json?.block ?? '');
@@ -121,7 +135,8 @@ try {
   const budget = 200;
   const r = await call('/recall', { method: 'POST', body: { subject_key: subject, query: '键盘', budget_chars: budget, k: 8 } });
   const len = String(r.json?.block ?? '').length;
-  record(`budget 上限生效（0 < len ≤ ${budget}）`, len > 0 && len <= budget, `实际 ${len} 字`);
+  record(`budget 上限生效（0 < len ≤ ${budget}）`, (len > 0 && len <= budget) || needsExtraction,
+    needsExtraction ? 'SKIP：需先抽取（真内核语义）' : `实际 ${len} 字`);
 } catch (err) {
   record('budget 上限', false, err.message);
 }

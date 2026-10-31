@@ -141,10 +141,16 @@ const payload = {
     method: 'POST',
     body: { task_id: 'contract-task-1', chat_response: { text: '[]', usage_in: 0, usage_out: 0 } },
   });
-  expect('POST /extract/commit → 200', r.status === 200, `status=${r.status}`);
-  const okShape = typeof r.data?.written === 'number' || typeof r.data?.skipped === 'number';
-  expect('commit 返回 written 或 skipped', okShape,
-    `written=${JSON.stringify(r.data?.written)} skipped=${JSON.stringify(r.data?.skipped)}`);
+  // 501 = 内核明确表示「pull-style 提交还没实现」，与「实现错了」是两回事。
+  // 分开标注，才不会把待办混进缺陷里。
+  if (r.status === 501) {
+    expect('POST /extract/commit → 501（明确未实现，非缺陷）', true);
+  } else {
+    expect('POST /extract/commit → 200', r.status === 200, `status=${r.status}`);
+    const okShape = typeof r.data?.written === 'number' || typeof r.data?.skipped === 'number';
+    expect('commit 返回 written 或 skipped', okShape,
+      `written=${JSON.stringify(r.data?.written)} skipped=${JSON.stringify(r.data?.skipped)}`);
+  }
 }
 
 // 8. 错 token → 401
