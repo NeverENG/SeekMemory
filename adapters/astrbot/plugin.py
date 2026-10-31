@@ -15,7 +15,7 @@ from astrbot.api import logger, star
 from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 
 from ...app.budget import budget_from_config
-from ...app.config import RuntimeSettings, Settings
+from ...app.config import AttentionSettings, ProactiveSettings, RuntimeSettings, Settings
 from ...app.checkpoint import CheckpointManager
 from ...app.cache_repair import CacheRepairs
 from ...app.dream import DreamCycle
@@ -220,11 +220,12 @@ class AstrBotPlugin(star.Star):
             clock=self.clock,
         )
         runtime_settings = RuntimeSettings.read(self.settings.get)
+        attention_settings = AttentionSettings.read(self.settings.get)
         runtime = AgentRuntime(
             state_store,
             policy=DefaultAttentionPolicy(
-                followup_rounds=int(self._c("attention_followup_rounds", 3)),
-                owner_always_reply=bool(self._c("attention_owner_always_reply", True)),
+                followup_rounds=attention_settings.followup_rounds,
+                owner_always_reply=attention_settings.owner_always_reply,
             ),
             trace=self.trace,
             clock=self.clock,
@@ -315,7 +316,7 @@ class AstrBotPlugin(star.Star):
             trace=self.trace,
             clock=self.clock,
             proactive_policy=DefaultProactivePolicy(
-                enabled=bool(self._c("proactive_enabled", False))
+                enabled=ProactiveSettings.read(self.settings.get).enabled
             ),
             topic_source=AstrBotTopicSource(self.buffer),
         )

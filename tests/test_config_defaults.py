@@ -4,7 +4,8 @@ import json
 import unittest
 from pathlib import Path
 
-from app.config import DEFAULTS, FIELDS, GROUPS, RuntimeSettings, Settings
+from app.config import (AttentionSettings, DEFAULTS, FIELDS, GROUPS,
+                        ProactiveSettings, RuntimeSettings, Settings)
 
 
 SCHEMA = Path(__file__).resolve().parents[1] / "_conf_schema.json"
@@ -25,6 +26,21 @@ class ConfigDefaultsTest(unittest.TestCase):
         self.assertTrue(settings.get("dream_enabled", True))
         self.assertEqual(settings.get("open_to", "owner_only"), "everyone")
         self.assertEqual(Settings({"recall_k": "bad"}).get("recall_k", 8), 8)
+
+    def test_attention_and_proactive_defaults_are_host_independent(self):
+        settings = Settings()
+        attention = AttentionSettings.read(settings.get)
+        proactive = ProactiveSettings.read(settings.get)
+        self.assertTrue(attention.policy_enabled)
+        self.assertEqual(attention.followup_rounds, 3)
+        self.assertFalse(proactive.enabled)
+        self.assertEqual(proactive.idle_seconds, 1800.0)
+        changed = Settings({"attention_followup_rounds": 2,
+                            "proactive_enabled": True,
+                            "proactive_idle_seconds": 60})
+        self.assertEqual(AttentionSettings.read(changed.get).followup_rounds, 2)
+        self.assertTrue(ProactiveSettings.read(changed.get).enabled)
+        self.assertEqual(ProactiveSettings.read(changed.get).idle_seconds, 60.0)
 
     def test_runtime_settings_can_be_reread_without_freezing_host_overrides(self):
         overrides: dict[str, object] = {}

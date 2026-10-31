@@ -12,6 +12,8 @@ Host-neutral `app/config/` owns defaults grouped by project, ingest, recall, Dre
 
 `app/config/runtime.py` provides a typed, immutable snapshot of Runtime scheduling options. Startup determines the wait duration; the worker re-reads options when polling to retain the existing live-override behavior.
 
+Attention and proactive dispatch each use an immutable settings snapshot from `app/config/interaction.py`; host hooks retain their original live-read timing without owning policy defaults.
+
 ## Two interface entry points
 
 - [app/domain.py](../../../../app/domain.py): what the application provides. It explicitly exports 79 types, functions, and execution classes, with descriptions only; implementations remain in their owning files.

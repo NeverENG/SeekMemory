@@ -7,6 +7,7 @@ from typing import Any
 
 from .catalog import FIELDS, ConfigField
 from .defaults import DEFAULTS, GROUPS
+from .interaction import AttentionSettings, ProactiveSettings
 from .runtime import RuntimeSettings
 
 
@@ -31,4 +32,4 @@ class Settings:
             return type(default)(fallback) if default is not None else fallback
 
 
-__all__ = ["DEFAULTS", "GROUPS", "FIELDS", "ConfigField", "Settings", "RuntimeSettings"]
+__all__ = ["DEFAULTS", "GROUPS", "FIELDS", "ConfigField", "Settings", "RuntimeSettings", "AttentionSettings", "ProactiveSettings"]
