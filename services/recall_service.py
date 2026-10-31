@@ -72,6 +72,8 @@ class RecallService:
         speaker: str = "",
         *,
         degraded: bool = False,
+        budget_chars_override: int | None = None,
+        recall_k_override: int | None = None,
     ) -> tuple[str, dict]:
         """Query disclosed context without any memory writes / 查询已披露上下文，不写入任何记忆。"""
         budget_chars = int(self.budget.injection_chars)
@@ -79,6 +81,10 @@ class RecallService:
         if degraded:
             budget_chars = max(80, budget_chars // 2)
             recall_k = max(1, recall_k // 2)
+        if budget_chars_override is not None:
+            budget_chars = min(budget_chars, max(0, budget_chars_override))
+        if recall_k_override is not None:
+            recall_k = min(recall_k, max(1, recall_k_override))
 
         source_fields = {
             "source_recall_enabled",
@@ -145,9 +151,14 @@ class RecallService:
         return self._context_writer.retry_writebacks()
 
     def preview(self, text: str, session_id: str, private: bool,
-                speaker: str = "") -> dict:
+                speaker: str = "", *, budget_chars_override: int | None = None,
+                recall_k_override: int | None = None) -> dict:
         """Preview recall without writing designated delivery state / 预览召回，不写入指定记忆的交付状态。"""
-        block, info = self.query(text, session_id, private, speaker)
+        block, info = self.query(
+            text, session_id, private, speaker,
+            budget_chars_override=budget_chars_override,
+            recall_k_override=recall_k_override,
+        )
         owner = self.owner_umo()
         pool = self.cache.active() if self.cache is not None else []
         eligible = visible(pool, session_id, owner, self.sources.source_umo)
