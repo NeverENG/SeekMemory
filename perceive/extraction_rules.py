@@ -70,6 +70,24 @@ def _event_at(item: dict, turns: list[DialogueTurn]) -> str:
     return datetime.datetime.now().isoformat(timespec="seconds")
 
 
+def _normalize_user_subject(item: dict, evidence: list[DialogueTurn]) -> dict:
+    """Unwrap an exact user label only when its own Source evidence verifies it / 仅在自身原始消息证据确认身份时去掉精确用户标签。"""
+    kind = str(item.get("subject_kind") or "").strip()
+    if kind not in ("", "owner", "speaker", "third_party"):
+        return item
+    raw = str(item.get("subject_id") or "").strip()
+    match = re.fullmatch(r"user\(([^\s()]+)\)", raw)
+    if match is None:
+        return item
+    subject = match.group(1)
+    if subject in ("owner", "speaker", "self", "world", "relation"):
+        return item
+    if any(turn.source_id and turn.role == "user" and turn.speaker_id == subject
+           for turn in evidence):
+        return {**item, "subject_id": subject}
+    return item
+
+
 def _subject_id(item: dict, owner: str, default: str, owner_id: str = "") -> str:
     """Resolve the interpreted subject without confusing it with the speaker / 确定被解释对象，不将其与说话人混用。"""
     kind = str(item.get("subject_kind") or "").strip()

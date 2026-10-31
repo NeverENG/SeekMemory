@@ -72,7 +72,8 @@ MAX_ITEMS = 6
 Log = Callable[[str], None]
 
 from .extraction_rules import (
-    _parse_time, _date_or_none, _event_at, _subject_id, _num, strength_of, worth_now, _boundary,
+    _parse_time, _date_or_none, _event_at, _subject_id, _normalize_user_subject,
+    _num, strength_of, worth_now, _boundary,
     _PLAN, _FACT, _STRONG, _NOT_WORTH,
 )
 from .dialogue_evidence import _dialog_rows, dialogue_of, recover_parents
@@ -214,6 +215,13 @@ def build_plan(
             return ExtractionPlan(outcome=WriteOutcome(
                 errors=(f"evidence: {exc}",), model_failed=True, retryable=True
             ))
+        # Normalize before deduplication and payload construction, using only
+        # this candidate's actual same-session evidence (not unrelated context).
+        # 在去重和内容构造前规范化，仅使用候选自身同会话的实际证据。
+        candidate = _normalize_user_subject(candidate, [
+            available[value] for value in evidence or source_ids
+            if value in available and available[value].session_id == owner
+        ])
         checked.append((candidate, evidence))
     evidence_of = {id(item): evidence for item, evidence in checked}
     parsed = [item for item, _ in checked]
