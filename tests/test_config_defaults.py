@@ -113,6 +113,7 @@ class ConfigDefaultsTest(unittest.TestCase):
                          "unsupported_version")
         self.assertEqual(inspect_overrides({"config_profile": []})[0].code,
                          "unknown_profile")
+        self.assertEqual(inspect_overrides({"recall_k": 10 ** 1000}), ())
         self.assertEqual(inspect_overrides({"config_profile": "quiet"})[0].code,
                          "profile_not_applied")
         self.assertEqual(inspect_overrides({"runtime_gate_enabled": True,

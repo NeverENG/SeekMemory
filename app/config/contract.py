@@ -100,9 +100,10 @@ def inspect_overrides(overrides: Mapping[str, object]) -> tuple[ConfigWarning, .
             continue
         if field.choices and value not in field.choices:
             warn("invalid_choice", key, "Option is not an allowed mode")
-        if field.minimum is not None and (not math.isfinite(value) or value < field.minimum):
+        finite = not isinstance(value, float) or math.isfinite(value)
+        if field.minimum is not None and (not finite or value < field.minimum):
             warn("out_of_range", key, "Option is below its allowed minimum")
-        if field.maximum is not None and (not math.isfinite(value) or value > field.maximum):
+        if field.maximum is not None and (not finite or value > field.maximum):
             warn("out_of_range", key, "Option exceeds its allowed maximum")
 
     # These are advisory: some combinations intentionally leave a setting inert.
