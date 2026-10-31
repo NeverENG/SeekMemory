@@ -4,6 +4,8 @@
 
 ### 中文
 
+- #177 将现有策略键归入 SeekMemory 配置契约，记录范围、模式、依赖、版本及仅供说明的 profiles；诊断只报告不改写配置，不激活新策略。AstrBot 旧键与默认值、数据格式和运行行为保持不变；YAML 不进入插件运行依赖。
+
 - #198：本机服务支持多个平台以同一稳定主体键共享一份记忆与 Persona；显式不一致的键在捕获、召回、人格与任务拉取前返回 403。默认缺省键继续归于 `owner_umo`，无数据库结构或公开配置键变化；此前混存多主体的旧数据库需先审计/拆分，回滚会恢复原有跨主体访问。真实 DSH 付费模型端到端尚待验证。
 
 - 接续 #193 的可选本机服务入口，补齐拉取式任务计划及模型结果提交：仅接纳本进程已派发的任务，复用既有证据校验与 Artifact CAS 提交；失败保留待处理输入，任务进程内保存；召回请求的预算及命中数可逐次收紧服务上限，不新增数据库格式或公开配置。实际 DSH 宿主验证与抽取后召回仍须按验证结果单独确认。
@@ -15,6 +17,8 @@
 - 修复用户消息跨会话复用 event_id 时被误去重的问题：RunRecorder 的已完成记录与待补偿写入统一按现有 Source ID 区分，保留同一消息重放的幂等性及对外 turn_id，无数据格式或配置变化（#187）。
 
 ### English
+
+- #177 inventories existing policy keys in a SeekMemory-owned contract with ranges, modes, dependencies, version and descriptive-only profiles. Diagnostics report without rewriting configuration or activating new policies. AstrBot keys, defaults, persisted formats and runtime behavior stay unchanged; YAML is not a plugin runtime dependency.
 
 - #198: Multiple platforms may share one memory store and Persona under the same stable subject key. Explicitly mismatched keys now receive 403 before capture, recall, Persona reads or task planning. Omitted keys retain the `owner_umo` default; no schema or public config keys change. Audit/separate legacy mixed-subject databases before reuse; rollback restores the former cross-subject access. Real DSH paid-model end-to-end verification is still pending.
 

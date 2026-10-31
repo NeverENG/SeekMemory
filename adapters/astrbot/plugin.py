@@ -15,6 +15,7 @@ from astrbot.api import logger, star
 from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 
 from ...app.budget import budget_from_config
+from ...app.config import AttentionSettings, ProactiveSettings, RuntimeSettings, Settings
 from ...app.checkpoint import CheckpointManager
 from ...app.cache_repair import CacheRepairs
 from ...app.dream import DreamCycle
@@ -84,6 +85,7 @@ class AstrBotPlugin(star.Star):
         super().__init__(context, config)
         self.context = context
         self.cfg = config or {}
+        self.settings = Settings(self.cfg)
         self.clock = time.time
         self.hooks = AstrBotHooks(self)
         self.attention = AttentionHooks(self)
@@ -217,20 +219,19 @@ class AstrBotPlugin(star.Star):
             cache=self.cache,
             clock=self.clock,
         )
+        runtime_settings = RuntimeSettings.read(self.settings.get)
+        attention_settings = AttentionSettings.read(self.settings.get)
         runtime = AgentRuntime(
             state_store,
             policy=DefaultAttentionPolicy(
-                followup_rounds=int(self._c("attention_followup_rounds", 3)),
-                owner_always_reply=bool(self._c("attention_owner_always_reply", True)),
+                followup_rounds=attention_settings.followup_rounds,
+                owner_always_reply=attention_settings.owner_always_reply,
             ),
             trace=self.trace,
             clock=self.clock,
             memory_context=SeekMemoryContextAdapter(self._runtime_memory_context),
             context_recorder=SeekMemoryContextAdapter(self._runtime_memory_context, self._record_memory_context),
-            wait_seconds=(
-                int(self._c("runtime_wait_seconds", 5))
-                if bool(self._c("runtime_gate_enabled", False)) else 0
-            ),
+            wait_seconds=runtime_settings.effective_wait_seconds,
             model_gateway=AstrBotModelGateway(self.context),
             action_executor=self.action_executor,
             recorder=recorder,
@@ -303,19 +304,19 @@ class AstrBotPlugin(star.Star):
         runtime_worker = RuntimeWorker(
             runtime=runtime,
             scheduler=scheduler,
-            enabled=lambda: bool(self._c("runtime_gate_enabled", False)),
+            enabled=lambda: RuntimeSettings.read(self.settings.get).gate_enabled,
             session_ids=lambda limit: (
                 self.store.runtime_state.sessions(limit=limit)
                 if self.store is not None else []
             ),
             run_context=self._make_run_context,
-            interval_seconds=lambda: float(self._c("runtime_tick_seconds", 5)),
-            max_attempts=lambda: int(self._c("runtime_dispatch_max_attempts", 3)),
-            base_seconds=lambda: float(self._c("runtime_dispatch_backoff_seconds", 2)),
+            interval_seconds=lambda: RuntimeSettings.read(self.settings.get).tick_seconds,
+            max_attempts=lambda: RuntimeSettings.read(self.settings.get).dispatch_max_attempts,
+            base_seconds=lambda: RuntimeSettings.read(self.settings.get).dispatch_backoff_seconds,
             trace=self.trace,
             clock=self.clock,
             proactive_policy=DefaultProactivePolicy(
-                enabled=bool(self._c("proactive_enabled", False))
+                enabled=ProactiveSettings.read(self.settings.get).enabled
             ),
             topic_source=AstrBotTopicSource(self.buffer),
         )
@@ -357,14 +358,8 @@ class AstrBotPlugin(star.Star):
         self._started = True
 
     def _c(self, key: str, default):
-        """Read existing plugin configuration with its supplied fallback / 按给定回退读取既有插件配置。"""
-        try:
-            v = self.cfg.get(key, default)
-            if v is None:
-                return default
-            return type(default)(v)
-        except Exception:
-            return default
+        """Read an optional host override; SeekMemory owns the defaults."""
+        return self.settings.get(key, default)
 
     def _threshold_overrides(self) -> dict:
         """Read existing capacity overrides from a dict or JSON object / 从字典或 JSON 对象读取既有容量覆盖值。"""
