@@ -222,6 +222,26 @@ class LoopbackEndpointTest(unittest.TestCase):
         self.assertEqual(recall["items"][0]["id"], result["ids"][0])
         self.assertEqual(self.service.extract_plan({"subject_key": "u1"})[0], 204)
 
+    def test_recall_respects_each_request_budget_after_real_commit(self) -> None:
+        code, captured = self.service.capture({"text": "我周末要去医院检查眼睛", "role": "user",
+                                                "at": "2026-10-29T10:00:00"})
+        self.assertEqual(code, 200)
+        _, plan = self.service.extract_plan({"subject_key": "u1"})
+        code, result = self.service.extract_commit({
+            "task_id": plan["task_id"], "chat_response": {"text": _payload(captured["source_id"])},
+        })
+        self.assertEqual(code, 200, result)
+        query = {"subject_key": "u1", "query": "医院 检查 眼睛"}
+        full = self.service.recall({**query, "budget_chars": 600})[1]
+        limited = self.service.recall({**query, "budget_chars": 1})[1]
+        self.assertGreater(full["chars"], 0)
+        self.assertEqual(limited["block"], "")
+        self.assertEqual(limited["chars"], 0)
+        loose = self.service.recall({**query, "query": "你还记得医院检查眼睛吗", "budget_chars": 20})[1]
+        self.assertEqual(loose["block"], "")
+        self.assertEqual(loose["items"], [])
+        self.assertEqual(self.service.recall({**query, "budget_chars": "invalid"})[0], 400)
+
     def test_commit_without_task_is_conflict(self) -> None:
         code, payload = self.service.extract_commit({
             "task_id": "gone", "chat_response": {"text": "[]"},

@@ -60,8 +60,13 @@ test('DSH extraction bridge captures, commits and recalls through real Python lo
     } };
     const committed = await runOnce({ ctx, config, kernel, logger });
     assert.equal(committed.outcome, 'done', committed.detail);
-    const recalled = await kernel.recall(config.subjectKey, '医院 检查 眼睛');
+    assert.equal(JSON.parse(committed.detail).written, 1, committed.detail);
+    const recalled = await kernel.recall({ subjectKey: config.subjectKey, query: '医院 检查 眼睛' });
     assert.equal(recalled.ok, true);
-    assert.ok(recalled.data.items.length > 0, 'recall must actually find the committed Artifact');
+    assert.ok(recalled.data.items.length > 0, `recall must actually render an Artifact: chars=${recalled.data.chars} mode=${recalled.data.info?.mode} picked=${recalled.data.info?.picked} candidates=${recalled.data.info?.candidates} gate=${JSON.stringify(recalled.data.info?.gate)}`);
+    const tinyBudget = new KernelClient({ config: { ...config, budgetChars: 1 }, logger });
+    const limited = await tinyBudget.recall({ subjectKey: config.subjectKey, query: '医院 检查 眼睛' });
+    assert.equal(limited.ok, true);
+    assert.equal(limited.data.block, '', 'a tiny request budget must not inject memory');
     assert.equal((await kernel.plan(config.subjectKey)).data, null);
   });

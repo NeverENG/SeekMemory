@@ -4,7 +4,7 @@
 
 ### 中文
 
-- 接续 #193 的可选本机服务入口，补齐拉取式任务计划及模型结果提交：仅接纳本进程已派发的任务，复用既有证据校验与 Artifact CAS 提交；失败保留待处理输入，任务进程内保存、不新增数据库格式或公开配置。实际 DSH 宿主验证与抽取后召回仍须按验证结果单独确认。
+- 接续 #193 的可选本机服务入口，补齐拉取式任务计划及模型结果提交：仅接纳本进程已派发的任务，复用既有证据校验与 Artifact CAS 提交；失败保留待处理输入，任务进程内保存；召回请求的预算及命中数可逐次收紧服务上限，不新增数据库格式或公开配置。实际 DSH 宿主验证与抽取后召回仍须按验证结果单独确认。
 
 - 将 #193 本机记忆服务的 HTTP 与服务组装移至 adapters/loopback，保留 scripts/serve.py 启动命令；底层异常不再回显给客户端，健康检查不暴露数据库路径，新建目录与令牌元数据仅所有者可读。原始版本的跨进程抽取在有任务时无法生成可执行 ChatRequest，计划和提交都明确返回 501，契约与冒烟检查将未验证的端到端场景明确标为未完成，不再显示全通过。端点、已存数据格式及公开配置不变。
 
@@ -14,7 +14,7 @@
 
 ### English
 
-- Complete pull-style task planning and host-supplied model-result commits for the optional #193 loopback entry. Only tasks issued by this process are accepted; existing evidence validation and Artifact CAS writes apply. Failures retain pending input and tasks are process-local, with no new persisted format or public configuration. Real DSH host and post-extraction recall remain subject to separate verification.
+- Complete pull-style task planning and host-supplied model-result commits for the optional #193 loopback entry. Only tasks issued by this process are accepted; existing evidence validation and Artifact CAS writes apply. Failures retain pending input and tasks are process-local; recall requests may narrow the service character and result limits without a new persisted format or public configuration. Real DSH host and post-extraction recall remain subject to separate verification.
 
 - Move the #193 loopback memory HTTP transport and service composition into adapters/loopback while preserving the scripts/serve.py command; underlying exception text and unauthenticated database paths are no longer disclosed; new directories and token metadata are owner-only. In the initial version, cross-process extraction could not create a runnable ChatRequest: both pending plans and commits explicitly returned 501, and contract/smoke checks now mark unverified end-to-end scenarios incomplete rather than all passing. Endpoints, stored formats and public configuration are unchanged.
 

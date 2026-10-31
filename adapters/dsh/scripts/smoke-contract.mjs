@@ -157,9 +157,9 @@ try {
   record('budget 上限', false, err.message);
 }
 
-// 6b. 预算过小 → 必须老实返回空块，而不是硬塞
+// 6b. 即便极小预算也不可超限；没有真实记忆时不判空块为通过。
 try {
-  const budget = 30;
+  const budget = 1;
   const r = await call('/recall', { method: 'POST', body: { subject_key: subject, query: '键盘', budget_chars: budget, k: 8 } });
   const len = String(r.json?.block ?? '').length;
   if (needsExtraction && !len) {

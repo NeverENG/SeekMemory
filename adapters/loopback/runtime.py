@@ -139,19 +139,34 @@ class MemoryService:
     def recall(self, body: dict) -> tuple[int, dict]:
         subject = str(body.get("subject_key") or self.owner)
         query = str(body.get("query") or "")
+        try:
+            budget = int(body["budget_chars"]) if body.get("budget_chars") is not None else None
+            k = int(body["k"]) if body.get("k") is not None else None
+        except (TypeError, ValueError):
+            return 400, {"error": "invalid_recall_limit"}
+        if budget is not None and budget < 0 or k is not None and k < 1:
+            return 400, {"error": "invalid_recall_limit"}
         result = self.recall_service.preview(
             query,
             subject,
             bool(body.get("private", True)),
             str(body.get("speaker") or ""),
+            budget_chars_override=budget, recall_k_override=k,
         )
         block = str(result.get("block") or "")
-        visible = list(result.get("visible") or [])
+        info = dict(result.get("info") or {})
+        # Loose-mode recall can use an internal 1.4x narrative allowance; an
+        # explicit host budget is still an unconditional transport limit.
+        # 宽松召回可内部扩充叙述空间，但宿主显式预算始终是硬上限。
+        if budget is not None and len(block) > budget:
+            block = ""
+            info["final_ids"] = []
+            info["chars"] = 0
         return 200, {
             "block": block,
             "chars": len(block),
-            "items": [{"id": item_id} for item_id in visible],
-            "info": jsonable(result.get("info") or {}),
+            "items": [{"id": item_id} for item_id in info.get("final_ids", ())] if block else [],
+            "info": jsonable(info),
         }
 
     def persona(self, query: dict) -> tuple[int, dict]:
