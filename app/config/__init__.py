@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from .catalog import FIELDS, ConfigField
+from .catalog import FIELDS, POLICIES, ConfigField, PolicyGroup
+from .contract import (ALIASES, CONFIG_VERSION, CONFLICTS, DEPENDENCIES,
+                       PROFILES, ConfigProfile, ConfigWarning, PolicyDependency,
+                       inspect_overrides)
 from .defaults import DEFAULTS, GROUPS
 from .interaction import AttentionSettings, ProactiveSettings
 from .runtime import RuntimeSettings
@@ -32,4 +35,6 @@ class Settings:
             return type(default)(fallback) if default is not None else fallback
 
 
-__all__ = ["DEFAULTS", "GROUPS", "FIELDS", "ConfigField", "Settings", "RuntimeSettings", "AttentionSettings", "ProactiveSettings"]
+__all__ = ["DEFAULTS", "GROUPS", "FIELDS", "POLICIES", "ConfigField", "PolicyGroup", "Settings", "RuntimeSettings", "AttentionSettings", "ProactiveSettings", "ALIASES", "CONFIG_VERSION", "PROFILES",
+           "ConfigProfile", "ConfigWarning", "PolicyDependency",
+           "DEPENDENCIES", "CONFLICTS", "inspect_overrides"]

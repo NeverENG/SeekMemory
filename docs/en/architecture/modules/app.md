@@ -14,6 +14,25 @@ Host-neutral `app/config/` owns defaults grouped by project, ingest, recall, Dre
 
 Attention and proactive dispatch each use an immutable settings snapshot from `app/config/interaction.py`; host hooks retain their original live-read timing without owning policy defaults.
 
+### Configuration contract v1 (no new policy activation)
+
+`app/config/defaults.py` owns defaults. `catalog.py` exposes `FIELDS` with each registered key’s policy group, level, stability, value type, optional bounds/modes, restart requirement, and alias; `POLICIES` records stable group IDs, names, affected behavior, optional mode keys and advanced overrides. The host schema remains flat; contract tests compare all 62 host keys and defaults. Four unexposed `ingest_*` keys are included. `internal` recommends an exposure level without removing existing host keys; `stable` covers current key compatibility, not eternal stability of the underlying algorithm.
+
+| Policy group | Responsibility / modes |
+| --- | --- |
+| project | Memory ownership, access (`open_to`), and data location |
+| ingest / recall | Extraction cadence; read-only retrieval and context budget |
+| dream / maintenance | Night schedule and model budget; checkpoints and persona synthesis |
+| runtime / attention / proactive | Deferred dispatch, reply attention and proactive scheduling stay distinct |
+| relationship | `off` / `observe` / `enforce` modes and weights |
+| observability | Content-free trace and episode retention |
+
+`config_version=1` identifies this manifest and is not persisted as an AstrBot public key. Optional `config_profile` is **not applied** in v1. `PROFILES` defines quiet (4 memories/400 characters), balanced (existing defaults), engaged (10 memories/800 characters) and developer (content-free injection-length logs only) as suggested overrides. None enables the runtime gate, proactive dispatch or relationship enforcement. Activating profiles later requires a deliberate precedence, migration and user decision; this change adds no config rewrite, default behavior change or policy engine. No old keys are deprecated or renamed, so v1 has no migration aliases.
+
+`inspect_overrides()` only returns diagnostics without configuration values; it neither corrects input nor blocks execution. It reports invalid ranges/modes, unknown keys, inert overrides, and the dependency of `proactive_enabled` or `relationship_mode=enforce` on `runtime_gate_enabled`. Follow-up overrides with attention disabled are likewise advisory. `DEPENDENCIES` declares these prerequisites; no two existing keys are intrinsically forbidden together, so `CONFLICTS` is empty. Missing prerequisites make the corresponding behavior inactive rather than blocking startup. Keys snapshotted at composition are marked `restart_required`; other dynamic reads retain their existing timing. The compatible host input path remains `Settings`; diagnostics are not a new execution gate.
+
+`CHARS_PER_TOKEN` and `MESSAGE_OVERHEAD` in `app/budget.py`, spread decay/limits in `recall/spread.py`, and disclosure thresholds in `core/domain/memory/disclosure.py` are internal algorithm constants; inventory does not make them user configuration. No YAML runtime dependency is introduced; YAML is used by documentation and OpenAPI test tooling only.
+
 ## Two interface entry points
 
 - [app/domain.py](../../../../app/domain.py): what the application provides. It explicitly exports 79 types, functions, and execution classes, with descriptions only; implementations remain in their owning files.

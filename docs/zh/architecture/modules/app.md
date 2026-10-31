@@ -14,6 +14,25 @@ Runtime 调度选项由 `app/config/runtime.py` 提供只读类型化快照；�
 
 注意力和主动调度分别从 `app/config/interaction.py` 获取只读配置快照；宿主钩子对动态开关仍按原时机读取，不把策略默认值交给 AstrBot。
 
+### 配置契约 v1（不激活新策略）
+
+`app/config/defaults.py` 是默认值来源，`catalog.py` 的 `FIELDS` 为每个已登记键提供所属策略、级别、稳定性、值类型、可选范围/模式、重启要求与别名；`POLICIES` 给策略组稳定 ID、名称、影响范围、可选模式键和高级覆盖键。宿主 schema 保持扁平，契约测试验证全部 62 个宿主键默认值一致；四个未暴露的 `ingest_*` 键亦纳入契约。`internal` 是配置暴露建议，不会删掉已有宿主键；`stable` 指当前键兼容输入，不能推断内部算法永远不变。
+
+| 策略组 | 职责 / 模式 |
+| --- | --- |
+| project | 记忆归属、访问（`open_to`）及数据目录 |
+| ingest / recall | 抽取频率；只读检索与上下文预算 |
+| dream / maintenance | 夜间时机与模型预算；检查点和人格综合 |
+| runtime / attention / proactive | 延迟执行、注意力及主动调度分别归属 |
+| relationship | 关系模式 `off` / `observe` / `enforce` 与权重 |
+| observability | 无正文轨迹与 episode 保留限额 |
+
+`config_version=1` 仅标识本版契约，未作为 AstrBot 公共配置键写盘。`config_profile` 可选但 v1 **不应用**；quiet（召回 4 条/400 字）、balanced（当前默认）、engaged（10 条/800 字）及 developer（仅增加无正文注入字数日志）的覆盖建议定义在 `PROFILES`，均不启用 runtime gate、主动调度或关系执行。后续启用 profile 须明确覆盖优先级、迁移与用户确认；本次没有配置重写、默认行为变更或新策略引擎。没有弃用/重命名的旧键，因此 v1 的迁移别名为空。
+
+`inspect_overrides()` 只返回不含配置值的提示，不自动修正或阻断运行：数值范围/模式非法、未知键、未生效的覆盖，以及 `proactive_enabled` / `relationship_mode=enforce` 需要 `runtime_gate_enabled` 的依赖。禁用 attention 时调整 follow-up 同样只得到提示。`DEPENDENCIES` 明示上述前置条件；当前没有互斥到不能同时配置的键，`CONFLICTS` 为空，依赖不满足也只是行为不生效，不会拒绝启动。配置被组装时快照的键以 `restart_required` 标记；其他动态读取保留原有时机。真正的宿主输入兼容读取仍走 `Settings`，不得将诊断函数当作新的执行门禁。
+
+`app/budget.py` 的 `CHARS_PER_TOKEN`、`MESSAGE_OVERHEAD`，`recall/spread.py` 的扩散衰减/上限及 `core/domain/memory/disclosure.py` 的披露阈值是算法内部常量，不因配置盘点自动变成用户配置。此处也不引入 YAML 运行时依赖；YAML 仅用于文档与 OpenAPI 测试工具。
+
 ## 两个接口入口
 
 - [app/domain.py](../../../../app/domain.py)：应用层提供什么。显式导出共享类型、函数和执行类；只做导出与说明，实现在原文件中。

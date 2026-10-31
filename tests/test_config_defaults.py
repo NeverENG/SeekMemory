@@ -4,7 +4,9 @@ import json
 import unittest
 from pathlib import Path
 
-from app.config import (AttentionSettings, DEFAULTS, FIELDS, GROUPS,
+from app.config import (ALIASES, CONFIG_VERSION, CONFLICTS, DEPENDENCIES,
+                        PROFILES, AttentionSettings,
+                        DEFAULTS, FIELDS, GROUPS, POLICIES, inspect_overrides,
                         ProactiveSettings, RuntimeSettings, Settings)
 
 
@@ -67,6 +69,54 @@ class ConfigDefaultsTest(unittest.TestCase):
         self.assertEqual(FIELDS["attention_policy_enabled"].group, "attention")
         self.assertEqual(FIELDS["proactive_enabled"].group, "proactive")
         self.assertEqual(FIELDS["dream_enabled"].group, "dream")
+        self.assertEqual(set(POLICIES), set(GROUPS))
+        self.assertIn("runtime_gate_enabled", POLICIES["runtime"].advanced_overrides)
+        self.assertEqual(CONFLICTS, ())
+        self.assertEqual({d.trigger for d in DEPENDENCIES},
+                         {"proactive_enabled", "relationship_mode"})
+        self.assertEqual(FIELDS["weekly_day"].maximum, 6)
+        self.assertEqual(FIELDS["relationship_mode"].choices, ("off", "observe", "enforce"))
+        self.assertTrue(FIELDS["db_path"].restart_required)
+        self.assertTrue(FIELDS["runtime_gate_enabled"].restart_required)
+        self.assertFalse(FIELDS["runtime_tick_seconds"].restart_required)
+
+    def test_manifest_profiles_are_explicit_and_do_not_enable_unsafe_gates(self):
+        self.assertEqual(CONFIG_VERSION, 1)
+        self.assertEqual(dict(ALIASES), {})
+        self.assertEqual(set(PROFILES), {"quiet", "balanced", "engaged", "developer"})
+        self.assertEqual(dict(PROFILES["balanced"].overrides), {})
+        for profile in PROFILES.values():
+            self.assertEqual(inspect_overrides(profile.overrides), ())
+            self.assertFalse(profile.overrides.get("runtime_gate_enabled", False))
+            self.assertFalse(profile.overrides.get("proactive_enabled", False))
+            self.assertNotEqual(profile.overrides.get("relationship_mode"), "enforce")
+        self.assertEqual(Settings({"config_profile": "engaged"}).get("recall_k", 8), 8)
+
+    def test_advisory_validation_and_dependencies_never_rewrite_input(self):
+        overrides = {"relationship_mode": "enforce", "proactive_enabled": True,
+                     "runtime_wait_seconds": -1, "recall_k": "many",
+                     "weekly_day": 8, "unrecognized": 1}
+        before = dict(overrides)
+        warnings = inspect_overrides(overrides)
+        self.assertEqual(overrides, before)
+        self.assertEqual({(w.code, w.key) for w in warnings}, {
+            ("requires_runtime_gate", "relationship_mode"),
+            ("requires_runtime_gate", "proactive_enabled"),
+            ("inactive_override", "runtime_wait_seconds"),
+            ("out_of_range", "runtime_wait_seconds"),
+            ("invalid_type", "recall_k"), ("out_of_range", "weekly_day"),
+            ("unknown_key", "unrecognized"),
+        })
+        self.assertEqual(inspect_overrides({}), ())
+        self.assertEqual(inspect_overrides({"config_version": 1}), ())
+        self.assertEqual(inspect_overrides({"config_version": 2})[0].code,
+                         "unsupported_version")
+        self.assertEqual(inspect_overrides({"config_profile": []})[0].code,
+                         "unknown_profile")
+        self.assertEqual(inspect_overrides({"config_profile": "quiet"})[0].code,
+                         "profile_not_applied")
+        self.assertEqual(inspect_overrides({"runtime_gate_enabled": True,
+                                            "relationship_mode": "enforce"}), ())
 
     def test_host_schema_projects_shared_defaults(self):
         schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
@@ -98,6 +148,38 @@ class ConfigReadAuditTest(unittest.TestCase):
                     any(name.split(".")[0] in {"astrbot", "yaml"} for name in imports),
                     str(path),
                 )
+
+    def test_helper_forwarded_keys_are_in_contract(self):
+        """Cover literals passed to known wrappers around computed key reads."""
+        import ast
+
+        root = SCHEMA.parent
+        wrappers = {
+            "app/budget.py": {"_num", "_bool"},
+            "recall/pipeline.py": {"_conf_bool"},
+            "adapters/relationship_policy.py": {"probability"},
+            "services/maintenance_service.py": {"_relationship_weight"},
+        }
+        observed: set[str] = set()
+        for name, methods in wrappers.items():
+            tree = ast.parse((root / name).read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call) or not node.args:
+                    continue
+                method = node.func.attr if isinstance(node.func, ast.Attribute) else (
+                    node.func.id if isinstance(node.func, ast.Name) else "")
+                if method in methods and isinstance(node.args[0], ast.Constant):
+                    key = node.args[0].value
+                    if isinstance(key, str):
+                        observed.add(key)
+        self.assertEqual(observed, {
+            "budget_chars", "context_system_chars", "group_context_messages",
+            "history_messages", "source_recall_enabled", "source_recall_hours",
+            "source_recall_max_candidates", "relationship_private_weight",
+            "relationship_group_weight", "relationship_low_private_reply_probability",
+            "relationship_dislike_private_reply_probability",
+        })
+        self.assertTrue(observed <= set(FIELDS))
 
     def test_literal_policy_reads_are_registered_and_have_consistent_fallbacks(self):
         """Audit static keys without claiming to cover computed policy keys."""
