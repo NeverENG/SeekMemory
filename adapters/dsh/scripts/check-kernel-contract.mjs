@@ -51,6 +51,10 @@ const expect = (name, ok, detail = '') => {
   results.push({ name, ok });
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`);
 };
+const incomplete = (name, detail) => {
+  results.push({ name, incomplete: true });
+  console.log(`INCOMPLETE  ${name} — ${detail}`);
+};
 
 async function call(path, { method = 'GET', body, auth = token } = {}) {
   const headers = {};
@@ -132,7 +136,13 @@ const payload = {
 // 6. extract/plan（204 = 没事干，是合法契约的一部分）
 {
   const r = await call(`/extract/plan?subject_key=${encodeURIComponent(SUBJECT)}`);
-  expect('GET /extract/plan → 200 或 204', r.status === 200 || r.status === 204, `status=${r.status}`);
+  if (r.status === 501) {
+    incomplete('GET /extract/plan', '501：有待抽取任务但尚不能生成可执行 chat_request');
+  } else {
+    const runnable = r.status === 200 && typeof r.data?.task_id === 'string'
+      && typeof r.data?.chat_request?.prompt === 'string' && r.data.chat_request.prompt.length > 0;
+    expect('GET /extract/plan → 可执行任务或 204', r.status === 204 || runnable, `status=${r.status}`);
+  }
 }
 
 // 7. extract/commit
@@ -141,10 +151,9 @@ const payload = {
     method: 'POST',
     body: { task_id: 'contract-task-1', chat_response: { text: '[]', usage_in: 0, usage_out: 0 } },
   });
-  // 501 = 内核明确表示「pull-style 提交还没实现」，与「实现错了」是两回事。
-  // 分开标注，才不会把待办混进缺陷里。
+  // 501 是未完成，不是端到端契约通过；保留单独状态供调用方识别。
   if (r.status === 501) {
-    expect('POST /extract/commit → 501（明确未实现，非缺陷）', true);
+    incomplete('POST /extract/commit', '501：抽取提交未实现，不能宣称完整端到端');
   } else {
     expect('POST /extract/commit → 200', r.status === 200, `status=${r.status}`);
     const okShape = typeof r.data?.written === 'number' || typeof r.data?.skipped === 'number';
@@ -165,6 +174,7 @@ const payload = {
   expect('未知路径 → 404', r.status === 404, `status=${r.status}`);
 }
 
-const failed = results.filter((r) => !r.ok).length;
-console.log(`\n${failed === 0 ? 'ALL PASS' : `${failed} FAILED`} (${results.length} checks) — kernel ${base}`);
-process.exitCode = failed === 0 ? 0 : 1;
+const failed = results.filter((r) => r.ok === false).length;
+const pending = results.filter((r) => r.incomplete).length;
+console.log(`\n${failed ? `${failed} FAILED` : pending ? `${pending} INCOMPLETE` : 'ALL PASS'} (${results.length} checks) — kernel ${base}`);
+process.exitCode = failed ? 1 : pending ? 2 : 0;

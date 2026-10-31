@@ -29,6 +29,11 @@ function record(name, ok, detail = '') {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`);
 }
 
+function incomplete(name, detail) {
+  steps.push({ name, incomplete: true, detail });
+  console.log(`INCOMPLETE  ${name} — ${detail}`);
+}
+
 let runtime;
 try {
   runtime = JSON.parse(readFileSync(runtimePath, 'utf8'));
@@ -105,11 +110,12 @@ try {
     // 所以「capture 后立刻召回」只对 mock 的简化实现成立。用队列里有没有任务
     // 来区分「语义差异」与「capture 根本没入队」——后者仍然判失败，不是假绿。
     const plan = await call(`/extract/plan?subject_key=${encodeURIComponent(subject)}`);
-    needsExtraction = plan.status === 200 && Boolean(plan.json?.task_id);
-    record('recall 命中相关记忆', needsExtraction,
-      needsExtraction
-        ? '真内核语义：需先抽取（队列有任务，capture 已入队）'
-        : 'items=0 且队列为空 → capture 没入队');
+    needsExtraction = plan.status === 501 || (plan.status === 200 && Boolean(plan.json?.task_id));
+    if (needsExtraction) {
+      incomplete('recall 命中相关记忆', 'capture 已入队，但未抽取，无法验证召回');
+    } else {
+      record('recall 命中相关记忆', false, 'items=0 且队列为空 → capture 没入队');
+    }
   }
 } catch (err) {
   record('recall', false, err.message);
@@ -119,13 +125,20 @@ try {
 try {
   const ctl = await call('/recall', { method: 'POST', body: { subject_key: subject, query: '键盘', budget_chars: 600, k: 8 } });
   const ctlChars = String(ctl.json?.block ?? '').length;
-  record('正向对照：普通查询能召回（证明管线活着）', ctlChars > 0 || needsExtraction,
-    needsExtraction ? 'SKIP：需先抽取（真内核语义）' : `chars=${ctlChars}`);
+  if (needsExtraction && !ctlChars) {
+    incomplete('正向对照：普通查询能召回（证明管线活着）', '未抽取，无法做正向对照');
+  } else {
+    record('正向对照：普通查询能召回（证明管线活着）', ctlChars > 0, `chars=${ctlChars}`);
+  }
 
   const r = await call('/recall', { method: 'POST', body: { subject_key: subject, query: '秘密', budget_chars: 600, k: 8 } });
   const block = String(r.json?.block ?? '');
   const leaked = block.includes('secret');
-  record('secret 记录不出现在召回块里', !leaked, leaked ? '命中 secret 正文' : `ok（该轮块 ${block.length} 字）`);
+  if (needsExtraction && !block) {
+    incomplete('secret 记录不出现在召回块里', '空块不能证明隐私过滤');
+  } else {
+    record('secret 记录不出现在召回块里', !leaked, leaked ? '命中 secret 正文' : `ok（该轮块 ${block.length} 字）`);
+  }
 } catch (err) {
   record('secret 不外泄', false, err.message);
 }
@@ -135,8 +148,11 @@ try {
   const budget = 200;
   const r = await call('/recall', { method: 'POST', body: { subject_key: subject, query: '键盘', budget_chars: budget, k: 8 } });
   const len = String(r.json?.block ?? '').length;
-  record(`budget 上限生效（0 < len ≤ ${budget}）`, (len > 0 && len <= budget) || needsExtraction,
-    needsExtraction ? 'SKIP：需先抽取（真内核语义）' : `实际 ${len} 字`);
+  if (needsExtraction && !len) {
+    incomplete(`budget 上限生效（0 < len ≤ ${budget}）`, '未抽取，空块不能证明预算');
+  } else {
+    record(`budget 上限生效（0 < len ≤ ${budget}）`, len > 0 && len <= budget, `实际 ${len} 字`);
+  }
 } catch (err) {
   record('budget 上限', false, err.message);
 }
@@ -146,7 +162,11 @@ try {
   const budget = 30;
   const r = await call('/recall', { method: 'POST', body: { subject_key: subject, query: '键盘', budget_chars: budget, k: 8 } });
   const len = String(r.json?.block ?? '').length;
-  record(`预算不足时返回空块（≤${budget}）`, len === 0, `实际 ${len} 字`);
+  if (needsExtraction && !len) {
+    incomplete(`预算不足时返回空块（≤${budget}）`, '未抽取，空块不能证明预算裁剪');
+  } else {
+    record(`预算不足时返回空块（≤${budget}）`, len === 0, `实际 ${len} 字`);
+  }
 } catch (err) {
   record('预算不足返回空块', false, err.message);
 }
@@ -171,16 +191,22 @@ try {
 // 9. extract plan：204（没事干）或 200（有任务）
 try {
   const r = await call('/extract/plan', { timeoutMs: 30_000 });
-  const ok = r.status === 204 || (r.status === 200 && typeof r.json?.task_id === 'string');
-  record('extract/plan 返回 204 或任务', ok, `status=${r.status}`);
+  if (r.status === 501) {
+    incomplete('extract/plan', '有待抽取任务，但内核尚不能生成可执行计划');
+  } else {
+    const runnable = r.status === 200 && typeof r.json?.task_id === 'string'
+      && typeof r.json?.chat_request?.prompt === 'string' && r.json.chat_request.prompt.length > 0;
+    record('extract/plan 返回 204 或可执行任务', r.status === 204 || runnable, `status=${r.status}`);
+  }
 } catch (err) {
   record('extract/plan', false, err.message);
 }
 
 // ---------- 汇总 ----------
-const failed = steps.filter((s) => !s.ok).length;
-console.log(`\n${failed === 0 ? 'ALL PASS' : `${failed} FAILED`} (${steps.length} checks) — kernel ${runtime.version ?? '?'} @ ${base}`);
+const failed = steps.filter((s) => s.ok === false).length;
+const pending = steps.filter((s) => s.incomplete).length;
+console.log(`\n${failed ? `${failed} FAILED` : pending ? `${pending} INCOMPLETE` : 'ALL PASS'} (${steps.length} checks) — kernel ${runtime.version ?? '?'} @ ${base}`);
 // 不要用 process.exit()：fetch 的 keep-alive socket 还没关完时在 Windows 上会触发
 // libuv 断言（uv_handle closing）→ 进程 fail-fast，退出码变成 0xC0000409。
 // 设 exitCode 让事件循环自己退干净。
-process.exitCode = failed === 0 ? 0 : 1;
+process.exitCode = failed ? 1 : pending ? 2 : 0;

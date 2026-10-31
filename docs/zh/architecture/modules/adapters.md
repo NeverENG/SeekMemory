@@ -37,6 +37,12 @@ AccessService 基于完整 session UMO、sender ID、owner/trusted 配置和 obs
 
 宿主 hook 注册必须绑定真实插件模块路径，避免热重载后回调无法识别。Runtime 的工具过滤在模型请求前运行；工具调用完成后的观测 hook 不能作为强制拦截。插件初始化/宿主 API 不可用时，由上层状态和 fail-open 处理，不应把 AstrBot 依赖泄漏到业务模块。
 
+## 本机回环记忆适配层
+
+`adapters/loopback/runtime.py` 组装现有 Store、Buffer、RecallService 和 StatusService；`adapters/loopback/server.py` 负责本机 HTTP、令牌验证、请求映射及资源关闭。`scripts/serve.py` 只负责解析命令行并保留原来的启动方式（`python scripts/serve.py --data-dir <dir>`）。这属于宿主传输与组合根，不属于 core 规则或 services 用例；不依赖 AstrBot SDK。`scripts/runtime_http.py` 仍是独立的 AgentRuntime 桥接验证入口，不与记忆服务混为一体。
+
+此入口的 `/capture` 保存 Source 并排队，`/recall` 读取已有 Artifact；`/extract/plan` 空队列返回 204，有任务但尚无可执行 ChatRequest 时返回 501；`/extract/commit` 也返回 501。不能把只含 Source ID 的伪计划或有待抽取的空召回当成端到端成功。契约和冒烟脚本对未完成项报告 `INCOMPLETE` 并返回非零退出码；只有真正在已抽取内容上验证召回、隐私与预算才报告全通过。HTTP 错误不向调用方回显底层异常文本；无认证的健康检查不暴露本地数据库路径。新建数据目录使用仅所有者权限，运行时令牌元数据以仅所有者权限原子替换；调用方仍需保证传入的既有数据目录本身私有。数据格式、公开配置和端点路径不变。
+
 ## DSH 协议桥
 
 DSH 的 RuntimeBridge 复用 KernelClient 的本机认证连接。服务在 healthz 声明 runtime_contract: 1 后，桥接器通过 POST /runtime/events 传递输入、回复、交付、错误及动作执行结果，通过 POST /runtime/context 获取 MemoryContext。公共字段以 app/runtime/contracts/ 为准，共享非空样例同时由 Python 和 Node 测试校验。消息时间按已知毫秒或带时区字符串转为 epoch 秒；未知时间为 0，不猜历史时区。
