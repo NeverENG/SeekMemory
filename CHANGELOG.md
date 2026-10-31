@@ -8,11 +8,15 @@
 
 - #202 修复 AstrBot 运行时 gate 的反向映射：启用后允许正常回复，强制关系拒绝阻止默认模型请求；关闭时不干预宿主标记。保留宿主唤醒检查，无数据格式或配置键变化。
 
+- 修复到期清理及容量统计忽略较早 valid_to 的问题：任一截止日期已过即判定到期，保留截止当天有效的边界和 Source，无数据格式或配置变化（#201，第 2 项）。
+
 ### English
 
 - #203 For future extraction only, normalize exact `user(id)` labels to bare IDs after verification against the candidate's own same-session user Sources; align payload, header and deduplication identity, and request bare IDs in the prompt. Preserve existing data, versions and ledger without automatic migration or changes to disclosure thresholds, schema or configuration keys; existing incorrect records need a separate revision decision.
 
 - #202 Fix the reversed AstrBot runtime gate mapping: allow normal replies and block default model requests on enforced relationship denial when enabled; preserve the host flag when disabled. Host wake checks remain in place, with no data-format or configuration-key changes.
+
+- Fix expiry cleanup and capacity metrics overlooking an earlier valid_to: either elapsed deadline expires the Artifact, preserving inclusive date boundaries and Sources. No data-format or configuration changes (#201, item 2).
 
 ## 0.6.0-rc.1 — 2026-10-31
 
