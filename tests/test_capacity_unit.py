@@ -136,10 +136,21 @@ class CapacityGovernorV2Test(unittest.TestCase):
         self.assertIn("release_deferred", decision.actions)
         self.assertEqual(decision.state, NORMAL)
 
-    def test_deferred_pressure_does_not_release_more(self) -> None:
-        decision = self.governor.evaluate(CapacitySnapshot(deferred_rows=200))
-        self.assertEqual(decision.state, PRESSURED)
-        self.assertNotIn("release_deferred", decision.actions)
+    def test_deferred_backlog_does_not_block_its_own_release(self) -> None:
+        for count, state in ((199, NORMAL), (200, PRESSURED), (400, SATURATED)):
+            with self.subTest(deferred=count):
+                decision = self.governor.evaluate(CapacitySnapshot(deferred_rows=count))
+                self.assertEqual(decision.state, state)
+                self.assertIn("release_deferred", decision.actions)
+                self.assertEqual("backpressure" in decision.actions, count == 400)
+
+    def test_deferred_release_requires_pending_headroom(self) -> None:
+        for pending, age in ((40, 0), (80, 0), (1, 12 * 60 * 60)):
+            with self.subTest(pending=pending, age=age):
+                decision = self.governor.evaluate(CapacitySnapshot(
+                    pending_rows=pending, pending_oldest_age_seconds=age, deferred_rows=400,
+                ))
+                self.assertNotIn("release_deferred", decision.actions)
 
     def test_dead_rows_raise_alert(self) -> None:
         decision = self.governor.evaluate(CapacitySnapshot(dead_rows=10))

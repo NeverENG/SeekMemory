@@ -8,11 +8,15 @@
 
 - #202 修复 AstrBot 运行时 gate 的反向映射：启用后允许正常回复，强制关系拒绝阻止默认模型请求；关闭时不干预宿主标记。保留宿主唤醒检查，无数据格式或配置键变化。
 
+- 修复 deferred 积压达到软阈值后无法恢复抽取的问题：按 pending 余量有界放行，保留输入背压、批次上限和 Source，无数据格式或配置变化（#201，第 3 项）。
+
 ### English
 
 - #203 For future extraction only, normalize exact `user(id)` labels to bare IDs after verification against the candidate's own same-session user Sources; align payload, header and deduplication identity, and request bare IDs in the prompt. Preserve existing data, versions and ledger without automatic migration or changes to disclosure thresholds, schema or configuration keys; existing incorrect records need a separate revision decision.
 
 - #202 Fix the reversed AstrBot runtime gate mapping: allow normal replies and block default model requests on enforced relationship denial when enabled; preserve the host flag when disabled. Host wake checks remain in place, with no data-format or configuration-key changes.
+
+- Fix deferred extraction stalling at its soft threshold: release bounded batches according to pending headroom, preserving admission backpressure, batch limits and Sources. No data-format or configuration changes (#201, item 3).
 
 ## 0.6.0-rc.1 — 2026-10-31
 
