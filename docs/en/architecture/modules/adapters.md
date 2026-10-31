@@ -39,6 +39,12 @@ Hook registration must use the real plugin module path, so callbacks stay discov
 
 Relationship denial is enforced independently of the opt-in base Runtime gate; an allowed or neutral relationship never enables that gate. Low/dislike ordinary private statements use stable `0.8`/`0.5` Source-ID sampling, while actual questions and direct host signals remain required replies. Low/dislike group ambient is denied. Relationship Artifacts remain excluded from Recall and the management catalog.
 
+## Loopback memory adapter
+
+`adapters/loopback/runtime.py` composes the existing Store, Buffer, RecallService and StatusService; `adapters/loopback/server.py` owns localhost HTTP, token checks, request mapping and resource shutdown. `scripts/serve.py` only parses CLI arguments and preserves the existing `python scripts/serve.py --data-dir <dir>` command. This is an edge transport and composition root, not a core policy or a services use case, and it does not load the AstrBot SDK. `scripts/runtime_http.py` remains a separate AgentRuntime bridge verification entry rather than a second memory service implementation.
+
+`/capture` stores Source and queues extraction, while `/recall` reads existing Artifacts. `/extract/plan` returns 204 for an idle queue and 501 when work exists but no executable ChatRequest API exists; `/extract/commit` also returns 501. A Source-ID-only pseudo-plan or a queued, empty recall is not end-to-end success. Contract and smoke checks now report `INCOMPLETE` with a nonzero exit status until extraction, recall, privacy and budget are actually verified. HTTP errors do not echo underlying exception text; unauthenticated health checks do not disclose the local database path. Newly created data directories are owner-only, and token metadata is atomically replaced with owner-only permissions; callers must still protect any existing data directory they pass in. Stored formats, public configuration and endpoint paths are unchanged.
+
 ## DSH runtime bridge
 
 DSH RuntimeBridge reuses KernelClient's authenticated loopback connection. After healthz advertises runtime_contract: 1, POST /runtime/events carries inputs, replies, deliveries, errors, and action execution results; POST /runtime/context obtains MemoryContext. app/runtime/contracts/ owns the public fields, and Python and Node both validate shared nonempty examples. Known millisecond or offset-aware event times map to epoch seconds; unknown time is 0 without guessing a historical timezone.
