@@ -4,6 +4,10 @@
 
 app provides shared application values, external capability declarations, and policies. It currently also contains daily-cycle coordination, reinforcement write-back, runtime execution, and some persistence adapters; the directory as a whole is not a pure policy layer.
 
+## Configuration ownership
+
+Host-neutral `app/config/` owns defaults grouped by host identity, ingest, recall, maintenance, observability, relationship, and Runtime. An empty configuration is supported; AstrBot’s `_conf_schema.json` remains a compatibility input and UI projection of existing keys, not the owner of defaults. Console uses the same entry point. Services still pass legacy fallbacks during incremental migration; subsequent changes must preserve existing default behavior.
+
 ## Two interface entry points
 
 - [app/domain.py](../../../../app/domain.py): what the application provides. It explicitly exports 79 types, functions, and execution classes, with descriptions only; implementations remain in their owning files.

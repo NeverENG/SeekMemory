@@ -15,6 +15,7 @@ from astrbot.api import logger, star
 from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 
 from ...app.budget import budget_from_config
+from ...app.config import Settings
 from ...app.checkpoint import CheckpointManager
 from ...app.cache_repair import CacheRepairs
 from ...app.dream import DreamCycle
@@ -84,6 +85,7 @@ class AstrBotPlugin(star.Star):
         super().__init__(context, config)
         self.context = context
         self.cfg = config or {}
+        self.settings = Settings(self.cfg)
         self.clock = time.time
         self.hooks = AstrBotHooks(self)
         self.attention = AttentionHooks(self)
@@ -357,14 +359,8 @@ class AstrBotPlugin(star.Star):
         self._started = True
 
     def _c(self, key: str, default):
-        """Read existing plugin configuration with its supplied fallback / 按给定回退读取既有插件配置。"""
-        try:
-            v = self.cfg.get(key, default)
-            if v is None:
-                return default
-            return type(default)(v)
-        except Exception:
-            return default
+        """Read an optional host override; SeekMemory owns the defaults."""
+        return self.settings.get(key, default)
 
     def _threshold_overrides(self) -> dict:
         """Read existing capacity overrides from a dict or JSON object / 从字典或 JSON 对象读取既有容量覆盖值。"""
