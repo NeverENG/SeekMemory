@@ -37,5 +37,42 @@ class ConfigDefaultsTest(unittest.TestCase):
         self.assertEqual(set(keys), set(DEFAULTS))
 
 
+class ConfigReadAuditTest(unittest.TestCase):
+    def test_literal_policy_reads_are_registered_and_have_consistent_fallbacks(self):
+        """Audit static keys without claiming to cover computed policy keys."""
+        import ast
+
+        root = SCHEMA.parent
+        reads: dict[str, list[tuple[str, object]]] = {}
+        for directory in ("adapters", "services", "app", "recall", "maintain", "perceive"):
+            for path in (root / directory).rglob("*.py"):
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+                for node in ast.walk(tree):
+                    if not isinstance(node, ast.Call) or not node.args:
+                        continue
+                    fn = node.func
+                    if isinstance(fn, ast.Attribute):
+                        policy_read = fn.attr in ("_c", "config")
+                    else:
+                        policy_read = isinstance(fn, ast.Name) and fn.id == "conf"
+                    if not policy_read or not isinstance(node.args[0], ast.Constant):
+                        continue
+                    key = node.args[0].value
+                    if not isinstance(key, str):
+                        continue
+                    try:
+                        fallback = ast.literal_eval(node.args[1])
+                    except (IndexError, ValueError, TypeError):
+                        fallback = None
+                    reads.setdefault(key, []).append((str(path.relative_to(root)), fallback))
+        self.assertTrue(reads)
+        self.assertEqual(set(reads) - set(DEFAULTS), set())
+        mismatches = {
+            key: values for key, values in reads.items()
+            if any(value is not None and value != DEFAULTS[key] for _, value in values)
+        }
+        self.assertEqual(mismatches, {})
+
+
 if __name__ == "__main__":
     unittest.main()
