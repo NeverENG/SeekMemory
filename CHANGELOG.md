@@ -8,11 +8,15 @@
 
 - #202 修复 AstrBot 运行时 gate 的反向映射：启用后允许正常回复，强制关系拒绝阻止默认模型请求；关闭时不干预宿主标记。保留宿主唤醒检查，无数据格式或配置键变化。
 
+- 修复 Source 查询对不同时区时间的筛选和排序：已知时刻按实际时间查询，旧无时区及仅日期值保留既有行为；候选有界合并后读取正文，不改写原始证据，无数据格式或配置变化（#201，第 1 项）。
+
 ### English
 
 - #203 For future extraction only, normalize exact `user(id)` labels to bare IDs after verification against the candidate's own same-session user Sources; align payload, header and deduplication identity, and request bare IDs in the prompt. Preserve existing data, versions and ledger without automatic migration or changes to disclosure thresholds, schema or configuration keys; existing incorrect records need a separate revision decision.
 
 - #202 Fix the reversed AstrBot runtime gate mapping: allow normal replies and block default model requests on enforced relationship denial when enabled; preserve the host flag when disabled. Host wake checks remain in place, with no data-format or configuration-key changes.
+
+- Fix Source filtering and ordering across timezones: compare known instants chronologically, retain legacy naive/date-only behavior, and read bodies after merging bounded candidates. Raw evidence, data formats and configuration remain unchanged (#201, item 1).
 
 ## 0.6.0-rc.1 — 2026-10-31
 
