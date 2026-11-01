@@ -109,6 +109,54 @@ class SourceQueryTest(unittest.TestCase):
 
 
 class RepositoryPortTest(unittest.TestCase):
+    def test_source_queries_order_instants_before_applying_limits(self):
+        from store import open_store
+
+        db = open_store(":memory:")
+        self.addCleanup(db.close)
+        rows = [
+            source("old", "old message", at="2026-10-31T17:30:00+08:00"),
+            source("boundary", "boundary message", at="2026-10-31T10:00:00Z"),
+            source("new", "new message", at="2026-10-31T04:00:00-07:00"),
+        ]
+        db.sources.append_sources(rows)
+        for limit, expected in ((10, ["new", "boundary"]), (1, ["new"])):
+            with self.subTest(limit=limit):
+                recent = db.sources.recent_sources(
+                    since="2026-10-31T10:00:00+00:00", limit=limit
+                )
+                self.assertEqual([item.id for item in recent], expected)
+        self.assertEqual(db.sources.latest_user_source("s1")["id"], "new")
+        self.assertEqual(db.sources.sources_by_ids([row.id for row in rows]),
+                         {row.id: row for row in rows})
+        db.sources.append_sources([
+            source("assistant", "reply", role="assistant", at="2026-10-31T12:00:00Z"),
+            source("other", "other session", session="s2", at="2026-10-31T13:00:00Z"),
+        ])
+        self.assertEqual(db.sources.latest_user_source("s1")["id"], "new")
+        self.assertIsNone(db.sources.latest_user_source("missing"))
+
+    def test_source_queries_keep_local_naive_times_and_stable_ties(self):
+        from store import open_store
+
+        db = open_store(":memory:")
+        self.addCleanup(db.close)
+        local = NOW.replace(microsecond=123456)
+        utc = local.astimezone(datetime.timezone.utc)
+        rows = [
+            source("a-naive", "local message", at=local.isoformat()),
+            source("z-aware", "same instant", at=utc.isoformat()),
+            source("new", "later message", at=(utc + datetime.timedelta(microseconds=1)).isoformat()),
+            source("date-only", "legacy date", at=local.date().isoformat()),
+        ]
+        db.sources.append_sources(rows)
+        for since in (local.isoformat(), utc.isoformat(), ""):
+            with self.subTest(since=since):
+                recent = db.sources.recent_sources(since=since, limit=4)
+                expected = ["new", "z-aware", "a-naive"] + (["date-only"] if not since else [])
+                self.assertEqual([item.id for item in recent], expected)
+        self.assertEqual(db.sources.latest_user_source("s1")["id"], "new")
+
     def test_recent_sources_and_revision_scoped_artifact_lookup(self):
         from core.artifact import Lineage, make, revise
         from store import open_store
