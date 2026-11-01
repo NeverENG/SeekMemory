@@ -92,16 +92,19 @@ def _subject_id(item: dict, owner: str, default: str, owner_id: str = "") -> str
     """Resolve the interpreted subject without confusing it with the speaker / 确定被解释对象，不将其与说话人混用。"""
     kind = str(item.get("subject_kind") or "").strip()
     raw = str(item.get("subject_id") or "").strip()
-    if raw and raw not in ("owner", "speaker", "self", "world", "relation"):
-        return raw
     if not owner_id and owner:
         owner_id = str(owner).split(":")[-1]
+    # The interpreted kind outranks the model's own subject label: a model-invented id
+    # (observed in practice: it echoed an evidence source id) must never displace the
+    # known owner identity, otherwise subject_fit() degrades every owner memory to "other".
     if kind == "owner":
         return owner_id or default
-    if kind == "speaker":
-        return default
     if kind in ("world", "relation", "self"):
         return kind
+    if kind == "speaker":
+        return default
+    if raw and raw not in ("owner", "speaker", "self", "world", "relation"):
+        return raw
     name = str(item.get("subject_name") or "").strip()
     return "third:" + name if name else default
 
