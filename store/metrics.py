@@ -50,9 +50,8 @@ class StoreMetricsRepository(SqliteRepository):
             "SELECT time FROM nodes WHERE state = 'active'"
         ).fetchall():
             span = load_json_object(row["time"])
-            deadline = span.get("expires") or span.get("valid_to")
-            parsed = parse_time(str(deadline or ""))
-            if parsed is not None and parsed.date() < current.date():
+            deadlines = (parse_time(str(span.get(key) or "")) for key in ("expires", "valid_to"))
+            if any(deadline is not None and deadline.date() < current.date() for deadline in deadlines):
                 expired += 1
         return {
             "db_bytes": page_count * page_size,
