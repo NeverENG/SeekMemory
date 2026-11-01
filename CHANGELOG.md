@@ -12,6 +12,8 @@
 - 修复 Source 查询对不同时区时间的筛选和排序：已知时刻按实际时间查询，旧无时区及仅日期值保留既有行为；候选有界合并后读取正文，不改写原始证据，无数据格式或配置变化（#201，第 1 项）。
 
 
+- 修复 deferred 积压达到软阈值后无法恢复抽取的问题：按 pending 余量有界放行，保留输入背压、批次上限和 Source，无数据格式或配置变化（#201，第 3 项）。
+
 ### English
 
 - #203 For future extraction only, normalize exact `user(id)` labels to bare IDs after verification against the candidate's own same-session user Sources; align payload, header and deduplication identity, and request bare IDs in the prompt. Preserve existing data, versions and ledger without automatic migration or changes to disclosure thresholds, schema or configuration keys; existing incorrect records need a separate revision decision.
@@ -20,6 +22,8 @@
 - Fix expiry cleanup and capacity metrics overlooking an earlier valid_to: either elapsed deadline expires the Artifact, preserving inclusive date boundaries and Sources. No data-format or configuration changes (#201, item 2).
 =======
 - Fix Source filtering and ordering across timezones: compare known instants chronologically, retain legacy naive/date-only behavior, and read bodies after merging bounded candidates. Raw evidence, data formats and configuration remain unchanged (#201, item 1).
+
+- Fix deferred extraction stalling at its soft threshold: release bounded batches according to pending headroom, preserving admission backpressure, batch limits and Sources. No data-format or configuration changes (#201, item 3).
 
 ## 0.6.0-rc.1 — 2026-10-31
 
