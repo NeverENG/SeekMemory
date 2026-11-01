@@ -4,6 +4,16 @@
 
 ### 中文
 
+- #203 仅对后续抽取，在候选自身的同会话用户 Source 验证编号后将精确 `user(id)` 规范化为纯编号，统一 payload、header 与去重主体；提示词要求纯编号。保留旧数据、版本及账本，不自动迁移，不改变披露阈值、schema 或配置键；旧错误记录仍需另行决定修订。
+
+- #202 修复 AstrBot 运行时 gate 的反向映射：启用后允许正常回复，强制关系拒绝阻止默认模型请求；关闭时不干预宿主标记。保留宿主唤醒检查，无数据格式或配置键变化。
+- 修复到期清理及容量统计忽略较早 valid_to 的问题：任一截止日期已过即判定到期，保留截止当天有效的边界和 Source，无数据格式或配置变化（#201，第 2 项）。
+=======
+- 修复 Source 查询对不同时区时间的筛选和排序：已知时刻按实际时间查询，旧无时区及仅日期值保留既有行为；候选有界合并后读取正文，不改写原始证据，无数据格式或配置变化（#201，第 1 项）。
+
+
+- 修复 deferred 积压达到软阈值后无法恢复抽取的问题：按 pending 余量有界放行，保留输入背压、批次上限和 Source，无数据格式或配置变化（#201，第 3 项）。
+
 ### English
 
 ## 0.6.0 — 2026-10-31
@@ -15,6 +25,16 @@
 ### English
 
 - Final release carries the merged 0.6.0-rc.1 features and data contracts without further behavior changes. Pre-release server checks used isolated data to verify the AstrBot SDK import and runtime tests, plus DSH bridging, extraction and recall against the real Python loopback service. Live chat-platform and paid-model end-to-end paths remain unverified; the production plugin was not upgraded.
+=======
+- #203 For future extraction only, normalize exact `user(id)` labels to bare IDs after verification against the candidate's own same-session user Sources; align payload, header and deduplication identity, and request bare IDs in the prompt. Preserve existing data, versions and ledger without automatic migration or changes to disclosure thresholds, schema or configuration keys; existing incorrect records need a separate revision decision.
+
+- #202 Fix the reversed AstrBot runtime gate mapping: allow normal replies and block default model requests on enforced relationship denial when enabled; preserve the host flag when disabled. Host wake checks remain in place, with no data-format or configuration-key changes.
+- Fix expiry cleanup and capacity metrics overlooking an earlier valid_to: either elapsed deadline expires the Artifact, preserving inclusive date boundaries and Sources. No data-format or configuration changes (#201, item 2).
+=======
+- Fix Source filtering and ordering across timezones: compare known instants chronologically, retain legacy naive/date-only behavior, and read bodies after merging bounded candidates. Raw evidence, data formats and configuration remain unchanged (#201, item 1).
+
+- Fix deferred extraction stalling at its soft threshold: release bounded batches according to pending headroom, preserving admission backpressure, batch limits and Sources. No data-format or configuration changes (#201, item 3).
+
 
 ## 0.6.0-rc.1 — 2026-10-31
 

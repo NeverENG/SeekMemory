@@ -46,7 +46,7 @@ text: 一句自然中文，不要用“用户说”开头，不得编造。
 tags: 3~6 个中文关键词，空格分隔，包含对方以后可能问到的线索。
 about: self | other | relation | world
 subject_kind: owner | speaker | third_party | relation | world | self
-subject_id: 记忆描述对象的稳定编号；user(编号) 是说话人，assistant 是机器人。
+subject_id: 记忆描述对象的稳定编号；输入 user(编号) 表示说话人，输出只填括号内的编号，不带 user()；机器人用 self。
 subject_name: 可选称呼。
 event_at: ISO 事件时间。相对日期必须按原消息时间解析，不能按整理时间解析。
 valid_from / valid_to: 时间有限的计划用 ISO 日期，否则 null。

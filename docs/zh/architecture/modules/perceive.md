@@ -19,6 +19,10 @@ Buffer 是 Source-backed extraction queue 的内存视图。启用仓储时，�
 5. 对多话题同会话批次，模型输出必须给每条结论提供当前批次、单一话题内的证据。行为记忆还必须由实际 assistant Source 和其 user parent 组成有效配对。
 6. ExtractionPlan 返回 Artifact 列表和跳过/错误信息。IngestService 使用 CAS commit、更新 Cache、修订重复 impression，并创建相似/时间关系。
 
+主体规范化只作用于新抽取候选：对 `owner`、`speaker`、`third_party` 或未指定种类的精确 `user(id)` 标签，仅当候选自身引用的同会话用户 Source 的 speaker_id 确认为该 id 时，才去掉角色包装；省略引用的兼容事实只使用本次输入的 Source，不借用无关上下文。规范化在去重及构造前执行，payload 与 header 使用同一主体。未验证、嵌套、非用户标签和 self/world/relation 语义不改认 owner；无 Source 的旧输入不获得验证身份。提示词要求输出纯编号。
+
+兼容策略为**只修后续抽取，保留旧数据**：不迁移或重写既有 Artifact、Source、版本或账本，不改 schema、配置键、披露阈值或召回读取逻辑。旧包装主体可能仍被降级披露，修订或重抽取须另行决定。回滚后新记录的纯编号仍可读取，但后续抽取可能再次保存包装标签。
+
 ## Dream triage 与恢复
 
 importance.py 用规则对话题打分，优先身份、偏好、关系、计划、隐私边界、重要事件和用户纠正。Assistant 行为只在同话题有用户文本时参与评分；assistant-only 话题不会单独触发模型。该 triage 只用于 Dream，不改变普通 nightly/idle FIFO 话题选择。
@@ -45,7 +49,7 @@ pending 行在成功后标记 extracted；模型或提交路径失败则保留�
 | `model.py` | 兼容的 `ProviderChatModel` 提供方转接 | 低：外部调用、超时及取消，提供方由调用方管理 |
 | `compress.py`、`calls.py` | 旧纯压缩帮助函数及有数量上限的无正文调用日志 | 兼容职责分别保留，压缩没有生产抽取调用方 |
 
-提供方转接保留原路径，避免引擎→适配器→引擎的循环导入。提示词文本、证据配对、主体和范围语义、评分数值及时间转换不变。`tests/test_perceive_interface_contract.py` 和全新的顶层及插件导入顺序检查保护接口；抽取、隐私、队列、话题及 HTTP 场景验证行为，不调用真实付费模型。
+提供方转接保留原路径，避免引擎→适配器→引擎的循环导入。提示词说明主体输出纯编号；证据配对、范围语义、评分数值及时间转换不变。`tests/test_perceive_interface_contract.py` 和全新的顶层及插件导入顺序检查保护接口；抽取、隐私、队列、话题及 HTTP 场景验证行为，不调用真实付费模型。
 
 ## 待处理发布与文件恢复
 

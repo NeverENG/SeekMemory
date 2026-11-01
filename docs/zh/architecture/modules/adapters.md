@@ -35,6 +35,8 @@ AccessService 基于完整 session UMO、sender ID、owner/trusted 配置和 obs
 
 ## 当前边界
 
+显式启用 `runtime_gate_enabled` 时，AstrBotRuntimeAdapter 将 `REPLY` / `must_reply` 映射为 `should_call_llm(False)`，因为宿主参数表示**禁止默认模型请求**；其他动作和强制关系拒绝映射为 `True`。关闭 gate 时不修改已有宿主标记。此映射保留宿主自身的唤醒、已发送及 provider 检查，不启用插件内独立模型请求。
+
 宿主 hook 注册必须绑定真实插件模块路径，避免热重载后回调无法识别。Runtime 的工具过滤在模型请求前运行；工具调用完成后的观测 hook 不能作为强制拦截。插件初始化/宿主 API 不可用时，由上层状态和 fail-open 处理，不应把 AstrBot 依赖泄漏到业务模块。
 
 ## 本机回环记忆适配层
