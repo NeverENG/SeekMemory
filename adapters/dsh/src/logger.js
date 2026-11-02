@@ -12,6 +12,7 @@
 import { appendFileSync, mkdirSync, renameSync, statSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 
 const MAX_BYTES = 2 * 1024 * 1024; // 2MB 后轮转一份 .1，避免无限长
 
@@ -33,26 +34,65 @@ function rotateIfNeeded(file) {
 }
 
 /**
+ * 建一个文件日志。
+ *
+ * 铁律（issue #210）：**日志失败不许静默**。
+ * 旧实现里目录建不出来时只是 `ready=false`，之后所有行都走 `mirror`（宿主 logger）——
+ * 而 DSH 桌面版的 `ctx.logger` 在终端/运行目录里根本看不到，于是表现成"插件跑起来了但
+ * 一个字都没留下"。现在改为：主目录失败 → 退系统临时目录 → 退插件自身目录；
+ * 全部失败才放弃，并且用 `console.error` 喊出来、把尝试记录挂在返回值上。
+ *
  * @param {{ dir: string, mirror?: {info?:Function,warn?:Function,error?:Function}, tag?: string }} opts
  */
 export function createFileLogger({ dir, mirror, tag = 'boot' }) {
-  let ready = false;
-  try {
-    mkdirSync(dir, { recursive: true });
-    ready = true;
-  } catch {
-    ready = false; // 日志目录不可写不能反过来影响插件
+  const attempts = [];
+  const pluginRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const candidates = [
+    dir,
+    path.join(os.tmpdir(), 'dsh-seekmemory'),
+    path.join(pluginRoot, '.logs'),
+  ].filter((d) => typeof d === 'string' && d.length > 0);
+
+  let file = '';
+  for (const cand of candidates) {
+    try {
+      mkdirSync(cand, { recursive: true });
+      const f = path.join(cand, 'seekmemory.log');
+      // mkdir 成功不等于能写：真写一次空串才算可用
+      appendFileSync(f, '', 'utf8');
+      attempts.push({ dir: cand, ok: true });
+      if (!file) {
+        file = f;
+        rotateIfNeeded(f);
+      }
+    } catch (err) {
+      attempts.push({ dir: cand, ok: false, err: errBrief(err) });
+    }
   }
-  const file = path.join(dir, 'seekmemory.log');
-  if (ready) rotateIfNeeded(file);
+
+  const fallback = attempts.length > 0 && attempts[0].ok === false;
+  if (!file) {
+    // 一个都写不了：至少让屏幕上留下这句，别让"完全没日志"成为唯一线索
+    const detail = attempts.map((a) => `${a.dir}${a.ok ? '' : `(${a.err})`}`).join(' | ');
+    // eslint-disable-next-line no-console
+    console.error(`[seekmemory] 文件日志不可用，已尝试 ${attempts.length} 个目录: ${detail}`);
+  }
 
   const write = (level, msg) => {
     const line = `${new Date().toISOString()} ${level.padEnd(5)} [${tag}] ${msg}`;
-    if (ready) {
+    if (file) {
       try {
         appendFileSync(file, line + '\n', 'utf8');
       } catch {
-        /* 写不进去就只走宿主日志 */
+        /* 写到一半失败也不能反过来影响插件；mirror 仍在 */
+      }
+    } else {
+      // 没有文件可写时，至少把 ERROR/WARN 打到 stderr/stdout
+      try {
+        // eslint-disable-next-line no-console
+        (level === 'ERROR' ? console.error : console.warn)(line);
+      } catch {
+        /* ignore */
       }
     }
     try {
@@ -65,7 +105,11 @@ export function createFileLogger({ dir, mirror, tag = 'boot' }) {
   };
 
   return {
-    file: ready ? file : '',
+    file,
+    /** 主目录失败、但已成功降级到备用目录 */
+    fallback,
+    /** 每个候选目录的尝试结果，供 apply 写进诊断 */
+    attempts,
     info: (m) => write('INFO', m),
     warn: (m) => write('WARN', m),
     error: (m) => write('ERROR', m),
