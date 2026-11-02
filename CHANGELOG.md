@@ -10,6 +10,8 @@
 
 - #178 review 修复：人工编辑成长正文保存为可召回的人工基线，保留成长历史、证据和回滚，披露规则不放宽；完整人格按 UTF-8 容量校验，支持长中文设定改名；普通保存错误保留可编辑草稿，仅确认包内容变化后要求重新载入。沿用现有字段与人工设定语义，无数据迁移。
 
+- #154 Step 1：新增宿主无关的运行类型、触发、只读运行视图、迁移意图及同步策略契约；仅提供类型声明，不启用中断，不改变运行行为、数据格式或公开配置。
+
 ### English
 
 - #215: Always show the bundled blue-haired chibi character on Home, independently of persona-pack artwork and without a missing-cover placeholder. Studio continues to show associated artwork; no data, API or public configuration changes.
@@ -17,6 +19,8 @@
 - #178: Add dedicated name/text/style/boundary editing and personal-pack create/edit/save-as/copy flows, with automatic lookup beyond catalog pages and version/content conflict checks. Compare settings before application and explain replacement/history; distinguish the applied baseline, growth and saved-pack updates. New applications add optional provenance/digests to the existing persona payload; legacy records remain unknown, without database-schema or pack-format migration. Studio uses the original pack's verified artwork or a neutral placeholder when missing/changed, without automatic image switching or growth merging.
 
 - #178 review fixes: Save manually edited grown text as a recallable authored baseline while retaining growth history, evidence and rollback without relaxing disclosure. Validate complete persona payloads by UTF-8 size so long Chinese settings remain editable. Preserve editable drafts after ordinary save errors and require reload only after observing changed pack content. Existing fields/authored semantics remain compatible without migration.
+
+- #154 Step 1: add host-neutral run kinds, triggers, read-only run views, transition intent and a synchronous policy contract. Declarations only; no interruption is enabled and runtime behavior, data formats and public configuration are unchanged.
 
 ## 0.6.0 — 2026-11-01
 

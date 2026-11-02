@@ -13,6 +13,8 @@ app/runtime 定义不依赖 AstrBot 的会话状态、注意力决策和运行�
 - MemoryContextPort 将运行时输入交给既有 RecallService；Runtime 本身不实现第二套记忆检索。
 - ActionPort 接收临时 ActionRequest（session_id、kind、text），返回 ActionResult（ok、reason）。MessageSender 的布尔发送接口保持兼容；ActionRecord 仍只保存无正文审计信息，执行结果不负责决定审计终态。
 
+`contracts/runs.py` 定义运行控制的基础契约：`RunKind` 区分用户、延迟和主动运行；`RunTrigger` 携带显式时间与可选的 `RuntimeInput`；`ActiveRunView` 只暴露运行标识、会话内代次、类型及开始时间；`RunTransition` 表达启动和取消意图。`RunPolicy.decide(state, trigger, active)` 是同步纯策略，只读输入，不执行模型、存储或动作。这些契约由 `app.runtime.contracts` 导出，尚未接入 AgentRuntime 的运行控制，不改变现有取消及重试行为。
+
 ## 主动策略与动作审计
 
 `DefaultProactivePolicy` 是确定性的纯状态策略。它要求显式传入 `now`，返回下一次可执行时间，并检查到期时间、安静截止时间、冷却、重试、忽略连击退避和尝试次数上限。它不做 I/O、不调用模型、不修改状态；默认关闭，只有 runtime composition 明确启用后才会生效。`plan_proactive_dispatch` 按到期时间排序可执行会话，应用每轮派发上限，并将超出部分作为仍然到期的任务留待后续轮次。宿主通过 `AgentRuntime.schedule_proactive()` 持久化显式到期时间；AstrBot 在启用 proactive 后由消息入口按 `proactive_idle_seconds` 排期。`TopicSource` 从 Source-backed 缓冲投影中提供记忆由头；没有候选时 worker 清除该次主动机会，不发送空主动。
