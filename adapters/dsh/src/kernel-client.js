@@ -210,11 +210,14 @@ export class KernelClient {
     });
   }
 
-  recall({ query, subjectKey }) {
+  recall({ query, subjectKey, speaker }) {
     return this.#call('/recall', {
       method: 'POST',
       body: {
         subject_key: subjectKey,
+        // Who is actually talking. Without it the kernel cannot match the memory subject
+        // and every owner memory is disclosed as if a stranger were listening.
+        speaker: speaker || '',
         query,
         budget_chars: this.#cfg.budgetChars,
         k: this.#cfg.k,

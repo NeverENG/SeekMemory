@@ -82,7 +82,9 @@ export function deriveSubjectKey(payload, config, logger, state) {
 export function registerHostHooks({ ctx, config, kernel, logger, runtime, disposers = [] }) {
   let stopped = false;
   const turns = new Map();
-  disposers.push(() => { stopped = true; turns.clear(); personas.clear(); });
+  // session id -> newest user message id, used to pair the assistant reply that follows.
+  const lastUserTurn = new Map();
+  disposers.push(() => { stopped = true; turns.clear(); lastUserTurn.clear(); personas.clear(); });
   const state = { subjectWarned: false };
   // persona **按主体分槽**：单槽缓存会把 A 的画像注入到 B 的上下文里
   // （只查 TTL 不查 subject = 身份/隐私 bug，review #110 第 1 条）。
@@ -129,8 +131,21 @@ export function registerHostHooks({ ctx, config, kernel, logger, runtime, dispos
         if (type !== 'user/message' && type !== 'assistant/message') return;
         const role = type === 'user/message' ? 'user' : 'assistant';
         const data = event.data ?? {};
-        const text = textOf(data.content) || String(data.text ?? '');
+        // 中间步骤的正文只是“我要去查一下”之类的旁白，真正的回复在收尾消息里。
+        // 实测同一 turn 会有 100+ 条 assistant/message（reasoning/tool-call），
+        // 其中带正文的中间步骤会把同一条 user 消息重复配对，必须跳过。
+        const blocks = data.message?.content;
+        if (role === 'assistant' && Array.isArray(blocks)
+            && blocks.some((block) => block?.type === 'tool-call')) return;
+        const text = role === 'assistant'
+          ? textOf(data.message?.content) || textOf(data.content) || String(data.text ?? '')
+          : textOf(data.content) || String(data.text ?? '');
         if (!text) return;
+        // 宿主注入的消息（召回块 plugin:seekmemory、runtime-context、skill-catalog 等）
+        // 不是用户输入。回灌进记忆会变成"用户说过的话"，还会被再次召回，
+        // 形成自我强化污染。判据与 lastUserMessage() 一致：只认 source.kind === 'user'。
+        const origin = data.source?.kind;
+        if (role === 'user' && origin && origin !== 'user') return;
         const eventTime = eventEpoch(event?.time);
         const payload = {
           subject_key: deriveSubjectKey({ agent: { session } }, config, logger, state),
@@ -138,7 +153,9 @@ export function registerHostHooks({ ctx, config, kernel, logger, runtime, dispos
           role,
           text,
           at: eventTime > 0 ? new Date(eventTime * 1000).toISOString() : '',
-          msg_id: String(data.id ?? ''),
+          msg_id: String(role === 'assistant'
+            ? (data.message?.id ?? data.id ?? '')
+            : (data.id ?? '')),
         };
         // fire-and-forget：捕获失败不能拖慢对话。
         // **必须接 .catch()**：Node 22 下未处理的 rejection 会直接终止宿主进程。
@@ -150,10 +167,28 @@ export function registerHostHooks({ ctx, config, kernel, logger, runtime, dispos
           role: data.role, addressed: data.addressed, replyToMe: data.reply_to_me });
         const key = JSON.stringify([payload.session, payload.msg_id]);
         const capture = (async () => {
+          // A host message ID is not a Source ID: resolve the parent through its own
+          // capture so reply_to carries the kernel-issued source_id.
+          let replyTo = '';
+          if (role === 'assistant') {
+            // DSH does not name the parent message: real assistant events carry only
+            // {turn, step, message:{role,content,source,id}, usage, stream}. Waiting for an
+            // explicit reply_to means never pairing anything, so fall back to the last user
+            // message of this same session (ordering, not content guessing).
+            const explicitId = String(data.message?.reply_to ?? data.message?.replyTo ?? data.reply_to ?? '');
+            const parentId = explicitId || String(lastUserTurn.get(payload.session) ?? '');
+            const parent = parentId && turns.get(JSON.stringify([payload.session, parentId]));
+            if (parent) {
+              const result = await parent.capture;
+              replyTo = String(result?.data?.source_id ?? result?.data?.receipt?.source_id ?? '');
+            }
+            payload.reply_to = replyTo;
+            payload.speaker = 'assistant';
+          }
           const r = await runtime.event(role === 'user' ? 'accept_user' : 'record_reply', payload.subject_key,
             role === 'user' ? { input, event_id: payload.msg_id } : {
               run_id: '', session_id: payload.session, text, speaker_id: 'assistant', turn_id: payload.msg_id,
-              reply_to: '', recall_ids: [],
+              reply_to: replyTo, recall_ids: [],
             });
           if (stopped) return { ok: false, reason: 'runtime_stopped' };
           // Once a runtime write was attempted, a timeout must not trigger a second capture.
@@ -164,6 +199,11 @@ export function registerHostHooks({ ctx, config, kernel, logger, runtime, dispos
           turns.delete(key);
           turns.set(key, { capture, input });
           if (turns.size > 128) turns.delete(turns.keys().next().value);
+          // Remember the newest user message per session so the following assistant reply
+          // can be paired with it even though DSH never states the parent.
+          lastUserTurn.delete(payload.session);
+          lastUserTurn.set(payload.session, payload.msg_id);
+          if (lastUserTurn.size > 256) lastUserTurn.delete(lastUserTurn.keys().next().value);
         }
         void capture
           .then((r) => {
@@ -211,7 +251,7 @@ export function registerHostHooks({ ctx, config, kernel, logger, runtime, dispos
         if (stopped) return decision;
         const r = context.ok ? { ok: true, data: { block: context.data.text } }
           : ['runtime_unsupported', 'runtime_contract_mismatch'].includes(context.reason)
-            ? await kernel.recall({ query, subjectKey: sk }) : context;
+            ? await kernel.recall({ query, subjectKey: sk, speaker: sk }) : context;
         if (stopped) return decision;
         if (!r.ok) {
           logger?.warn?.(`${config.logPrefix} 召回跳过（${r.reason}）`);
