@@ -94,17 +94,21 @@ def _subject_id(item: dict, owner: str, default: str, owner_id: str = "") -> str
     raw = str(item.get("subject_id") or "").strip()
     if not owner_id and owner:
         owner_id = str(owner).split(":")[-1]
-    # The interpreted kind outranks the model's own subject label: a model-invented id
-    # (observed in practice: it echoed an evidence source id) must never displace the
-    # known owner identity, otherwise subject_fit() degrades every owner memory to "other".
+    if raw and raw not in ("owner", "speaker", "self", "world", "relation"):
+        # 唯一要纠正的已知错法：模型把证据 source id 当成主体回填
+        #（实测会把 s_xxx 塞进 subject_id，导致 owner 记忆被判成陌生人、披露分恒 0.35）。
+        # 其余一律保持上游语义——显式 id 优先，user(...) 交给后续校验解包，
+        # 畸形包装（user(unknown) / User(u1)）原样保留，不能被"洗白"成 owner。
+        evidence = {str(x) for x in (item.get("evidence_source_ids") or []) if str(x)}
+        if kind == "owner" and (raw.startswith("s_") or raw in evidence):
+            return owner_id or default
+        return raw
     if kind == "owner":
         return owner_id or default
     if kind in ("world", "relation", "self"):
         return kind
     if kind == "speaker":
         return default
-    if raw and raw not in ("owner", "speaker", "self", "world", "relation"):
-        return raw
     name = str(item.get("subject_name") or "").strip()
     return "third:" + name if name else default
 
