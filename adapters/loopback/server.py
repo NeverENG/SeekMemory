@@ -59,6 +59,8 @@ def make_handler(service: MemoryService, token: str):
                     return self._send(*service.recall(self._read_body()))
                 if path == "/persona" and method == "GET":
                     return self._send(*service.persona(query))
+                if path == "/persona" and method == "POST":
+                    return self._send(*service.persona_write(self._read_body()))
                 if path == "/status" and method == "GET":
                     return self._send(*service.status())
                 if path == "/extract/plan" and method == "GET":

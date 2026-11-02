@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import ProxyHandler, Request, build_opener
@@ -27,14 +28,14 @@ class LoopbackServerContractTest(unittest.TestCase):
         self.assertEqual(MemoryService.__module__, "adapters.loopback.runtime")
 
     def test_cli_endpoints_and_failure_boundary(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as cleanup:
             data_dir = Path(tmp) / "data"
             process = subprocess.Popen(
                 [sys.executable, "-B", "scripts/serve.py", "--data-dir", str(data_dir),
                  "--port", "0", "--token", "test-only-token", "--quiet"],
                 cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
             )
-            self.addCleanup(self._stop, process)
+            cleanup.callback(self._stop, process)
             runtime_file = data_dir / "runtime.json"
             for _ in range(100):
                 if runtime_file.exists():

@@ -5,8 +5,11 @@
 
 from __future__ import annotations
 
+import json
+import os
 import time
 from dataclasses import asdict, is_dataclass
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -16,8 +19,10 @@ from core.domain.memory.graph import Graph
 from perceive.buffer import Buffer
 from recall.retriever import HybridRetriever
 from services.ingest_service import IngestService
+from services.management_service import ManagementService
 from services.recall_service import RecallService
 from services.status_service import StatusService
+from services.persona_evolution_service import PersonaEvolutionService
 from services.tree_service import TreeService
 from store import open_store
 from store.cache import Cache
@@ -110,6 +115,14 @@ class MemoryService:
         self.status_service = StatusService(
             artifacts=self.store.artifacts, ledger=self.store.ledger,
         )
+        self.management_service = ManagementService(
+            self.store.artifacts, self.store.sources, self.store.ledger,
+            self.cache, self.recall_service,
+        )
+        self.persona_evolution = PersonaEvolutionService(
+            self.store.artifacts, self.store.sources, self.cache,
+            min_interval_s=float(self.config.get("persona_min_interval_s", 30.0)),
+        )
 
     def _same_subject(self, requested: Any) -> bool:
         """One database owns one logical subject; hosts may share its stable key.
@@ -139,6 +152,7 @@ class MemoryService:
             str(body.get("speaker") or body.get("sender") or ""),
             str(body.get("msg_id") or body.get("source_id") or ""),
             str(body.get("at") or ""),
+            reply_to=str(body.get("reply_to") or ""),
             role=str(body.get("role") or "user"),
         )
         if turn is None:
@@ -191,11 +205,71 @@ class MemoryService:
             "revision": int(row.get("revision") or 0),
         }
 
+    def persona_write(self, body: dict) -> tuple[int, dict]:
+        """Commit an authored revision and append a content-free audit record."""
+        if not isinstance(body, dict):
+            return 400, {"error": "invalid_body"}
+        if not self._same_subject(body.get("subject_key")):
+            return 403, {"error": "subject_mismatch"}
+        raw_text = body.get("text")
+        if not isinstance(raw_text, str) or not raw_text.strip():
+            return 400, {"error": "text is required"}
+        text = raw_text.strip()
+        if len(text) > 2000:
+            return 400, {"error": "text is too long"}
+        note = body.get("note", "")
+        if not isinstance(note, str) or len(note.strip()) > 300:
+            return 400, {"error": "invalid_note"}
+
+        active = self.cache.active("persona")
+        current = max(active, key=lambda art: art.header.revision) if active else None
+        history = self.store.artifacts.history(current.header.id) if current else []
+        seed = next((row["payload"] for row in reversed(history)
+                     if isinstance(row.get("payload"), dict)
+                     and row["payload"].get("origin") == "seed"), {})
+        reference = seed or (current.payload if current else {})
+        corpus = next((row["payload"]["corpus"] for row in reversed(history)
+                       if isinstance(row.get("payload"), dict)
+                       and isinstance(row["payload"].get("corpus"), list)
+                       and row["payload"]["corpus"]), [])
+        authored = {
+            "id": reference.get("seed_id") or "self-authored",
+            "version": reference.get("seed_version") or "1.0.0",
+            "name": reference.get("persona_name") or "自我",
+            "persona": text,
+            "style": reference.get("style") or {},
+            "boundaries": reference.get("boundaries") or [],
+            "license": reference.get("seed_license") or "",
+            "source": "self-authored via persona_write",
+            "content_rating": reference.get("content_rating") or "general",
+            "locale": reference.get("locale") or "zh-CN",
+        }
+        if corpus:
+            authored["corpus"] = corpus
+        with (self.data_dir / "persona-writes.log").open("a", encoding="utf-8") as audit:
+            result = self.management_service.bootstrap_persona(authored)
+            record = {"at": datetime.now(timezone.utc).isoformat(),
+                      "revision": result["revision"], "chars": len(text),
+                      "note": note.strip()}
+            audit.write(json.dumps(record, ensure_ascii=False) + "\n")
+            audit.flush()
+            os.fsync(audit.fileno())
+        return 200, {"revision": result["revision"], "chars": len(text)}
+
     def status(self) -> tuple[int, dict]:
         return 200, {
             "host_contract": HOST_CONTRACT,
             "phase": "idle",
             "progress": {"phase": "idle", "pending": len(self.buffer.items), "running": 0},
+            "persona_maintenance": {
+                "dirty": self.persona_evolution.dirty,
+                "degraded": self.persona_evolution.degraded,
+                "failures": self.persona_evolution.failures,
+                "last_error": self.persona_evolution.last_error,
+                # A legal no-op must still say why: per-category observation
+                # counts versus the unchanged MIN_EVIDENCE gate.
+                **self.persona_evolution.diagnostics(),
+            },
             "ledger_valid": bool(self.status_service.ledger_valid()),
             "uptime_s": round(time.time() - STARTED_AT),
         }
@@ -204,6 +278,7 @@ class MemoryService:
         """Issue a bounded, in-process task without invoking the model / 生成限量任务，模型由宿主调用。"""
         if not self._same_subject(query.get("subject_key")):
             return 403, {"error": "subject_mismatch"}
+        self.persona_evolution.maybe_run()
         if self.tasks:
             task = next(iter(self.tasks.values()))
             if query.get("subject_key") and task.session_id != str(query["subject_key"]):
@@ -224,7 +299,9 @@ class MemoryService:
             "chat_request": {
                 "system_prompt": task.system_prompt,
                 "prompt": task.prompt,
-                "max_tokens": 800,
+                # Hosts that enable provider-side reasoning share this budget with the answer:
+                # 800 was routinely exhausted before any JSON came out (llm_empty / http_422).
+                "max_tokens": int(self.config.get("extract_max_tokens", 800)),
                 "temperature": 0,
             },
         }
@@ -256,6 +333,13 @@ class MemoryService:
         if outcome.retryable:
             return 503, {"error": "writeback_pending", "retryable": True}
         self.tasks.pop(task_id, None)
+        if outcome.written > 0:
+            try:
+                self.persona_evolution.after_extraction()
+            except Exception as exc:
+                # Maintenance never turns a successful extraction into a 500,
+                # but the reason must stay visible in /status.
+                self.persona_evolution.record_failure(exc)
         return 200, {"written": outcome.written, "skipped": outcome.skipped,
                      "ids": list(outcome.ids), "errors": list(outcome.errors), "retryable": False}
 

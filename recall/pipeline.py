@@ -89,7 +89,17 @@ def query_block(
     lookup = sources.source_umo
     subject = subject_of(speaker, owner_umo)
     owner_id = str(owner_umo or "").split(":")[-1] if owner_umo else ""
-    scene = RecallScene(umo, str(speaker or ""), owner_id, (str(speaker or ""),))
+    # Artifact headers store whatever the ingest layer resolved (in the loopback host that is
+    # the full owner umo), so expose both forms to the disclosure comparison instead of
+    # silently normalising one of them.
+    speaker_id = str(speaker or "")
+    present = tuple(x for x in {speaker_id, str(owner_umo or ""), owner_id} if x)
+    # Opt-in: only a trusted owner 1:1 chat may quote the owner's own private memories
+    # verbatim across sessions (see OWNER_PRIVATE_FULL_MIN).
+    owner_private = (bool(private) and bool(owner_umo)
+                     and _conf_bool(conf, "owner_private_full_enabled", False))
+    scene = RecallScene(umo, speaker_id, str(owner_umo or ""), present,
+                        owner_private=owner_private)
     pinned_arts = visible(pinned(cache, subject), umo, owner_umo, lookup)
     pool = [
         art
