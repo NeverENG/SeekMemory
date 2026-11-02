@@ -293,6 +293,22 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
         await self.call("events")
         await self.call("events", query={"kind": "extract", "search": task["id"]})
 
+    async def test_long_chinese_persona_remains_editable_through_host_adapter(self):
+        service = self.plugin.services.management_service
+        seed = {"id": "host-long", "version": "1", "name": "星灯", "persona": "星" * 20000}
+        installed = service.bootstrap_persona(seed)
+        current = service.artifacts.get(installed["id"])
+        payload = {**current.payload, "persona_name": "新名字"}
+        await self.call("update", {"id": installed["id"], "expectedRevision": installed["revision"],
+            "payload": payload, "scope": "shared", "state": "active", "reason": "Rename", "confirmed": True})
+        self.assertEqual(service.artifacts.get(installed["id"]).payload, payload)
+        before = service.detail(installed["id"])
+        await self.call("update", {"id": installed["id"], "expectedRevision": installed["revision"] + 1,
+            "payload": {**payload, "extra": "星" * 70000}, "scope": "shared", "state": "active",
+            "reason": "Oversized", "confirmed": True}, expected=400)
+        self.assertEqual(service.detail(installed["id"]), before)
+        self.assertEqual(service.cache.get(installed["id"]).payload, payload)
+
     async def test_errors_use_actual_status_and_host_envelope(self):
         await self.call("records", username=None, expected=401)
         await self.call("update", method="GET", expected=405)
@@ -301,7 +317,7 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
         await self.call(
             "update", {**self.command, "expectedRevision": 99}, expected=409
         )
-        await self.call("update", {**self.command, "reason": "x" * 70000}, expected=413)
+        await self.call("update", {**self.command, "reason": "x" * (1024 * 1024)}, expected=413)
         await self.call(
             "diagnose", {"query": "", "umo": "x", "speaker": "x"}, expected=400
         )

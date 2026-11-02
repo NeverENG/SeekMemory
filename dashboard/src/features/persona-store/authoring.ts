@@ -49,6 +49,10 @@ export function copyPack(pack: PersonaBundle): PersonaBundle {
 }
 export function validatePack(pack: PersonaBundle, target: PackLookup | null) {
   return bundleSchema
+    .transform((value) => ({
+      ...value,
+      seed: { ...value.seed, version: value.seed.version.trim() },
+    }))
     .superRefine((value, ctx) => {
       const settings = settingsSchema.safeParse({
         ...value.seed,
@@ -86,6 +90,12 @@ export function validatePack(pack: PersonaBundle, target: PackLookup | null) {
           code: "custom",
           path: ["seed"],
           message: "设定总大小最多 64 KiB，请缩短正文或风格",
+        })
+      if (!value.seed.version)
+        ctx.addIssue({
+          code: "custom",
+          path: ["seed", "version"],
+          message: "请填写包版本号",
         })
       if (target?.pack && value.seed.version === target.pack.seed.version)
         ctx.addIssue({

@@ -66,7 +66,7 @@ void test("dedicated persona edits preserve provenance and metadata; copies keep
     ...settingsFromDetail(detail),
     persona: "Edited",
   })
-  assert.equal(payload["base_text"], "Edited")
+  assert.equal(payload["base_text"], "Original")
   assert.deepEqual(payload["custom"], { keep: true })
   assert.equal(payload["seed_source"], "origin")
   assert.throws(

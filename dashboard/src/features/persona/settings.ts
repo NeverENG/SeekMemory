@@ -48,11 +48,20 @@ export function settingsFromDetail(detail: ArtifactDetail): PersonaSettings {
     boundaries: boundaries.data,
   }
 }
+export function editSettingsSchema(detail: ArtifactDetail) {
+  const original = detail.artifact.payload["text"]
+  return settingsSchema.extend({
+    persona:
+      typeof original === "string"
+        ? z.union([z.literal(original), settingsSchema.shape.persona])
+        : settingsSchema.shape.persona,
+  })
+}
 export function editedPayload(
   detail: ArtifactDetail,
   draft: PersonaSettings
 ): ArtifactDetail["artifact"]["payload"] {
-  const settings = settingsSchema.parse(draft)
+  const settings = editSettingsSchema(detail).parse(draft)
   const payload = {
     ...detail.artifact.payload,
     persona_name: settings.name,
@@ -60,10 +69,9 @@ export function editedPayload(
     style: settings.style,
     boundaries: settings.boundaries,
   }
-  if (
-    "base_text" in payload &&
-    settings.persona !== detail.artifact.payload["text"]
-  )
-    payload["base_text"] = settings.persona
+  if (new TextEncoder().encode(JSON.stringify(payload)).length > 192 * 1024)
+    throw new Error(
+      "人格完整内容最多 192 KiB（UTF-8），请缩短正文、风格或其他元数据后重试"
+    )
   return payload
 }

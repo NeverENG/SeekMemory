@@ -7,7 +7,7 @@ import {
   editedPayload,
   fieldErrors,
   settingsFromDetail,
-  settingsSchema,
+  editSettingsSchema,
   type FieldErrors,
   type PersonaSettings,
 } from "../settings"
@@ -46,7 +46,7 @@ export function PersonaEditor({
   const save = async () => {
     if (!draft || !vm.data || acting.current || blocked || reviewRequired)
       return
-    const result = settingsSchema.safeParse(draft)
+    const result = editSettingsSchema(vm.data).safeParse(draft)
     setErrors(result.success ? {} : fieldErrors(result.error))
     if (!result.success || !reason.trim()) return
     acting.current = true
@@ -66,8 +66,19 @@ export function PersonaEditor({
       await onSaved()
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "保存失败，请重新加载后核对")
-      setReviewRequired(true)
+      setError(
+        e instanceof Error
+          ? e.message
+          : "保存失败，草稿已保留，请检查输入或连接后重试"
+      )
+      try {
+        const current = await client.detail(id)
+        setReviewRequired(
+          current.artifact.header.revision !== vm.data.artifact.header.revision
+        )
+      } catch {
+        // Keep the draft editable; the next write still carries its original CAS revision.
+      }
     } finally {
       acting.current = false
       setBusy(false)

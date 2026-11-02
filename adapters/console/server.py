@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
+from ...app.management_limits import request_body_limit
 from ...webui.console_api import ApiResponse, error
 from .worker import ConsoleWorker
 
@@ -127,7 +128,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 length = int(self.headers.get("Content-Length", "0"))
                 if self.headers.get("Transfer-Encoding") or length < 0:
                     raise ValueError("invalid_length")
-                if length > (3 * 1024 * 1024 if action == "persona" else 65536):
+                if length > request_body_limit(action):
                     self._json(error(413, "请求内容过大"))
                     return
                 body = json.loads(self.rfile.read(length))

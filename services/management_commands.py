@@ -12,6 +12,7 @@ try:
     from ..core.domain.memory.artifact import Lineage, Strength, make, revise, validate
     from ..core.domain.character.bot_behavior import SELF_SUBJECT
     from ..core.domain.character.persona import PERSONA_ORIGIN_SEED, persona_payload_from_file
+    from ..core.domain.character.persona_edit import MAX_PERSONA_PAYLOAD_BYTES, authored_persona_edit
     from ..core.domain.memory.versioning import VersionError
     from ..core.domain.character.persona_application import make_application
 except ImportError:
@@ -19,6 +20,7 @@ except ImportError:
     from core.domain.memory.artifact import Lineage, Strength, make, revise, validate
     from core.domain.character.bot_behavior import SELF_SUBJECT
     from core.domain.character.persona import PERSONA_ORIGIN_SEED, persona_payload_from_file
+    from core.domain.character.persona_edit import MAX_PERSONA_PAYLOAD_BYTES, authored_persona_edit
     from core.domain.memory.versioning import VersionError
     from core.domain.character.persona_application import make_application
 
@@ -49,14 +51,18 @@ def update(artifacts: ArtifactStore, cache: ArtifactCache, body: dict) -> str:
         or not 1 <= len(body["reason"].strip()) <= 300
     ):
         raise ValueError("请填写 1–300 个字符的修改原因")
-    if (
-        not isinstance(body["payload"], dict)
-        or len(json.dumps(body["payload"])) > 50000
-    ):
-        raise ValueError("记忆内容必须为 JSON 对象，序列化后不超过 50,000 个字符")
+    if not isinstance(body["payload"], dict):
+        raise ValueError("记忆内容必须为 JSON 对象")
     art = artifacts.get(body["id"])
     if art is None:
         raise LookupError("记忆不存在")
+    if art.header.family == "persona":
+        size = len(json.dumps(body["payload"], ensure_ascii=False,
+                              separators=(",", ":")).encode("utf-8"))
+        if size > MAX_PERSONA_PAYLOAD_BYTES:
+            raise ValueError("人格完整内容最多 192 KiB（UTF-8），请缩短正文、风格或其他元数据后重试")
+    elif len(json.dumps(body["payload"])) > 50000:
+        raise ValueError("记忆内容序列化后不超过 50,000 个字符")
     if art.header.revision != body["expectedRevision"]:
         raise ValueError("revision_conflict")
     if art.header.state == "merged" and body["state"] != "merged":
@@ -68,6 +74,7 @@ def update(artifacts: ArtifactStore, cache: ArtifactCache, body: dict) -> str:
     replacement = revise(
         art, payload=body["payload"], scope=body["scope"], state=body["state"]
     )
+    replacement = authored_persona_edit(art, replacement)
     validate(replacement)
     try:
         artifacts.commit(

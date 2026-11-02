@@ -9,6 +9,7 @@ from collections import Counter
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from ...app.management_limits import request_body_limit
 from ...services.trace_query import query_traces
 
 if TYPE_CHECKING:
@@ -226,7 +227,7 @@ class WebRoutes:
                 return json_response({"records": service.catalog()})
             if action == "detail":
                 return json_response(service.detail(request.query.get("id", "")))
-            if len(await request.body()) > (3 * 1024 * 1024 if action == "persona" else 65536):
+            if len(await request.body()) > request_body_limit(action):
                 return error_response("请求内容过大", status_code=413)
             body = await request.json()
             if not isinstance(body, dict):

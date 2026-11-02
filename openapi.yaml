@@ -2044,7 +2044,7 @@ components:
       - reason
       - confirmed
       additionalProperties: false
-      description: reason 去除首尾空白后校验；payload 需通过 family 校验，JSON 序列化长度不得超过 50,000。revision 必须等于当前版本；合并状态转换受业务约束。
+      description: reason 去除首尾空白后校验；payload 需通过 family 校验；persona 的完整 payload 以紧凑、非 ASCII 转义 JSON 的 UTF-8 计最多 192 KiB，其他 family 的默认 JSON 序列化长度不得超过 50,000。update 请求体最多 1 MiB（包括 ASCII 转义和外层字段）。revision 必须等于当前版本；合并状态转换受业务约束。
     TaskCommand:
       type: object
       properties:

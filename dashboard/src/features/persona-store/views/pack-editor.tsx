@@ -98,9 +98,16 @@ export function PackEditor({
       onCancel()
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : "保存失败，请重新加载已保存包后核对"
+        e instanceof Error
+          ? e.message
+          : "保存失败，草稿已保留，请检查输入或连接后重试"
       )
-      setReviewRequired(true)
+      try {
+        const current = await client.packLookup(reference)
+        setReviewRequired(current.digest !== lookup.digest)
+      } catch {
+        // A failed read cannot prove a conflict; retry keeps the original CAS token.
+      }
     } finally {
       acting.current = false
       setBusy(false)
@@ -113,7 +120,7 @@ export function PackEditor({
     try {
       const result = await client.packLookup(reference)
       setTarget({ reference, result })
-      if (result.pack)
+      if (reviewRequired && result.pack)
         setPack({
           ...result.pack,
           seed: {
@@ -256,7 +263,9 @@ export function PackEditor({
               void reload()
             }}
           >
-            重新载入已保存包并核对（替换草稿）
+            {reviewRequired
+              ? "重新载入已保存包并核对（替换草稿）"
+              : "重试读取已保存包（保留草稿）"}
           </Button>
         )}
         <div className="flex flex-wrap gap-2">

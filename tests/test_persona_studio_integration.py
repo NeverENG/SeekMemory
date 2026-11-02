@@ -126,6 +126,35 @@ class PersonaStudioTest(unittest.TestCase):
         # A same-ID official pack is never used as a substitute.
         self.assertEqual(self.status()['packApplication']['reference'], ref)
 
+    def test_long_chinese_personas_can_be_renamed_with_complete_metadata(self):
+        for count in (9000, 20000):
+            with self.subTest(chars=count):
+                seed = self.packs.read('official/big_fish')
+                seed.update(id=f'long-{count}', persona='星' * count)
+                ref = self.packs.save(seed)
+                self.install(ref)
+                current = self.cache.active('persona')[0]
+                payload = {**current.payload, 'persona_name': '中文新名字'}
+                self.service.update({'id': current.header.id,
+                    'expectedRevision': current.header.revision, 'payload': payload,
+                    'scope': 'shared', 'state': 'active', 'reason': 'Rename', 'confirmed': True})
+                self.assertEqual(self.cache.get(current.header.id).payload, payload)
+                self.assertEqual(self.store.artifacts.get(current.header.id).payload, payload)
+        self.assertTrue(self.store.ledger.verify())
+
+    def test_oversized_persona_edit_preserves_cache_history_and_ledger(self):
+        result = self.install('official/big_fish')
+        current = self.cache.get(result['id'])
+        before = self.service.detail(result['id'])
+        with self.assertRaisesRegex(ValueError, '192 KiB'):
+            self.service.update({'id': current.header.id,
+                'expectedRevision': current.header.revision,
+                'payload': {**current.payload, 'extra_metadata': '星' * 70000},
+                'scope': 'shared', 'state': 'active', 'reason': 'Too large', 'confirmed': True})
+        self.assertEqual(self.cache.get(result['id']), current)
+        self.assertEqual(self.service.detail(result['id']), before)
+        self.assertTrue(self.store.ledger.verify())
+
     def test_both_growth_policies_keep_the_installed_baseline(self):
         self.install('official/big_fish')
         current = self.cache.active('persona')[0]
