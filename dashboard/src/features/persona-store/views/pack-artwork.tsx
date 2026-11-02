@@ -14,7 +14,7 @@ export function PackArtwork({
     let active = true
     if (key)
       void client
-        .packArtwork(pack.reference)
+        .packArtwork(pack.reference, key.split("@")[1])
         .then((art) => {
           if (active)
             setImage({ key, url: `data:image/png;base64,${art.dataBase64}` })

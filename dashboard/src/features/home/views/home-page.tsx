@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ArrowUpRight, Pause, Play } from "lucide-react"
 import { Button } from "@/ui"
-import avatar from "@/assets/ds-chibi-head.webp"
+import { CurrentArtwork } from "@/features/persona/views/current-artwork"
 import type { ManagementClient, RuntimeStatus } from "@/features/control/model"
 import { useResource } from "@/features/shell/use-resource"
 import { formatDate, ResourceState } from "@/features/shell/page-parts"
@@ -36,9 +36,9 @@ export function HomePage({
   return (
     <div className="console-home">
       <section className="persona-stage">
-        <img
-          src={avatar}
-          alt="蓝发 Q 版角色正面趴在桌边，下巴和两只圆手搭着桌沿"
+        <CurrentArtwork
+          client={client.console}
+          persona={persona ?? null}
           className="stage-avatar"
         />
         <div className="stage-copy">

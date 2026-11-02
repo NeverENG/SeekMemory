@@ -1,5 +1,6 @@
 import {
   artworkSchema,
+  packLookupSchema,
   bundleSchema,
   rollbackResultSchema,
   graphSchema,
@@ -57,6 +58,7 @@ void test("真实后端响应同时满足 OpenAPI 与前端 Zod，覆盖全部�
     dream: dreamSchema,
     packs: packsSchema,
     pack: packDetailSchema,
+    packLookup: packLookupSchema,
     packArtwork: artworkSchema,
     packExport: bundleSchema,
     persona: personaResultSchema,
@@ -133,6 +135,7 @@ void test("生产桥接适配器消费全部成功响应，路径与请求体符
     impressions: () => client.impressions(),
     dream: () => client.dream(),
     packs: () => client.packs("official"),
+    packLookup: () => client.packLookup("mine/big_fish"),
     pack: () => client.pack("official/big_fish"),
     packArtwork: () => client.packArtwork("mine/big_fish"),
     packExport: () => client.packExport("mine/big_fish"),

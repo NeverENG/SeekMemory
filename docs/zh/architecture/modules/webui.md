@@ -57,7 +57,7 @@ Jobs 将手动与定时任务限制为单个活动任务。Journal 保存有界�
 | `GET manage/pack?reference=official/big_fish` | 已校验的规范人格文件，最多 64 KiB |
 | `POST manage/persona` | 必须显式确认的 install、import 或可恢复的 remove；维护任务运行时均拒绝 |
 
-人格包详情包含规范化 seed 的 SHA-256 digest。安装必须带 expectedId、expectedRevision 和 expectedDigest；预览内容改变时，在写入前返回 409。校验后的 seed 交给既有 bootstrap 路径，不创建第二条人格写入路径。
+人格包详情包含规范化完整包的 SHA-256 digest。安装必须带 expectedId、expectedRevision 和 expectedDigest；预览内容改变时，在写入前返回 409。校验后的 seed 交给既有 bootstrap 路径，不创建第二条人格写入路径。
 
 导入只保存蓝图。覆盖已有本地包需要旧 expectedVersion，且新版本必须不同；保留旧文件备份。文件适配器原子发布完整文件，不写 Artifact、Source、账本，也不发起模型请求。官方包只读。
 
@@ -68,7 +68,7 @@ Jobs 将手动与定时任务限制为单个活动任务。Journal 保存有界�
 Dream 明确显示 budget.stopped 和 dream_enabled，避免把预算耗尽当作完整完成，或把关闭调度显示为运行中。
 
 
-人格包图片经 `GET manage/packArtwork?reference=…` 的管理员鉴权返回有界 PNG base64；完整导出使用 `GET manage/packExport?reference=…`，不暴露数据目录。目录仅返回可选、无正文的 artworkRef，图片不塞进目录响应。`POST manage/persona` 新增 importPack 命令，沿用确认、维护任务互斥及 expectedVersion 更新保护；请求体上限为 3 MiB，其他管理写入仍为 64 KiB。设定、图片和许可证共同参与预览 digest，安装只把规范 seed 交给 bootstrap。新包外层格式见[人格种子指南](../../guides/persona-seed.md)。
+人格包图片经 `GET manage/packArtwork?reference=…` 的管理员鉴权返回有界 PNG base64；完整导出使用 `GET manage/packExport?reference=…`，不暴露数据目录。目录仅返回可选、无正文的 artworkRef，图片不塞进目录响应。`POST manage/persona` 新增 importPack 命令，沿用确认、维护任务互斥及 expectedVersion 更新保护；请求体上限为 3 MiB，其他管理写入仍为 64 KiB。设定、图片和许可证共同参与预览 digest，安装把规范 seed 和明确应用关联交给 bootstrap。新包外层格式见[人格种子指南](../../guides/persona-seed.md)。
 
 ## 星图快照与操作
 
@@ -77,3 +77,19 @@ Dream 明确显示 budget.stopped 和 dream_enabled，避免把预算耗尽当�
 前端搜索、类型/时间/范围/对象筛选只作用于当前快照。每次加载或刷新只读取一批最多 120 条记忆；默认显示 80 条，可选 40/80/120。切换数量在前端完成，不重新请求后端，也不预取更大的节点快照。球面网格是装饰，选中后的关联与“只看关联记忆”使用真实图边。“寻找记忆”抽屉提供每页 30 条的键盘列表，选中后可聚焦、打开详情与审计。减少动态效果时跳过入场和持续动画；暂停按钮也可停止动效。
 
 保存人格蓝图使用 `crypto.getRandomValues` 生成随机 ID，兼容普通 HTTP 页面；不依赖仅安全上下文提供的 `crypto.randomUUID`。这不改变宿主登录与接口鉴权要求。
+
+## 人格工作室与应用基线
+
+当前人格使用姓名、正文、表达风格和边界表单；高级 JSON 与审计仍可进入。编辑在同一 Persona ID 上追加 revision，保留其余 payload 元数据及版本证据。修改已成长人格的正文会将新的正文作为后续确定性成长的基础。保存人格包仅保存蓝图；应用是另一项明确确认的操作，不自动合并成长。
+
+“我的包”支持新建、编辑、另存、导入和保存当前人格。官方包只读，可复制为新 ID 的个人包。已有创作样例、结构化风格、语言、分级、许可证和来源完整保留；不支持的导入字段拒绝并提示，不静默丢弃。`GET manage/packLookup?reference=mine/<id>` 返回完整包与内容摘要，缺失时两个值均为 null；不依赖每页 24 个包的目录。前端自动携带读取时的 expectedVersion 和 expectedDigest，新版本仍可编辑。文件适配器通过协作进程共享的 `.write.lock` 串行比较并原子发布，旧文件保留到 `.trash`；内容或版本冲突返回 409，页面要求重新加载核对。
+
+新应用将可选 `pack_application` 写入现有人格 payload：reference、version、pack_digest、settings_digest、artwork_digest。reference 包含 `official/` 或 `mine/`；完整包摘要覆盖规范 seed、许可证正文和封面。设定摘要单独覆盖姓名、正文、style 和 boundaries，排除版本、许可证、来源、语料及封面。摘要使用 UTF-8、排序键、无额外空格的 JSON；封面摘要使用已验证 PNG 的规范 base64 ASCII。metadata 随正常修订、两条成长路径及历史回滚保留；普通管理编辑不能伪造或移除应用关联。
+
+状态响应的 packApplication 为明确关联或 null，并提供当前设定摘要。页面分别表达“基于此包”“当前设定已变化”和“已保存包版本不同”；同版本时也能区分设定与资源/其他元数据变化。旧 seed ID/版本不证明集合或内容关联，旧记录保持未知，不从同名包或历史猜测回填。
+
+应用预览读取当前人格详情，展示姓名、正文、风格和边界对照；确认携带这份详情的 ID/revision 与目标包 digest。取消不写入，冲突后清除确认并要求重新加载。应用追加 revision、替换当前设定并保留历史，不合并成长。
+
+首页和工作室按明确关联读取封面，并向 `manage/packArtwork` 传 expectedDigest，由服务端核对应用时的图片摘要。仅许可证或文字变化不影响仍匹配的图片；封面被替换、原包移除、没有封面或关联未知时显示中性占位。不得切换到另一个同 ID 包。重新应用后才采用新封面。
+
+兼容策略由 Lead 选定：不改变 SQLite 表结构，不回填旧记录，不改变 seed JSON 或 `seekmemory.persona-pack/v1` 外层格式；新增应用信息仅存在于人格 payload，不随蓝图导出。回滚代码时保留包文件和所有人格 revision；旧版本可能忽略或在成长时丢失新增关联，此后界面应显示未知。通过显式重新应用可重新建立关联，不重置数据或删除历史。

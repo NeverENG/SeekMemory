@@ -45,6 +45,17 @@ export const personaRevisionSchema = z.object({
   derivedFrom: z.array(z.string()).default([]),
   sourceIds: z.array(z.string()).default([]),
 })
+export const applicationSchema = z.object({
+  reference: z.string().regex(/^(official|mine)\/[a-z0-9][a-z0-9._-]{1,63}$/),
+  version: z.string(),
+  packDigest: z.string().regex(/^[a-f0-9]{64}$/),
+  settingsDigest: z.string().regex(/^[a-f0-9]{64}$/),
+  currentSettingsDigest: z.string().regex(/^[a-f0-9]{64}$/),
+  artworkDigest: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .nullable(),
+}) satisfies z.ZodType<ApiSchemas["PackApplication"]>
 export const statusSchema = z.object({
   capabilities: z.object({ maintenanceTasks: z.boolean() }).exactOptional(),
   ready: z.boolean(),
@@ -97,6 +108,8 @@ export const statusSchema = z.object({
       origin: z.string().exactOptional(),
       synthesis: z.string().exactOptional(),
       changeReason: z.string().exactOptional(),
+      name: z.string().exactOptional(),
+      packApplication: applicationSchema.nullable().exactOptional(),
       seedId: z.string().exactOptional(),
       seedVersion: z.string().exactOptional(),
       corpusCount: z.number().int().nonnegative().exactOptional(),

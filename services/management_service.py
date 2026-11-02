@@ -53,13 +53,17 @@ class ManagementService:
         """Read a pack and its confirmation digest / 读取人格包及其确认摘要。"""
         return queries.pack_detail(self.packs, reference)
 
+    def pack_lookup(self, reference: str) -> dict:
+        """Resolve an authoring target, including absence / 定位编辑目标，包含不存在的情况。"""
+        return queries.pack_lookup(self.packs, reference)
+
     def pack_export(self, reference: str) -> dict:
         """Read the complete authored pack / 读取完整的人工编写人格包。"""
         return queries.pack_export(self.packs, reference)
 
-    def pack_artwork(self, reference: str) -> dict:
+    def pack_artwork(self, reference: str, expected_digest: str | None = None) -> dict:
         """Read validated artwork metadata / 读取已验证的插画元数据。"""
-        return queries.pack_artwork(self.packs, reference)
+        return queries.pack_artwork(self.packs, reference, expected_digest)
 
     def catalog(self) -> list[dict]:
         """Read management records including inactive memories / 读取含非有效记忆的管理记录。"""

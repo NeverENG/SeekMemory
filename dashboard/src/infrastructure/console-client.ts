@@ -1,5 +1,6 @@
 import {
   artworkSchema,
+  packLookupSchema,
   bundleSchema,
   rollbackResultSchema,
   graphSchema,
@@ -41,14 +42,24 @@ export function consoleClient(bridge: () => Promise<Bridge>): ConsoleClient {
         ).apiGet("manage/packs", { collection, offset: String(offset) })
       )
     },
+    async packLookup(reference) {
+      return packLookupSchema.parse(
+        await (await bridge()).apiGet("manage/packLookup", { reference })
+      )
+    },
     async pack(reference) {
       return packDetailSchema.parse(
         await (await bridge()).apiGet("manage/pack", { reference })
       )
     },
-    async packArtwork(reference) {
+    async packArtwork(reference, expectedDigest) {
       return artworkSchema.parse(
-        await (await bridge()).apiGet("manage/packArtwork", { reference })
+        await (
+          await bridge()
+        ).apiGet("manage/packArtwork", {
+          reference,
+          ...(expectedDigest ? { expectedDigest } : {}),
+        })
       )
     },
     async packExport(reference) {

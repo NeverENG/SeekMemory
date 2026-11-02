@@ -58,7 +58,7 @@ canonical; the production page adapter validates responses with Zod.
 | `GET manage/pack?reference=official/big_fish` | Validated canonical persona file, up to 64 KiB |
 | `POST manage/persona` | Explicitly confirmed `install`, `import` or recoverable `remove`; all reject while maintenance is active |
 
-Pack detail includes a SHA-256 `digest` of the normalized seed. Install requires
+Pack detail includes a SHA-256 `digest` of the normalized complete bundle. Install requires
 `expectedId`, `expectedRevision` and `expectedDigest`; changed preview content
 returns 409 before any write. The already-verified seed delegates to the existing
 bootstrap path. Import saves a blueprint only. Replacing an existing local pack
@@ -79,7 +79,7 @@ Dream renders `budget.stopped` and `dream_enabled` explicitly, rather than treat
 a budget-limited run as full completion or disabled scheduling as active.
 
 
-`GET manage/packArtwork?reference=…` returns bounded PNG base64 through administrator authentication. `GET manage/packExport?reference=…` exports a complete pack without exposing the data directory. Catalogue responses carry only an optional content-free artworkRef, not image bytes. `POST manage/persona` adds importPack, preserving confirmation, maintenance exclusion and expectedVersion checks. Its request limit is 3 MiB; other management writes remain limited to 64 KiB. Preview digests cover seed, license and artwork; installation passes only the canonical seed to bootstrap. See the [persona seed guide](../../guides/persona-seed.md) for the envelope format.
+`GET manage/packArtwork?reference=…` returns bounded PNG base64 through administrator authentication. `GET manage/packExport?reference=…` exports a complete pack without exposing the data directory. Catalogue responses carry only an optional content-free artworkRef, not image bytes. `POST manage/persona` adds importPack, preserving confirmation, maintenance exclusion and expectedVersion checks. Its request limit is 3 MiB; other management writes remain limited to 64 KiB. Preview digests cover seed, license and artwork; installation passes the canonical seed and explicit application association to bootstrap. See the [persona seed guide](../../guides/persona-seed.md) for the envelope format.
 
 ## Graph snapshot and interaction
 
@@ -88,3 +88,19 @@ a budget-limited run as full completion or disabled scheduling as active.
 Search and kind/time/scope/subject filters operate only on this snapshot. Loading or refreshing reads one snapshot of at most 120 nodes. Display defaults to 80 nodes, with 40/80/120 options. Changing the selection is local and does not trigger another request or prefetch a larger snapshot. The sphere mesh is decorative; selected associations and neighborhood isolation use real graph edges. The search drawer provides a keyboard list paginated at 30 rows, followed by focus, detail and audit actions. Reduced motion skips the entrance and continuous animations; a pause control also stops motion.
 
 Saving a persona blueprint uses `crypto.getRandomValues` for random IDs on ordinary HTTP pages, without requiring secure-context `crypto.randomUUID`. Host login and API authentication remain required.
+
+## Persona Studio and application baselines
+
+The active-persona form edits name, text, expression style and boundaries; advanced JSON and audit tools remain available. Editing appends a revision on the same Persona ID, preserving other payload metadata and version evidence. Editing evolved text makes the new text the base for subsequent deterministic growth. Saving a pack only saves a blueprint; applying it is a separate confirmed action and does not merge growth automatically.
+
+My Packs supports create, edit, save-as, import and saving the current persona. Official packs remain read-only and can be copied to a personal pack with a new ID. Authored examples, structured style, locale, rating, license and provenance are preserved; unsupported imported fields are rejected explicitly. `GET manage/packLookup?reference=mine/<id>` returns the complete pack and content digest, both null when absent, independently of the 24-item catalog page. Forms carry the read version and digest automatically; authors still edit the new version. The file adapter uses a shared `.write.lock` to serialize cooperating processes, compare and publish atomically, retaining old files in `.trash`. Version or content conflicts return 409 and require reload/review.
+
+New applications add optional `pack_application` metadata to the existing persona payload: reference, version, pack_digest, settings_digest and artwork_digest. References include `official/` or `mine/`. The complete digest covers the canonical seed, license text and artwork. The settings digest separately covers name, text, style and boundaries, excluding version, license, provenance, examples and artwork. JSON digests use UTF-8, sorted keys and compact separators; artwork digests hash the validated PNG's canonical base64 ASCII. Regular revisions, both growth policies and historical rollback retain this metadata; ordinary management edits cannot forge or remove the association.
+
+Status exposes packApplication or null, including the current settings digest. Labels distinguish the applied pack, changed active settings and a different saved pack version. Same-version edits can also distinguish settings changes from assets/other metadata changes. Legacy seed ID/version cannot prove a collection or content association: older records remain unknown without inferred backfills from matching names or history.
+
+Apply previews read the current persona detail and compare name, text, style and boundaries. Confirmation sends that detail's ID/revision and the reviewed pack digest. Cancel writes nothing; a conflict clears confirmation and requires reload. Applying appends a revision, replaces settings and retains history, without merging growth.
+
+Home and Studio resolve artwork through the explicit association and send expectedDigest to `manage/packArtwork`; the service checks the image against the applied digest. License/text-only changes keep a still-matching image. Replaced artwork, removed packs, missing artwork and unknown associations use a neutral placeholder, never another same-ID pack. Only reapplication adopts new artwork.
+
+The Lead selected an additive compatibility strategy: no SQLite schema change or legacy backfill, and no change to seed JSON or `seekmemory.persona-pack/v1`. Installation metadata stays in the persona payload and is excluded from blueprint exports. Code rollback retains files and all persona revisions; older code may ignore or lose the new association during growth, after which it is shown as unknown. Explicit reapplication establishes a new verified association without resetting data or deleting history.

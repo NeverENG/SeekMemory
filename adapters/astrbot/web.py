@@ -170,7 +170,7 @@ class WebRoutes:
         plugin = self.plugin
         if not request.username:
             return error_response("需要管理员登录", status_code=401)
-        read_actions = {"status", "records", "detail", "events", "traces", "graph", "impressions", "dream", "packs", "pack", "packArtwork", "packExport"}
+        read_actions = {"status", "records", "detail", "events", "traces", "graph", "impressions", "dream", "packs", "pack", "packArtwork", "packExport", "packLookup"}
         write_actions = {"update", "rollbackPersona", "diagnose", "task", "cancel", "persona"}
         if action not in read_actions | write_actions:
             return error_response("未知操作", status_code=404)
@@ -214,8 +214,10 @@ class WebRoutes:
                 return json_response(service.dream_journal())
             if action == "packs":
                 return json_response(service.pack_catalog(request.query.get("collection", "official"), int(request.query.get("offset", "0"))))
+            if action == "packLookup":
+                return json_response(service.pack_lookup(request.query.get("reference", "")))
             if action == "packArtwork":
-                return json_response(service.pack_artwork(request.query.get("reference", "")))
+                return json_response(service.pack_artwork(request.query.get("reference", ""), request.query.get("expectedDigest")))
             if action == "packExport":
                 return json_response(service.pack_export(request.query.get("reference", "")))
             if action == "pack":

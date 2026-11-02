@@ -10,13 +10,20 @@ import tempfile
 import re
 import base64
 import hashlib
+
 from pathlib import Path
+
+from .persona_pack_lock import pack_write_lock
 
 try:
     from ..core.domain.character.persona_pack import normalize_pack, PACK_FORMAT, MAX_PACK_BYTES
+    from ..core.domain.character.persona_application import content_digest, settings_digest
+    from ..core.domain.character.persona import persona_payload_from_file
     from ..core.domain.character.persona_artwork import MAX_ARTWORK_BYTES, validate_artwork
 except ImportError:  # Shared adapters support top-level imports / 共享适配器支持顶层导入。
     from core.domain.character.persona_pack import normalize_pack, PACK_FORMAT, MAX_PACK_BYTES
+    from core.domain.character.persona_application import content_digest, settings_digest
+    from core.domain.character.persona import persona_payload_from_file
     from core.domain.character.persona_artwork import MAX_ARTWORK_BYTES, validate_artwork
 
 ID = re.compile(r'^[a-z0-9][a-z0-9_.-]{1,63}$')
@@ -119,19 +126,29 @@ class FilePersonaPacks:
                 'license': seed['license'], 'source': seed['source'],
                 'contentRating': seed['content_rating'], 'locale': seed['locale'],
                 'artworkRef': self.artwork_ref(reference, bundle),
+                'digest': content_digest(bundle),
+                'settingsDigest': settings_digest(persona_payload_from_file(seed)),
             })
         return {'items': items, 'total': len(ids), 'offset': offset, 'limit': limit}
 
-    def save(self, raw: dict, expected_version: str | None = None) -> str:
+    def save(self, raw: dict, expected_version: str | None = None, *, expected_digest: str | None = None) -> str:
+        """Validate and publish while holding the authoring lock / 持有编辑锁时校验并发布。"""
+        with pack_write_lock(self.personal):
+            return self._save(raw, expected_version, expected_digest)
+
+    def _save(self, raw: dict, expected_version: str | None, expected_digest: str | None) -> str:
         """Publish a complete validated authored pack without overwriting a concurrent new import / 发布完整已验证人工包，不覆盖并发新导入。"""
         bundle = normalize_pack(raw)
         seed = bundle['seed']
         reference = f"mine/{seed['id']}"
         path = self._path(reference)
         if expected_version is not None:
-            previous = self.read(reference)
-            if previous['version'] != expected_version or seed['version'] == expected_version:
-                raise ValueError('人格包版本已变化，或新文件尚未提高版本号')
+            previous_bundle = self.bundle(reference)
+            if (previous_bundle['seed']['version'] != expected_version
+                    or (expected_digest is not None and content_digest(previous_bundle) != expected_digest)):
+                raise ValueError('pack_changed')
+            if seed['version'] == expected_version:
+                raise ValueError('新版本号必须与当前保存的版本不同')
         stored = bundle if isinstance(raw, dict) and raw.get('format') == PACK_FORMAT else seed
         encoded = json.dumps(stored, ensure_ascii=False, indent=2).encode('utf-8')
         if len(encoded) > MAX_PACK_BYTES:
@@ -166,6 +183,11 @@ class FilePersonaPacks:
         return reference
 
     def remove(self, reference: str) -> None:
+        """Serialize removal with authored pack publication / 将移除与人工包发布串行化。"""
+        with pack_write_lock(self.personal):
+            self._remove(reference)
+
+    def _remove(self, reference: str) -> None:
         """Move a personal pack to recoverable trash; never change active persona / 将个人包移至可恢复回收区，不改变有效人格。"""
         if not reference.startswith('mine/'):
             raise ValueError('内置人格包不可移除')

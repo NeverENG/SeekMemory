@@ -1,3 +1,5 @@
+import { CurrentArtwork } from "./current-artwork"
+import { PersonaEditor } from "./persona-editor"
 import { RollbackPanel } from "./rollback-panel"
 import { VersionDiff } from "./version-diff"
 import { useState } from "react"
@@ -24,6 +26,7 @@ export function PersonaPage({
   const persona = status?.persona
   const [selected, setSelected] = useState<number | null>(revision)
   const [evidence, setEvidence] = useState(false)
+  const [editing, setEditing] = useState(false)
   const revisions = [...(persona?.revisions ?? [])].sort(
     (a, b) => b.revision - a.revision
   )
@@ -51,17 +54,48 @@ export function PersonaPage({
                 <h2 className="text-lg font-semibold">当前人格</h2>
                 <Badge>第 {persona.revision} 版</Badge>
               </div>
+              <div className="my-4 flex items-center gap-4">
+                <CurrentArtwork
+                  client={client.console}
+                  persona={persona}
+                  className="h-24 w-24 shrink-0 rounded-xl object-contain"
+                />
+                <div className="min-w-0 text-sm">
+                  <p>{persona.name || "当前人格"}</p>
+                  <p className="wrap-anywhere text-muted-foreground">
+                    {persona.packApplication
+                      ? `基于${persona.packApplication.reference.startsWith("official/") ? "官方包" : "个人包"} ${persona.packApplication.reference.split("/")[1]} · ${persona.packApplication.currentSettingsDigest === persona.packApplication.settingsDigest ? "设定与应用时一致" : "当前设定已变化"}`
+                      : "包来源不确定"}
+                  </p>
+                </div>
+              </div>
               <p className="my-6 leading-8 whitespace-pre-wrap">
                 {persona.text}
               </p>
-              <Button onClick={() => onInspect(persona.id)}>
+              <Button
+                disabled={!status?.ready || !!status.activeTask}
+                onClick={() => setEditing(true)}
+              >
                 <PenLine size={15} />
                 编辑当前人格
+              </Button>
+              <Button variant="ghost" onClick={() => onInspect(persona.id)}>
+                高级编辑与审计
               </Button>
               <p className="mt-3 text-xs text-muted-foreground">
                 编辑会新增版本。需要恢复旧设定时，请在下方选择历史版本并核对差异。
               </p>
             </section>
+          )}
+          {editing && (
+            <PersonaEditor
+              key={persona.id}
+              client={client}
+              id={persona.id}
+              blocked={!status?.ready || !!status.activeTask}
+              onClose={() => setEditing(false)}
+              onSaved={onSaved}
+            />
           )}
           <div className="persona-timeline">
             {revisions.map((item) => (

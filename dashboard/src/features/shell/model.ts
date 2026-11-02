@@ -79,6 +79,14 @@ export const artworkSchema = z.strictObject({
     .regex(/^[A-Za-z0-9+/]+={0,2}$/),
 }) satisfies z.ZodType<ApiResponse<"packArtwork">>
 export const packSchema = z.object({
+  digest: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .exactOptional(),
+  settingsDigest: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .exactOptional(),
   artworkRef: z
     .string()
     .regex(/^(official|mine)\/[a-z0-9][a-z0-9._-]{1,63}@[a-f0-9]{64}$/)
@@ -139,6 +147,10 @@ export const bundleSchema = z.strictObject({
   artwork: artworkSchema.nullable(),
 }) satisfies z.ZodType<ApiResponse<"packExport">>
 export type PersonaBundle = z.infer<typeof bundleSchema>
+export const packLookupSchema = z.union([
+  z.object({ pack: bundleSchema, digest: z.string().regex(/^[a-f0-9]{64}$/) }),
+  z.object({ pack: z.null(), digest: z.null() }),
+]) satisfies z.ZodType<ApiResponse<"packLookup">>
 export const packDetailSchema = z.object({
   licenseText: z.string().max(65536).exactOptional(),
   seed: seedSchema,
@@ -176,8 +188,12 @@ export interface ConsoleClient {
     collection: "official" | "mine",
     offset?: number
   ): Promise<z.infer<typeof packsSchema>>
+  packLookup(reference: string): Promise<z.infer<typeof packLookupSchema>>
   pack(reference: string): Promise<z.infer<typeof packDetailSchema>>
-  packArtwork(reference: string): Promise<z.infer<typeof artworkSchema>>
+  packArtwork(
+    reference: string,
+    expectedDigest?: string
+  ): Promise<z.infer<typeof artworkSchema>>
   packExport(reference: string): Promise<PersonaBundle>
   persona(command: PersonaCommand): Promise<z.infer<typeof personaResultSchema>>
 }
