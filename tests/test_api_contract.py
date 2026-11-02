@@ -293,6 +293,22 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
         await self.call("events")
         await self.call("events", query={"kind": "extract", "search": task["id"]})
 
+    async def test_long_chinese_persona_remains_editable_through_host_adapter(self):
+        service = self.plugin.services.management_service
+        seed = {"id": "host-long", "version": "1", "name": "星灯", "persona": "星" * 20000}
+        installed = service.bootstrap_persona(seed)
+        current = service.artifacts.get(installed["id"])
+        payload = {**current.payload, "persona_name": "新名字"}
+        await self.call("update", {"id": installed["id"], "expectedRevision": installed["revision"],
+            "payload": payload, "scope": "shared", "state": "active", "reason": "Rename", "confirmed": True})
+        self.assertEqual(service.artifacts.get(installed["id"]).payload, payload)
+        before = service.detail(installed["id"])
+        await self.call("update", {"id": installed["id"], "expectedRevision": installed["revision"] + 1,
+            "payload": {**payload, "extra": "星" * 70000}, "scope": "shared", "state": "active",
+            "reason": "Oversized", "confirmed": True}, expected=400)
+        self.assertEqual(service.detail(installed["id"]), before)
+        self.assertEqual(service.cache.get(installed["id"]).payload, payload)
+
     async def test_errors_use_actual_status_and_host_envelope(self):
         await self.call("records", username=None, expected=401)
         await self.call("update", method="GET", expected=405)
@@ -301,7 +317,7 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
         await self.call(
             "update", {**self.command, "expectedRevision": 99}, expected=409
         )
-        await self.call("update", {**self.command, "reason": "x" * 70000}, expected=413)
+        await self.call("update", {**self.command, "reason": "x" * (1024 * 1024)}, expected=413)
         await self.call(
             "diagnose", {"query": "", "umo": "x", "speaker": "x"}, expected=400
         )
@@ -347,8 +363,8 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("PRIVATE_SENTINEL", json.dumps(rejected))
 
     async def test_console_reads_writes_and_guards(self):
-        for action in ("graph", "impressions", "dream", "packs", "pack"):
-            query = {"reference": "official/big_fish"} if action == "pack" else {}
+        for action in ("graph", "impressions", "dream", "packs", "pack", "packLookup"):
+            query = {"reference": "official/big_fish"} if action in {"pack", "packLookup"} else {}
             await self.call(action, query=query)
             await self.call(action, username=None, query=query, expected=401)
             await self.call(action, method="POST", query=query, expected=405)
@@ -414,6 +430,22 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.plugin.store.sources.recent_sources(since="", limit=100), [])
         await self.call("persona", {"operation": "importPack", "pack": complete, "padding": "x" * (3 * 1024 * 1024), "confirmed": True}, expected=413)
 
+    async def test_pack_lookup_and_reviewed_artwork_guards(self):
+        result = await self.call("packLookup", query={"reference": "mine/absent"})
+        self.assertEqual(result, {"pack": None, "digest": None})
+        await self.call("packLookup", query={"reference": "mine/../secret"}, expected=400)
+        from persona_pack_fixture import pack
+        seed = self.plugin.services.management_service.pack_detail("official/big_fish")["seed"]
+        saved = await self.call("persona", {"operation": "importPack", "pack": pack(seed), "confirmed": True})
+        lookup = await self.call("packLookup", query=saved)
+        self.assertEqual(lookup["pack"], pack(seed))
+        await self.call("packArtwork", query={**saved, "expectedDigest": "0" * 64}, expected=409)
+        updated = {**lookup["pack"], "seed": {**seed, "version": "2"}}
+        await self.call("persona", {"operation": "importPack", "pack": updated, "expectedVersion": seed["version"],
+            "expectedDigest": lookup["digest"], "confirmed": True})
+        await self.call("persona", {"operation": "importPack", "pack": updated, "expectedVersion": seed["version"],
+            "expectedDigest": lookup["digest"], "confirmed": True}, expected=409)
+
     async def test_persona_rollback_route_preserves_history_and_guards(self):
         service = self.plugin.services.management_service
         seed = service.pack_detail("official/big_fish")["seed"]
@@ -454,7 +486,7 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
     async def test_contract_rejects_mutated_shapes_and_requests(self):
         for schema in SPEC["components"]["schemas"].values():
             Draft202012Validator.check_schema(schema)
-        self.assertEqual(len(SPEC["paths"]), 18)
+        self.assertEqual(len(SPEC["paths"]), 19)
         result = await self.call("status")
         for bad in ({**result, "ready": "yes"}, {**result, "schedulerCount": -1}):
             with self.assertRaises(ValidationError):

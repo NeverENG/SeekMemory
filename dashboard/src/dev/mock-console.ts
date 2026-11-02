@@ -1,3 +1,4 @@
+import { digest, settingsDigest, artworkDigest } from "./persona-digests.ts"
 import { detailSchema, type ArtifactDetail } from "../features/control/model.ts"
 import type { MemoryRecord } from "../features/memory/model.ts"
 import { recentGraph } from "../features/memory-graph/model.ts"
@@ -30,15 +31,6 @@ export function mockConsole(
         artwork: null,
       }
     )
-  }
-  const digest = async (seed: PersonaSeed | PersonaBundle) => {
-    const bytes = await crypto.subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(JSON.stringify(seed))
-    )
-    return [...new Uint8Array(bytes)]
-      .map((n) => n.toString(16).padStart(2, "0"))
-      .join("")
   }
   return {
     async rollbackPersona(command) {
@@ -173,8 +165,10 @@ export function mockConsole(
           .map(async ([reference, seed]) => ({
             reference,
             artworkRef: bundles.get(reference)?.artwork
-              ? reference + "@" + (await digest(bundleFor(reference)))
+              ? reference + "@" + (await artworkDigest(bundleFor(reference)))
               : null,
+            digest: await digest(bundleFor(reference)),
+            settingsDigest: await settingsDigest(seed),
             id: seed.id,
             name: seed.name,
             version: seed.version,
@@ -192,6 +186,11 @@ export function mockConsole(
         total: items.length,
       }
     },
+    async packLookup(reference) {
+      if (!packs.has(reference)) return { pack: null, digest: null }
+      const pack = bundleFor(reference)
+      return { pack, digest: await digest(pack) }
+    },
     async pack(reference) {
       const seed = packs.get(reference)
       if (!seed) throw new Error("人格包不存在")
@@ -201,7 +200,12 @@ export function mockConsole(
         licenseText: bundleFor(reference).licenseText,
       }
     },
-    async packArtwork(reference) {
+    async packArtwork(reference, expectedDigest) {
+      if (
+        expectedDigest &&
+        expectedDigest !== (await artworkDigest(bundleFor(reference)))
+      )
+        throw new Error("封面已变化")
       const art = bundleFor(reference).artwork
       if (!art) throw new Error("人格包没有封面")
       return art
@@ -214,6 +218,11 @@ export function mockConsole(
         const bundle = bundleSchema.parse(command.pack)
         const reference = "mine/" + bundle.seed.id
         const previous = packs.get(reference)
+        if (
+          command.expectedDigest &&
+          command.expectedDigest !== (await digest(bundleFor(reference)))
+        )
+          throw new Error("人格包已变化，请重新加载")
         if (
           command.expectedVersion
             ? !previous ||
@@ -271,6 +280,18 @@ export function mockConsole(
         origin: "seed",
         seed_id: seed.id,
         seed_version: seed.version,
+        persona_name: seed.name,
+        style: seed.style ?? {},
+        boundaries: seed.boundaries ?? [],
+        seed_license: seed.license ?? "",
+        seed_source: seed.source ?? "",
+        pack_application: {
+          reference: command.reference,
+          version: seed.version,
+          pack_digest: await digest(bundleFor(command.reference)),
+          settings_digest: await settingsDigest(seed),
+          artwork_digest: await artworkDigest(bundleFor(command.reference)),
+        },
       }
       current.versions.push({
         revision: current.artifact.header.revision,

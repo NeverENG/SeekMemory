@@ -12,13 +12,17 @@ try:
     from ..core.domain.memory.artifact import Lineage, Strength, make, revise, validate
     from ..core.domain.character.bot_behavior import SELF_SUBJECT
     from ..core.domain.character.persona import PERSONA_ORIGIN_SEED, persona_payload_from_file
+    from ..core.domain.character.persona_edit import MAX_PERSONA_PAYLOAD_BYTES, authored_persona_edit
     from ..core.domain.memory.versioning import VersionError
+    from ..core.domain.character.persona_application import make_application
 except ImportError:
     from app.ports import ArtifactStore, ArtifactCache, PersonaPacks
     from core.domain.memory.artifact import Lineage, Strength, make, revise, validate
     from core.domain.character.bot_behavior import SELF_SUBJECT
     from core.domain.character.persona import PERSONA_ORIGIN_SEED, persona_payload_from_file
+    from core.domain.character.persona_edit import MAX_PERSONA_PAYLOAD_BYTES, authored_persona_edit
     from core.domain.memory.versioning import VersionError
+    from core.domain.character.persona_application import make_application
 
 from .management_queries import pack_digest, json_object, _persona_version_header
 
@@ -47,21 +51,30 @@ def update(artifacts: ArtifactStore, cache: ArtifactCache, body: dict) -> str:
         or not 1 <= len(body["reason"].strip()) <= 300
     ):
         raise ValueError("请填写 1–300 个字符的修改原因")
-    if (
-        not isinstance(body["payload"], dict)
-        or len(json.dumps(body["payload"])) > 50000
-    ):
-        raise ValueError("记忆内容必须为 JSON 对象，序列化后不超过 50,000 个字符")
+    if not isinstance(body["payload"], dict):
+        raise ValueError("记忆内容必须为 JSON 对象")
     art = artifacts.get(body["id"])
     if art is None:
         raise LookupError("记忆不存在")
+    if art.header.family == "persona":
+        size = len(json.dumps(body["payload"], ensure_ascii=False,
+                              separators=(",", ":")).encode("utf-8"))
+        if size > MAX_PERSONA_PAYLOAD_BYTES:
+            raise ValueError("人格完整内容最多 192 KiB（UTF-8），请缩短正文、风格或其他元数据后重试")
+    elif len(json.dumps(body["payload"])) > 50000:
+        raise ValueError("记忆内容序列化后不超过 50,000 个字符")
+    if art.header.revision != body["expectedRevision"]:
+        raise ValueError("revision_conflict")
     if art.header.state == "merged" and body["state"] != "merged":
         raise ValueError("已合并的记忆不能独立恢复")
     if art.header.state != "merged" and body["state"] == "merged":
         raise ValueError("请通过维护任务合并记忆，以保留派生关系")
+    if art.header.family == "persona" and body["payload"].get("pack_application") != art.payload.get("pack_application"):
+        raise ValueError("包应用来源只能通过明确应用人格包修改")
     replacement = revise(
         art, payload=body["payload"], scope=body["scope"], state=body["state"]
     )
+    replacement = authored_persona_edit(art, replacement)
     validate(replacement)
     try:
         artifacts.commit(
@@ -77,9 +90,11 @@ def update(artifacts: ArtifactStore, cache: ArtifactCache, body: dict) -> str:
     return replacement.header.id
 
 
-def bootstrap_persona(artifacts: ArtifactStore, cache: ArtifactCache, seed_file: dict) -> dict:
+def bootstrap_persona(artifacts: ArtifactStore, cache: ArtifactCache, seed_file: dict, *, application: dict | None = None) -> dict:
     """Commit an authored seed and retire other personas atomically; create no Source / 原子提交人工设定并停用其他人格，不创建原始消息。"""
     payload = persona_payload_from_file(seed_file)
+    if application is not None:
+        payload["pack_application"] = application
     active = sorted(cache.active("persona"), key=lambda art: (
         art.header.subject_id != SELF_SUBJECT,
         art.header.time.created,
@@ -206,7 +221,7 @@ def persona_action(artifacts: ArtifactStore, cache: ArtifactCache, packs: Person
         "remove": {"operation", "reference", "confirmed"},
         "install": {"operation", "reference", "expectedId", "expectedRevision", "expectedDigest", "confirmed"},
     }
-    if not isinstance(operation, str) or operation not in fields or set(body) - ({"expectedVersion"} if operation in {"import", "importPack"} else set()) != fields[operation]:
+    if not isinstance(operation, str) or operation not in fields or set(body) - ({"expectedVersion", "expectedDigest"} if operation in {"import", "importPack"} else set()) != fields[operation]:
         raise ValueError("人格操作字段无效")
 
     reference = body.get("reference", "")
@@ -216,7 +231,11 @@ def persona_action(artifacts: ArtifactStore, cache: ArtifactCache, packs: Person
         expected = body.get("expectedVersion")
         if "expectedVersion" in body and not isinstance(expected, str):
             raise ValueError("人格包版本无效")
-        return {"reference": packs.save(body.get("seed" if operation == "import" else "pack"), expected)}
+        digest = body.get("expectedDigest")
+        if "expectedDigest" in body and (not isinstance(digest, str) or expected is None):
+            raise ValueError("更新摘要或版本无效")
+        raw = body.get("seed" if operation == "import" else "pack")
+        return {"reference": packs.save(raw, expected, expected_digest=digest) if digest is not None else packs.save(raw, expected)}
     if operation == "remove":
         packs.remove(reference)
         return {"reference": reference}
@@ -232,4 +251,5 @@ def persona_action(artifacts: ArtifactStore, cache: ArtifactCache, packs: Person
     bundle = packs.bundle(reference)
     if body.get("expectedDigest") != pack_digest(bundle):
         raise ValueError("pack_changed")
-    return bootstrap_persona(artifacts, cache, bundle["seed"])
+    return bootstrap_persona(artifacts, cache, bundle["seed"],
+                             application=make_application(reference, bundle))

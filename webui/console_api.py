@@ -10,7 +10,7 @@ from ..services.trace_query import query_traces
 
 READ_ACTIONS = frozenset({
     "status", "records", "detail", "events", "traces", "graph", "impressions",
-    "dream", "packs", "pack", "packArtwork", "packExport",
+    "dream", "packs", "pack", "packArtwork", "packExport", "packLookup",
 })
 WRITE_ACTIONS = frozenset({
     "update", "rollbackPersona", "diagnose", "persona", "task", "cancel",
@@ -92,6 +92,8 @@ class ConsoleApi:
         if action == "packs":
             return service.pack_catalog(query.get("collection", "official"),
                                         int(query.get("offset", "0")))
+        if action == "packArtwork":
+            return service.pack_artwork(query.get("reference", ""), query.get("expectedDigest"))
         readers = {"pack": service.pack_detail, "packArtwork": service.pack_artwork,
-                   "packExport": service.pack_export}
+                   "packExport": service.pack_export, "packLookup": service.pack_lookup}
         return readers[action](query.get("reference", ""))

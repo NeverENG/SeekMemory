@@ -70,6 +70,8 @@ def prepare_persona(candidates: list[Artifact], old_personas: list[Artifact]) ->
         }
     else:
         payload = {"text": behavior_text, "behaviors": kinds}
+    if base is not None and isinstance(base.payload.get("pack_application"), dict):
+        payload["pack_application"] = dict(base.payload["pack_application"])
     lineage = Lineage(
         sources=tuple(sorted({s for a in chosen for s in a.header.lineage.sources})),
         derived_from=tuple(a.header.id for a in chosen),

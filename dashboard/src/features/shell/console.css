@@ -853,3 +853,11 @@
     gap: 24px;
   }
 }
+
+.persona-artwork-fallback {
+  display: grid;
+  place-items: center;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 3rem;
+}

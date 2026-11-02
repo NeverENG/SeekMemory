@@ -921,6 +921,72 @@ paths:
         schema:
           type: string
           pattern: ^(official|mine)/[a-z0-9][a-z0-9._-]{1,63}$
+  /manage/packLookup:
+    get:
+      operationId: packLookup
+      summary: 按完整引用查找编辑目标，不依赖目录分页
+      responses:
+        '200':
+          description: 操作成功，直接返回数据，无额外 envelope。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackLookupResponse'
+        '403':
+          description: 请求来源不允许（独立控制台）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未登录管理员
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 记忆或操作不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: 请求方法不支持
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 未预期的内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 记忆引擎不可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: 输入无效或版本冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 输入无效或版本冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: reference
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^(official|mine)/[a-z0-9][a-z0-9._-]{1,63}$
   /manage/persona:
     post:
       operationId: persona
@@ -1125,6 +1191,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       parameters:
+      - name: expectedDigest
+        in: query
+        required: false
+        description: 应用时或目录预览时的封面摘要；不匹配返回 409，不替换图片。
+        schema:
+          type: string
+          pattern: ^[a-f0-9]{64}$
       - name: reference
         in: query
         required: true
@@ -1675,6 +1748,12 @@ components:
           type: string
         seedVersion:
           type: string
+        name:
+          type: string
+        packApplication:
+          anyOf:
+          - $ref: '#/components/schemas/PackApplication'
+          - type: 'null'
       required:
       - id
       - revision
@@ -1965,7 +2044,7 @@ components:
       - reason
       - confirmed
       additionalProperties: false
-      description: reason 去除首尾空白后校验；payload 需通过 family 校验，JSON 序列化长度不得超过 50,000。revision 必须等于当前版本；合并状态转换受业务约束。
+      description: reason 去除首尾空白后校验；payload 需通过 family 校验；persona 的完整 payload 以紧凑、非 ASCII 转义 JSON 的 UTF-8 计最多 192 KiB，其他 family 的默认 JSON 序列化长度不得超过 50,000。update 请求体最多 1 MiB（包括 ASCII 转义和外层字段）。revision 必须等于当前版本；合并状态转换受业务约束。
     TaskCommand:
       type: object
       properties:
@@ -2485,6 +2564,12 @@ components:
           type: string
         locale:
           type: string
+        digest:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        settingsDigest:
+          type: string
+          pattern: ^[a-f0-9]{64}$
         artworkRef:
           type:
           - string
@@ -2595,6 +2680,47 @@ components:
         licenseText:
           type: string
           maxLength: 65536
+    PackLookupResponse:
+      oneOf:
+      - type: object
+        additionalProperties: false
+        required: [pack, digest]
+        properties:
+          pack:
+            $ref: '#/components/schemas/PersonaBundle'
+          digest:
+            type: string
+            pattern: ^[a-f0-9]{64}$
+      - type: object
+        additionalProperties: false
+        required: [pack, digest]
+        properties:
+          pack:
+            type: 'null'
+          digest:
+            type: 'null'
+    PackApplication:
+      type: object
+      additionalProperties: false
+      required: [reference, version, packDigest, settingsDigest, currentSettingsDigest, artworkDigest]
+      properties:
+        reference:
+          type: string
+          pattern: ^(official|mine)/[a-z0-9][a-z0-9._-]{1,63}$
+        version:
+          type: string
+        packDigest:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        settingsDigest:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        currentSettingsDigest:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        artworkDigest:
+          type: [string, 'null']
+          pattern: ^[a-f0-9]{64}$
     PersonaCommand:
       oneOf:
       - type: object
@@ -2638,6 +2764,9 @@ components:
             const: true
           expectedVersion:
             type: string
+          expectedDigest:
+            type: string
+            pattern: ^[a-f0-9]{64}$
       - type: object
         additionalProperties: false
         required:
@@ -2666,6 +2795,9 @@ components:
             const: true
           expectedVersion:
             type: string
+          expectedDigest:
+            type: string
+            pattern: ^[a-f0-9]{64}$
     PersonaResult:
       oneOf:
       - type: object

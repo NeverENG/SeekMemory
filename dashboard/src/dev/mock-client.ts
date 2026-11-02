@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { applicationView } from "./persona-digests.ts"
 import { mockConsole } from "./mock-console.ts"
 import {
   memoryCollectionSchema,
@@ -437,6 +438,12 @@ export const mockClient: ManagementClient = {
       },
       persona: {
         id: "n_persona_mock",
+        name: stringValue(
+          details.get("n_persona_mock")?.artifact.payload["persona_name"]
+        ),
+        packApplication: await applicationView(
+          details.get("n_persona_mock")?.artifact.payload ?? {}
+        ),
         seedId: stringValue(
           details.get("n_persona_mock")?.artifact.payload["seed_id"]
         ),

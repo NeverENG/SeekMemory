@@ -13,8 +13,11 @@ except ImportError:
 
 try:
     from ..app.ports import ArtifactStore, LedgerStore
+    from ..core.domain.character.persona_application import application_status
 except ImportError:
     from app.ports import ArtifactStore, LedgerStore
+    from core.domain.character.persona_application import application_status
+
 
 
 class StatusService:
@@ -98,6 +101,8 @@ class StatusService:
             "origin": str(current.payload.get("origin") or ""),
             "synthesis": str(current.payload.get("synthesis") or ""),
             "changeReason": str(current.payload.get("change_reason") or ""),
+            "name": str(current.payload.get("persona_name") or ""),
+            "packApplication": application_status(current.payload),
             "seedId": str(current.payload.get("seed_id") or ""),
             "seedVersion": str(current.payload.get("seed_version") or ""),
             "corpusCount": int(

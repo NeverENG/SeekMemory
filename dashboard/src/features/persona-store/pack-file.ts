@@ -6,7 +6,20 @@ export const MAX_ARTWORK_BYTES = 2 * 1024 * 1024
 export function parsePackFile(text: string): PersonaBundle {
   if (new TextEncoder().encode(text).length > MAX_PACK_BYTES)
     throw new Error("人格包不能超过 3 MiB")
-  const value: unknown = JSON.parse(text)
+  let value: unknown = JSON.parse(text)
+  if (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    "persona_text" in value &&
+    !("format" in value)
+  ) {
+    const { persona_text, ...rest } = value
+    value = {
+      ...rest,
+      persona: "persona" in value ? value.persona : persona_text,
+    }
+  }
   if (typeof value === "object" && value !== null && "format" in value)
     return bundleSchema.parse(value)
   if (new TextEncoder().encode(text).length > 65536)
