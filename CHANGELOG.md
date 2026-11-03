@@ -10,7 +10,7 @@
 
 - #178 review 修复：人工编辑成长正文保存为可召回的人工基线，保留成长历史、证据和回滚，披露规则不放宽；完整人格按 UTF-8 容量校验，支持长中文设定改名；普通保存错误保留可编辑草稿，仅确认包内容变化后要求重新载入。沿用现有字段与人工设定语义，无数据迁移。
 
-- #154：新增同 lane 的运行控制契约及独立内存 RunControl，提供幂等逻辑覆盖、epoch、旧句柄安全清理和动作开始检查点；失效不取消已开始任务，不表示撤销或让位。尚未接入 Runtime/宿主，不改变现有运行行为、数据格式或公开配置。
+- #154：新增同 lane 运行控制契约及独立内存 RunControl；显式覆盖后才可替换有效运行，结束句柄拒绝新动作，清理不影响其他控制器或替代运行。实例级单调代次避免保留历史 lane 键，已开始工作仍保留真实结果；尚未接入 Runtime/宿主，不改现有运行行为、数据格式或公开配置。
 
 ### English
 
@@ -20,7 +20,7 @@
 
 - #178 review fixes: Save manually edited grown text as a recallable authored baseline while retaining growth history, evidence and rollback without relaxing disclosure. Validate complete persona payloads by UTF-8 size so long Chinese settings remain editable. Preserve editable drafts after ordinary save errors and require reload only after observing changed pack content. Existing fields/authored semantics remain compatible without migration.
 
-- #154: add same-lane run-control contracts and a standalone in-memory RunControl with idempotent logical supersession, epochs, safe stale-handle cleanup and an action-start checkpoint. Invalidation does not cancel started tasks or imply rollback/yield. Runtime/host integration is not enabled; existing behavior, data formats and public configuration are unchanged.
+- #154: add same-lane run-control contracts and a standalone in-memory RunControl. Replacing valid work requires explicit supersession; finished handles reject new actions, and cleanup preserves other controllers/replacement runs. Instance-wide monotonic epochs avoid retaining historical lane keys while started work keeps its actual outcome. Runtime/host integration is not enabled; existing behavior, data formats and public configuration are unchanged.
 
 ## 0.6.0 — 2026-11-01
 

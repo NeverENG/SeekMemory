@@ -13,11 +13,13 @@ app/runtime 定义不依赖 AstrBot 的会话状态、注意力决策和运行�
 - MemoryContextPort 将运行时输入交给既有 RecallService；Runtime 本身不实现第二套记忆检索。
 - ActionPort 接收临时 ActionRequest（session_id、kind、text），返回 ActionResult（ok、reason）。MessageSender 的布尔发送接口保持兼容；ActionRecord 仍只保存无正文审计信息，执行结果不负责决定审计终态。
 
-`contracts/runs.py` 定义同 lane 运行控制契约，并由 `app.runtime.contracts` 导出。`RunKind` 区分用户、延迟和主动运行；`RunTrigger` 携带显式时间与可选的 `RuntimeInput`，调用方负责在策略执行前接纳用户输入并排除过期/重放；该数据对象本身不执行接纳。`ActiveRunView` 只暴露运行标识、lane、代次、类型、开始时间及 `action_started`，不含正文或工具参数。`RunTransition.supersede_active` 表达旧计划的逻辑失效，只阻止未开始动作，不表示宿主调用已经终止、动作已撤销或任务已让位。`RunPolicy.decide(state, trigger, active)` 是同步纯策略，不修改输入、不执行 I/O，也不决定全局优先级或 `YIELD`；若保留旧运行，调用方须有可靠待处理入口并保证之后重评估，否则使用默认覆盖策略。
+`contracts/runs.py` 定义同 lane 运行控制契约，并由 `app.runtime.contracts` 导出。`RunKind` 区分用户、延迟和主动运行；`RunTrigger` 携带显式时间与可选的 `RuntimeInput`，调用方负责在策略执行前接纳用户输入并排除过期/重放；该数据对象本身不执行接纳。`ActiveRunView` 只暴露运行标识、lane、代次、类型、开始时间及 `action_started`，不含正文或工具参数。`RunTransition.supersede_active` 表达旧计划的逻辑失效，只阻止未开始动作，不表示宿主调用已经终止、动作已撤销或任务已让位。`start_new=True, supersede_active=False` 在没有有效运行时允许启动；存在有效运行时保留旧句柄，`begin()` 返回空，替换须先显式应用覆盖意图。`RunPolicy.decide(state, trigger, active)` 是同步纯策略，不修改输入、不执行 I/O，也不决定全局优先级或 `YIELD`；若保留旧运行，调用方须有可靠待处理入口并保证之后重评估，否则使用默认覆盖策略。
 
-`runs.py` 提供独立的内存组件 `RunControl` 与 `RunHandle`，由同一事件循环线程使用。`lane_id` 是实例内的覆盖范围，不等于记忆 `subject_key` 或全局会话身份；只有已经确认宿主与机器人实例隔离的路径才能复用现有 `session_id`，不据此生成或修改持久化会话键。`begin(lane_id, trigger)` 在调用方准入后创建新编号、递增该 lane 的 epoch，并使同 lane 旧句柄失效；其他 lane 不受影响。`supersede(lane_id, run_id)` 仅使匹配运行失效，首次返回真并保留原因，重复或过期请求返回假。`finish()` 只移除同一个当前句柄并保留 epoch，旧运行的延迟清理不能移除新运行；`current()` 不创建状态。
+`runs.py` 提供独立的内存组件 `RunControl` 与 `RunHandle`，由同一事件循环线程使用。`lane_id` 是实例内的覆盖范围，不等于记忆 `subject_key` 或全局会话身份；只有已经确认宿主与机器人实例隔离的路径才能复用现有 `session_id`，不据此生成或修改持久化会话键。`begin(lane_id, trigger)` 仅在没有有效当前句柄时创建运行，否则返回空，不自动覆盖；获准替换时，由调用方先执行 `supersede(lane_id, run_id)`，首次失效返回真并保留原因，重复、已关闭或过期请求返回假。其他 lane 不受影响。`finish()` 幂等关闭本控制器创建的句柄，且仅当它是当前同一个句柄时移除活动记录；被替换旧运行的结束不清除新运行，其他控制器及复制句柄的结束不影响原运行。`current()` 不创建状态。
 
-句柄只保存元数据及可等待的 `superseded` 有效性信号，不持有触发对象、消息、prompt、工具参数或宿主任务。`raise_if_superseded()` 在协作检查点抛出 `RunSupersededError`，区别于 `asyncio.CancelledError`，不会取消任务。`mark_action_started()` 在端口调用边界同步检查有效性并记录开始；只读 `view()` 是独立快照。已开始标记在运行失效后仍保留，但不表示动作成功、失败或已收到回执；后续未开始动作仍须通过有效性检查。该标记不提供外部调用的原子撤销或回执核对。
+epoch 由控制器实例的单调计数器发放，同 lane 重开及跨 lane 交错后仍严格递增，但不保证逐 lane 从 1 开始或连续。控制器不为已结束 lane 保留代次字典，仅持有活动记录和实例计数；调用方释放已结束句柄后，其 lane 身份可被回收。epoch 不跨实例或重启比较，也不表示全局调度优先级；运行身份仍结合 run_id 与实际句柄校验。
+
+句柄只保存元数据、独立 `closed` 状态、无控制器引用的私有归属标记及可等待的 `superseded` 信号，不持有触发对象、消息、prompt、工具参数或宿主任务。`is_valid()` 仅在未关闭且未覆盖时为真；`raise_if_invalid()` 对关闭句柄抛出 `RunClosedError`，对被覆盖句柄抛出 `RunSupersededError`，均区别于 `asyncio.CancelledError`。结束不设置 superseded 信号，关闭后的覆盖请求也不改写结束原因。`mark_action_started()` 在端口调用边界同步检查有效性并记录开始；只读 `view()` 是元数据快照，不替代实时有效性检查。已开始标记在关闭/覆盖后仍保留，已开始工作可继续返回真实结果；标记不表示成功、失败或已收到回执，也不提供外部调用的原子撤销或回执核对。
 
 这些组件尚未接入 AgentRuntime、模型、ActionExecutor 或宿主发送路径，也未提供默认策略、输入去重或待处理重评估。有效性信号不代表已请求宿主 abort 或已安全让位；宿主 abort、全局调度和恢复由各自边界处理。现有运行、取消与重试行为保持原样，不新增存储或公开配置，也不提供跨线程、跨进程控制及旧 handle 的重启恢复。
 

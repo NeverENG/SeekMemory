@@ -12,6 +12,10 @@ from uuid import uuid4
 from .contracts.runs import ActiveRunView, RunKind, RunTrigger
 
 
+class RunClosedError(Exception):
+    """Finished work reached a checkpoint; not supersession / 已结束运行到达检查点，区别于被覆盖。"""
+
+
 class RunSupersededError(Exception):
     """An obsolete plan reached a checkpoint; not asyncio cancellation / 旧计划到达检查点，区别于 asyncio 取消。"""
 
@@ -31,6 +35,8 @@ class RunHandle:
     superseded: asyncio.Event = field(default_factory=asyncio.Event, init=False, repr=False)
     supersede_reason: str = field(default="", init=False)
     action_started: bool = field(default=False, init=False)
+    closed: bool = field(default=False, init=False)
+    _owner: object | None = field(default=None, init=False, repr=False)
 
     def view(self) -> ActiveRunView:
         """Return a read-only snapshot for policy evaluation / 返回供策略判断的只读快照。"""
@@ -43,7 +49,7 @@ class RunHandle:
 
         幂等使未开始动作失效，保留已开始动作及最初原因；不取消宿主任务。
         """
-        if self.is_superseded():
+        if not self.is_valid():
             return False
         self.supersede_reason = reason
         self.superseded.set()
@@ -53,8 +59,14 @@ class RunHandle:
         """Read logical supersession without changing it / 只读逻辑失效状态。"""
         return self.superseded.is_set()
 
-    def raise_if_superseded(self) -> None:
-        """Stop an obsolete plan at a cooperative checkpoint / 在协作检查点阻止旧计划继续。"""
+    def is_valid(self) -> bool:
+        """Only unfinished, unsuperseded work may advance / 仅未结束且未被覆盖的运行可继续推进。"""
+        return not self.closed and not self.is_superseded()
+
+    def raise_if_invalid(self) -> None:
+        """Reject finished or superseded work at a cooperative checkpoint / 在协作检查点拒绝已结束或被覆盖的运行。"""
+        if self.closed:
+            raise RunClosedError("closed")
         if self.is_superseded():
             raise RunSupersededError(self.supersede_reason)
 
@@ -63,36 +75,47 @@ class RunHandle:
 
         在端口调用边界检查有效性并记录开始，期间不让出执行权；不代表收到回执。
         """
-        self.raise_if_superseded()
+        self.raise_if_invalid()
         self.action_started = True
 
 
 class RunControl:
-    """Own handles/epochs on one event-loop thread; callers resolve lanes and admission.
+    """Own active handles and an instance epoch on one event-loop thread.
 
-    在同一事件循环线程持有句柄/代次；调用方确认 lane 隔离及准入，不推导记忆主体。
+    Callers resolve lanes and admission; finished lane keys are not retained.
+
+    在同一事件循环线程持有活动句柄及实例代次；调用方确认 lane 和准入，不保留已结束 lane 键。
     """
 
     def __init__(self) -> None:
         self._active: dict[str, RunHandle] = {}
-        self._epochs: dict[str, int] = {}
+        self._epoch = 0
+        self._owner = object()
 
-    def begin(self, lane_id: str, trigger: RunTrigger) -> RunHandle:
-        """Replace admitted work in this lane, leaving other lanes and started actions alone.
+    def begin(self, lane_id: str, trigger: RunTrigger) -> RunHandle | None:
+        """Start admitted work only when this lane has no valid current handle.
 
-        准入后替换同 lane 运行，使旧计划失效；其他 lane 和已开始动作不受干预。
+        Return None without superseding work; callers must apply supersession explicitly.
+
+        仅在同 lane 没有有效当前句柄时启动；否则返回空，不隐式覆盖，由调用方显式应用覆盖意图。
         """
-        epoch = self._epochs.get(lane_id, 0) + 1
-        handle = RunHandle(lane_id, uuid4().hex, epoch, trigger.kind, trigger.now)
         previous = self.current(lane_id)
-        if previous is not None:
-            previous.supersede()
-        self._epochs[lane_id] = epoch
+        if previous is not None and previous.is_valid():
+            return None
+        self._epoch += 1
+        handle = RunHandle(lane_id, uuid4().hex, self._epoch, trigger.kind, trigger.now)
+        handle._owner = self._owner
         self._active[lane_id] = handle
         return handle
 
     def finish(self, handle: RunHandle) -> None:
-        """Release only this exact active handle; retain the lane epoch / 仅释放当前同一句柄，保留 lane 代次。"""
+        """Close owned work idempotently; release only the exact current handle.
+
+        幂等关闭本控制器创建的运行；仅移除同一个当前句柄，不影响替代运行或其他控制器。
+        """
+        if handle._owner is not self._owner:
+            return
+        handle.closed = True
         if self.current(handle.lane_id) is handle:
             del self._active[handle.lane_id]
 
