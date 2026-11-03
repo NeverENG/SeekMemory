@@ -1,6 +1,7 @@
 """Successful extraction remains successful when persona maintenance fails."""
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import tempfile
@@ -130,6 +131,8 @@ class PersonaEvidenceAccountingTest(_LoopbackCase):
         self.assertEqual(self.persona()["revision"], 0)
 
     def test_third_same_kind_observation_promotes_persona(self) -> None:
+        before = self.persona()
+        before_sha = hashlib.sha256(before["text"].encode()).hexdigest()
         for index in range(3):
             self.exchange(f"我今天很难受{index}", "我在，先不急着解决。",
                           [{"text": "她先回应情绪", "bot_behavior": "respond_emotion"}])
@@ -138,10 +141,23 @@ class PersonaEvidenceAccountingTest(_LoopbackCase):
         state = self.maintenance()
         self.assertEqual(state["evidence"], {"respond_emotion": 3})
         self.assertEqual(state["last_writes"], 1)
-        self.assertTrue(state["last_persona"])
+        code, listed = self.service.persona_proposals({"subject_key": UMO})
+        self.assertEqual(code, 200, listed)
+        self.assertEqual(len(listed["proposals"]), 1)
+        proposal = listed["proposals"][0]
+        self.assertEqual(proposal["status"], "pending")
+        self.assertEqual(proposal["base_revision"], before["revision"])
+        self.assertTrue(proposal["new_text"].strip())
+        self.assertEqual(state["last_proposal"], proposal["id"])
         after = self.persona()
-        self.assertGreaterEqual(after["revision"], 1)
-        self.assertTrue(after["text"])
+        self.assertEqual(after["revision"], before["revision"])
+        self.assertEqual(hashlib.sha256(after["text"].encode()).hexdigest(), before_sha)
+        code, approved = self.service.persona_proposal_approve(
+            proposal["id"], {"subject_key": UMO, "actor": "self", "confirmed": True})
+        self.assertEqual(code, 200, approved)
+        applied = self.persona()
+        self.assertEqual(applied["revision"], before["revision"] + 1)
+        self.assertEqual(applied["text"], proposal["new_text"])
 
     def test_four_observations_across_three_categories_explain_the_no_op(self) -> None:
         """Replay the lab sample: 4 valid behaviors, but 2/1/1 per category."""
@@ -167,12 +183,30 @@ class PersonaEvidenceAccountingTest(_LoopbackCase):
         self.assertEqual(state["failures"], 0)
         self.assertEqual(self.persona()["revision"], 0)
         # One more independent admit_uncertainty observation is enough; no gate moved.
+        before = self.persona()
+        before_sha = hashlib.sha256(before["text"].encode()).hexdigest()
         self.exchange("这个你怎么看？", "我确实不确定，先说清楚哪些我不知道。",
                       [{"text": "她承认不确定", "bot_behavior": "admit_uncertainty"}])
         state = self.maintenance()
         self.assertEqual(state["evidence"]["admit_uncertainty"], 3)
         self.assertEqual(state["min_evidence"], 3)
-        self.assertGreaterEqual(self.persona()["revision"], 1)
+        code, listed = self.service.persona_proposals({"subject_key": UMO})
+        self.assertEqual(code, 200, listed)
+        self.assertEqual(len(listed["proposals"]), 1)
+        proposal = listed["proposals"][0]
+        self.assertEqual(proposal["status"], "pending")
+        self.assertEqual(proposal["base_revision"], before["revision"])
+        self.assertTrue(proposal["new_text"].strip())
+        self.assertEqual(state["last_proposal"], proposal["id"])
+        after = self.persona()
+        self.assertEqual(after["revision"], before["revision"])
+        self.assertEqual(hashlib.sha256(after["text"].encode()).hexdigest(), before_sha)
+        code, approved = self.service.persona_proposal_approve(
+            proposal["id"], {"subject_key": UMO, "actor": "self", "confirmed": True})
+        self.assertEqual(code, 200, approved)
+        applied = self.persona()
+        self.assertEqual(applied["revision"], before["revision"] + 1)
+        self.assertEqual(applied["text"], proposal["new_text"])
 
 
 if __name__ == "__main__":

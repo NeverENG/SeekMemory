@@ -23,6 +23,7 @@ from services.management_service import ManagementService
 from services.recall_service import RecallService
 from services.status_service import StatusService
 from services.persona_evolution_service import PersonaEvolutionService
+from services.persona_proposals import sentence_diff
 from services.tree_service import TreeService
 from store import open_store
 from store.cache import Cache
@@ -122,6 +123,8 @@ class MemoryService:
         self.persona_evolution = PersonaEvolutionService(
             self.store.artifacts, self.store.sources, self.cache,
             min_interval_s=float(self.config.get("persona_min_interval_s", 30.0)),
+            proposals=self.store.persona_proposals,
+            subject_key=lambda: self.owner,
         )
 
     def _same_subject(self, requested: Any) -> bool:
@@ -255,6 +258,115 @@ class MemoryService:
             audit.flush()
             os.fsync(audit.fileno())
         return 200, {"revision": result["revision"], "chars": len(text)}
+
+    def _proposal_subject(self, body: dict) -> tuple[int, dict] | None:
+        if not isinstance(body, dict):
+            return 400, {"error": "invalid_body"}
+        key = body.get("subject_key")
+        if not isinstance(key, str) or not key.strip():
+            return 400, {"error": "subject_key_required"}
+        if not self._same_subject(key):
+            return 403, {"error": "subject_mismatch"}
+        return None
+
+    def persona_proposals(self, query: dict) -> tuple[int, dict]:
+        denied = self._proposal_subject(query)
+        if denied is not None:
+            return denied
+        status = query.get("status", "pending")
+        if status not in ("pending", "approved", "rejected", "expired", "applying"):
+            return 400, {"error": "invalid_proposal_status"}
+        rows = self.store.persona_proposals.list_status(query["subject_key"], status)
+        return 200, {"proposals": rows}
+
+    def _proposal_target(self, proposal_id: str, body: dict):
+        denied = self._proposal_subject(body)
+        if denied is not None:
+            return denied, None
+        row = self.store.persona_proposals.get(body["subject_key"], proposal_id)
+        if row is None:
+            return (404, {"error": "proposal_not_found"}), None
+        if row["status"] == "expired":
+            return (410, {"error": "proposal_expired"}), None
+        if row["status"] != "pending":
+            error = "already_approved" if row["status"] == "approved" else "proposal_processed"
+            return (409, {"error": error}), None
+        if row["expires_at"]:
+            try:
+                until = datetime.fromisoformat(row["expires_at"])
+                if until.tzinfo is None:
+                    until = until.replace(tzinfo=timezone.utc)
+                expired = until <= datetime.now(timezone.utc)
+            except ValueError:
+                expired = True  # Corrupt expiry fails closed.
+            if expired:
+                self.store.persona_proposals.transition(
+                    body["subject_key"], proposal_id, "pending", "expired"
+                )
+                return (410, {"error": "proposal_expired"}), None
+        return None, row
+
+    def persona_proposal_approve(self, proposal_id: str, body: dict) -> tuple[int, dict]:
+        denied, row = self._proposal_target(proposal_id, body)
+        if denied is not None:
+            return denied
+        actor = body.get("actor")
+        if body.get("confirmed") is not True or actor not in ("self", "owner"):
+            return 400, {"error": "explicit_approval_required"}
+        active = self.cache.active("persona")
+        current = max(active, key=lambda art: art.header.revision) if active else None
+        current_id = current.header.id if current else ""
+        current_revision = int(current.header.revision) if current else 0
+        current_text = str(current.payload.get("text") or "") if current else ""
+        if (row["persona_id"] != current_id or row["base_revision"] != current_revision
+                or row["old_text"] != current_text):
+            return 409, {"error": "stale_persona"}
+        if not self.store.persona_proposals.transition(
+                body["subject_key"], proposal_id, "pending", "applying", actor=actor):
+            return 409, {"error": "proposal_processed"}
+        # A failed audit fsync may follow a successful persona commit.  Keep the
+        # applying marker for manual reconciliation; never replay that write.
+        code, result = self.persona_write({
+            "subject_key": body["subject_key"], "text": row["new_text"],
+            "note": f"proposal:{proposal_id} actor:{actor}",
+        })
+        if code != 200:
+            return code, result
+        if not self.store.persona_proposals.transition(
+                body["subject_key"], proposal_id, "applying", "approved",
+                actor=actor, revision=result["revision"]):
+            return 500, {"error": "approval_state_failed"}
+        return 200, {"id": proposal_id, "status": "approved",
+                     "revision": result["revision"]}
+
+    def persona_proposal_reject(self, proposal_id: str, body: dict) -> tuple[int, dict]:
+        denied, _row = self._proposal_target(proposal_id, body)
+        if denied is not None:
+            return denied
+        actor = body.get("actor")
+        if body.get("confirmed") is not True or actor not in ("self", "owner"):
+            return 400, {"error": "explicit_rejection_required"}
+        if not self.store.persona_proposals.transition(
+                body["subject_key"], proposal_id, "pending", "rejected", actor=actor):
+            return 409, {"error": "proposal_processed"}
+        return 200, {"id": proposal_id, "status": "rejected"}
+
+    def persona_proposal_revise(self, proposal_id: str, body: dict) -> tuple[int, dict]:
+        denied, row = self._proposal_target(proposal_id, body)
+        if denied is not None:
+            return denied
+        new_text = body.get("new_text")
+        if not isinstance(new_text, str) or not new_text.strip() or len(new_text.strip()) > 2000:
+            return 400, {"error": "invalid_proposal_text"}
+        new_text = new_text.strip()
+        try:
+            diff = sentence_diff(row["old_text"], new_text)
+        except ValueError:
+            return 400, {"error": "invalid_proposal_text"}
+        if not self.store.persona_proposals.revise(
+                body["subject_key"], proposal_id, new_text, diff):
+            return 409, {"error": "proposal_processed"}
+        return 200, {"id": proposal_id, "status": "pending", "diff": diff}
 
     def status(self) -> tuple[int, dict]:
         return 200, {

@@ -13,6 +13,7 @@ try:
     from .extraction import ExtractionRepository
     from .ledger import LedgerRepository
     from .metrics import StoreMetricsRepository
+    from .persona_proposals import PersonaProposalRepository
     from .runtime_episodes import RuntimeEpisodeRepository
     from .runtime_state import RuntimeStateRepository
     from .sources import SourceRepository
@@ -23,6 +24,7 @@ except ImportError:  # Existing standalone mode / 保留已有的独立导入方
     from extraction import ExtractionRepository
     from ledger import LedgerRepository
     from metrics import StoreMetricsRepository
+    from persona_proposals import PersonaProposalRepository
     from runtime_episodes import RuntimeEpisodeRepository
     from runtime_state import RuntimeStateRepository
     from sources import SourceRepository
@@ -44,6 +46,7 @@ class Store:
             self.runtime_episodes = RuntimeEpisodeRepository(self.database)
             self.dreams = DreamRepository(self.database)
             self.metrics = StoreMetricsRepository(self.database, self.extraction)
+            self.persona_proposals = PersonaProposalRepository(self.database)
         except BaseException:
             self.database.close()
             raise

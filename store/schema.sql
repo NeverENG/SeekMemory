@@ -132,6 +132,28 @@ CREATE TABLE IF NOT EXISTS extraction_state (
 CREATE INDEX IF NOT EXISTS idx_extraction_state_queue
 ON extraction_state(state, next_attempt_at, created_at, source_id);
 
+-- Drafts about the owner's persona, separate from nodes and content-addressed blobs.
+-- Only an explicit approval path may turn a pending proposal into a persona revision.
+CREATE TABLE IF NOT EXISTS persona_proposals (
+    id                TEXT PRIMARY KEY,
+    subject_key       TEXT NOT NULL,
+    persona_id        TEXT NOT NULL DEFAULT '',
+    base_revision     INTEGER NOT NULL,
+    old_text          TEXT NOT NULL,
+    new_text          TEXT NOT NULL,
+    diff              TEXT NOT NULL,
+    reason            TEXT NOT NULL,
+    created_at        TEXT NOT NULL,
+    expires_at        TEXT,
+    status            TEXT NOT NULL DEFAULT 'pending'
+                      CHECK (status IN ('pending','applying','approved','rejected','expired')),
+    updated_at        TEXT NOT NULL,
+    approved_revision INTEGER,
+    actor             TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_persona_proposals_owner_status
+ON persona_proposals(subject_key, status, created_at);
+
 -- 梦境周期台账：每天一次，记录这次"睡觉"抽了什么、改了什么。
 -- 主键是日期，天然幂等：同一天重复触发只会被这个表挡住。
 CREATE TABLE IF NOT EXISTS dream_runs (

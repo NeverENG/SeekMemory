@@ -156,6 +156,8 @@ class PersonaSynthesisServiceTest(PersonaCase):
             config=_config(defaults),
             persona_model=factory,
             clock=datetime.datetime.now,
+            proposals=self.db.persona_proposals,
+            subject_key=lambda: self.subject_key,
         )
 
     def bootstrap(self, with_corpus: bool = False) -> None:
@@ -198,27 +200,32 @@ class PersonaSynthesisServiceTest(PersonaCase):
         import asyncio
 
         result = asyncio.run(self.service(fake).weekly())
-        self.assertTrue(result["persona"])
-        self.assertEqual(result["persona_result"]["status"], "updated")
+        self.assertFalse(result["persona"])
+        self.assertEqual(result["persona_result"]["status"], "proposed")
+        proposal = self.pending_proposals()[0]
+        self.assertEqual(len(self.pending_proposals()), 1)
+        self.assertEqual(proposal["base_revision"], initial.header.revision)
+        self.assertEqual(proposal["old_text"], initial.payload["text"])
+        self.assertIn("散步", proposal["new_text"])
+        self.assertEqual(self.cache.active("persona")[0].header.revision, 1)
+        self.assertEqual(self.cache.active("persona")[0].payload["text"], initial.payload["text"])
+        self.approve_pending()
         active = self.cache.active("persona")[0]
         self.assertEqual(active.header.id, initial.header.id)
         self.assertEqual(active.header.revision, 2)
-        self.assertEqual(active.payload["origin"], "dream")
-        self.assertEqual(active.payload["synthesis"], "persona.v1")
-        self.assertNotIn("corpus", active.payload)
+        self.assertEqual(active.payload["text"], proposal["new_text"])
+        self.assertEqual(active.payload["origin"], "seed")
+        self.assertEqual(len(active.payload["corpus"]), 12)
         self.assertEqual(active.payload["corpus_count"], 12)
         self.assertEqual(active.payload["corpus_hash"], initial.payload["corpus_hash"])
-        self.assertTrue(active.header.lineage.sources)
-        self.assertTrue(active.header.lineage.derived_from)
         self.assertTrue(trusted_self_persona(active))
         self.assertIn("散步", fake.request.prompt)
         timeline = StatusService(
             artifacts=self.db.artifacts, ledger=self.db.ledger
         ).persona()
-        self.assertEqual(timeline["origin"], "dream")
-        self.assertEqual(timeline["synthesis"], "persona.v1")
-        self.assertEqual(timeline["changeReason"], "加入最近散步的陪伴方式")
-        self.assertEqual(timeline["revisions"][-1]["origin"], "dream")
+        self.assertEqual(timeline["origin"], "seed")
+        self.assertEqual(timeline["text"], proposal["new_text"])
+        self.assertEqual(timeline["revisions"][-1]["origin"], "seed")
 
     def test_rollback_restores_seed_and_synthesized_revisions(self) -> None:
         self.bootstrap()
@@ -238,6 +245,8 @@ class PersonaSynthesisServiceTest(PersonaCase):
         import asyncio
 
         asyncio.run(self.service(fake).weekly())
+        proposal = self.approve_pending()
+        self.assertEqual(self.cache.active("persona")[0].payload["text"], proposal["new_text"])
         manager = ManagementService(
             self.db.artifacts, self.db.sources, self.db.ledger, self.cache, None
         )
@@ -254,8 +263,8 @@ class PersonaSynthesisServiceTest(PersonaCase):
         )
         synthetic = self.cache.active("persona")[0]
         self.assertEqual(synthetic.header.revision, 4)
-        self.assertEqual(synthetic.payload["origin"], "dream")
-        self.assertEqual(synthetic.payload["synthesis"], "persona.v1")
+        self.assertEqual(synthetic.payload["origin"], "seed")
+        self.assertEqual(synthetic.payload["text"], proposal["new_text"])
         self.assertTrue(trusted_self_persona(synthetic))
 
     def test_interval_and_failure_keep_old_persona(self) -> None:

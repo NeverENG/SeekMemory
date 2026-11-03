@@ -101,7 +101,7 @@ class MaintenanceRecoveryTest(PersonaCase):
         self.assertEqual(self.db.artifacts.get(base.header.id), newer)
         self.assertEqual(writer.pending(), 0)
 
-    def test_model_persona_commit_retry_never_calls_model_again(self):
+    def test_model_proposal_failure_keeps_persona_and_recovers(self):
         persona = make("persona", {"text": "你是温和的陪伴者", "origin": "seed", "seed_id": "test"},
                        subject_id="bot:self", scope="shared", shareable="public")
         self.seed(persona)
@@ -134,12 +134,20 @@ class MaintenanceRecoveryTest(PersonaCase):
             artifacts=self.db.artifacts, sources=self.db.sources, cache=self.cache, journal=Journal(),
             task_id=lambda: "", logger=SimpleNamespace(info=lambda *_a: None, warning=lambda *_a: None),
             persona_model=factory, config=lambda key, default: 0 if key == "persona_synthesis_interval_days" else default,
+            proposals=self.db.persona_proposals, subject_key=lambda: self.subject_key,
         )
-        with patch.object(self.db.artifacts, "commit", side_effect=OSError("database failed")):
+        with patch.object(self.db.persona_proposals, "create", side_effect=OSError("database failed")):
             result = asyncio.run(service._synthesize_persona_async())
             self.assertEqual(result["status"], "failed")
-        self.assertEqual(service.retry_writebacks(), 1)
+        self.assertEqual(self.pending_proposals(), [])
         self.assertEqual(model.calls, 1)
+        self.assertEqual(self.db.artifacts.get(persona.header.id).header.revision, 1)
+        result = asyncio.run(service._synthesize_persona_async())
+        self.assertEqual(result["status"], "proposed")
+        self.assertEqual(model.calls, 2)
+        self.assertEqual(self.db.artifacts.get(persona.header.id).header.revision, 1)
+        proposal = self.approve_pending()
+        self.assertEqual(self.cache.active("persona")[0].payload["text"], proposal["new_text"])
         self.assertEqual(self.db.artifacts.get(persona.header.id).header.revision, 2)
 
 

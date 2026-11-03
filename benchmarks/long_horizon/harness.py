@@ -236,6 +236,8 @@ class ScenarioRunner:
             config=self.config,
             persona_model=self._persona_for,
             clock=lambda: self.clock.now,
+            proposals=self.store.persona_proposals,
+            subject_key=lambda: str(self.manifest.owner["umo"]),
         )
         self.management = ManagementService(
             self.store.artifacts, self.store.sources, self.store.ledger, self.cache, None
@@ -248,6 +250,31 @@ class ScenarioRunner:
     async def _persona_for(self):
         """Return the deterministic persona writer / 返回确定性人格撰写器。"""
         return self.persona_model
+
+    def _simulate_owner_approval(self) -> None:
+        """In this synthetic run, model the owner's explicit decision via the API."""
+        from adapters.loopback.runtime import MemoryService
+
+        assert self.store is not None and self.cache is not None and self.temp_dir
+        owner = str(self.manifest.owner["umo"])
+        pending = self.store.persona_proposals.list_status(owner)
+        if len(pending) != 1:
+            raise RuntimeError(f"expected one proposal for synthetic owner, got {len(pending)}")
+        proposal = pending[0]
+        before = self._persona_state()[1]
+        if before != proposal["base_revision"]:
+            raise RuntimeError("proposal changed active persona before approval")
+        service = MemoryService(Path(self.temp_dir), {"owner_umo": owner}, quiet=True)
+        try:
+            code, result = service.persona_proposal_approve(
+                proposal["id"], {"subject_key": owner, "actor": "self", "confirmed": True})
+            if code != 200 or result["revision"] != before + 1:
+                raise RuntimeError(f"synthetic owner approval failed: {code} {result}")
+        finally:
+            service.store.close()
+        self.cache.load()
+        if self._persona_state()[0] != proposal["new_text"]:
+            raise RuntimeError("approved proposal text did not become active")
 
     def _restart(self) -> None:
         """Close and reopen the store, then rebind services and reload the cache.
@@ -610,6 +637,8 @@ class ScenarioRunner:
                     if self.spec.maintains and day % WEEKLY_INTERVAL == 0 and day != last_weekly:
                         assert self.maintenance is not None
                         weekly = asyncio.run(self.maintenance.weekly())
+                        if (weekly.get("persona_result") or {}).get("status") == "proposed":
+                            self._simulate_owner_approval()
                         self.weekly_log.append({
                             "day": day,
                             "relationships": int(weekly.get("relationships") or 0),

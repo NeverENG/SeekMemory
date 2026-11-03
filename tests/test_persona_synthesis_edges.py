@@ -131,6 +131,8 @@ class PersonaSynthesisEdgeTest(PersonaCase):
             config=_config(defaults),
             persona_model=factory,
             clock=datetime.datetime.now,
+            proposals=self.db.persona_proposals,
+            subject_key=lambda: self.subject_key,
         )
 
     def test_enabled_false_makes_no_call_or_revision(self) -> None:
@@ -182,19 +184,18 @@ class PersonaSynthesisEdgeTest(PersonaCase):
         self.bootstrap()
         self.add_shared_memory()
         old = self.cache.active("persona")[0]
-        real_commit = self.db.artifacts.commit
+        real_create = self.db.persona_proposals.create
 
-        def fail_persona(art, **kwargs):
-            if art.header.family == "persona":
-                raise RuntimeError("disk failure")
-            return real_commit(art, **kwargs)
+        def fail_proposal(**_kwargs):
+            raise RuntimeError("disk failure")
 
-        self.db.artifacts.commit = fail_persona
+        self.db.persona_proposals.create = fail_proposal
         try:
             result = asyncio.run(self.service(_FakeModel(_model_text())).weekly())
         finally:
-            self.db.artifacts.commit = real_commit
+            self.db.persona_proposals.create = real_create
         self.assertEqual(result["persona_result"]["status"], "failed")
+        self.assertEqual(self.pending_proposals(), [])
         active = self.cache.active("persona")[0]
         self.assertEqual(active.header.id, old.header.id)
         self.assertEqual(active.header.revision, 1)
@@ -203,7 +204,8 @@ class PersonaSynthesisEdgeTest(PersonaCase):
         self.bootstrap()
         self.add_shared_memory()
         result = asyncio.run(self.service(_FakeModel(_model_text())).weekly())
-        self.assertEqual(result["persona_result"]["status"], "updated")
+        self.assertEqual(result["persona_result"]["status"], "proposed")
+        self.assertEqual(len(self.pending_proposals()), 1)
         self.assertEqual(result["persona_result"]["usage"], {"in": 0, "cached": 0, "out": 0})
 
     def test_dream_summary_keeps_persona_result(self) -> None:

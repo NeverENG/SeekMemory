@@ -268,6 +268,8 @@ class AstrBotPlugin(star.Star):
             logger=logger,
             config=self._c,
             persona_model=self._persona_model,
+            proposals=self.store.persona_proposals if self.store is not None else None,
+            subject_key=lambda: self.owner_umo,
         )
         scheduler = Scheduler(runtime.store)
         capacity = CapacityService(

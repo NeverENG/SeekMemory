@@ -19,6 +19,36 @@ class PersonaCase(unittest.TestCase):
         self.addCleanup(self.db.close)
         self.cache = Cache(self.db.artifacts)
         self.seq = 0
+        self.subject_key = "lab:persona-case"
+
+    def pending_proposals(self):
+        return self.db.persona_proposals.list_status(self.subject_key)
+
+    def approve_pending(self):
+        """Simulate an explicit owner decision through the real local API."""
+        pending = self.pending_proposals()
+        self.assertEqual(len(pending), 1, pending)
+        proposal = pending[0]
+        self.approve_proposal(proposal["id"])
+        return proposal
+
+    def approve_proposal(self, proposal_id):
+        from adapters.loopback.runtime import MemoryService
+
+        proposal = self.db.persona_proposals.get(self.subject_key, proposal_id)
+        self.assertIsNotNone(proposal)
+        service = MemoryService(Path(self.temp.name),
+                                {"owner_umo": self.subject_key}, quiet=True)
+        try:
+            code, response = service.persona_proposal_approve(
+                proposal_id, {"subject_key": self.subject_key,
+                                 "actor": "self", "confirmed": True})
+            self.assertEqual(code, 200, response)
+            self.assertEqual(response["revision"], proposal["base_revision"] + 1)
+        finally:
+            service.store.close()
+        self.cache.load()
+        return proposal
 
     def seed(self, art):
         self.db.artifacts.commit(art, expected_revision=0, op="create",

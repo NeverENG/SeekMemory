@@ -5,10 +5,10 @@ import time
 
 from core.domain.character.bot_behavior import MIN_EVIDENCE
 from core.domain.memory.versioning import VersionError
-from maintain.persona import distill_self_persona
 from maintain.self_impression import build_self_impressions
 from maintain.self_impression_policy import evidence_counts
 from maintain.writer import MaintenanceWriter
+from services.persona_proposals import propose_self_persona
 
 # A full reconciliation walks every active memory and its Sources. Host polls
 # respect this interval; a new durable extraction commit runs maintenance now.
@@ -19,12 +19,15 @@ class PersonaEvolutionService:
     """Keep one writer and retry interrupted maintenance without model calls."""
 
     def __init__(self, artifacts, sources, cache, *,
-                 min_interval_s: float = DEFAULT_MIN_INTERVAL_S) -> None:
+                 min_interval_s: float = DEFAULT_MIN_INTERVAL_S,
+                 proposals=None, subject_key=None) -> None:
         self.artifacts = artifacts
         self.sources = sources
         self.cache = cache
         self.min_interval_s = max(0.0, float(min_interval_s))
         self.writer = MaintenanceWriter(artifacts, cache)
+        self.proposals = proposals
+        self.subject_key = subject_key or (lambda: "")
         self.dirty = True  # Reconcile evidence left by an interrupted process.
         self.degraded = False
         self.last_error = ""
@@ -37,6 +40,7 @@ class PersonaEvolutionService:
         self.evidence: dict[str, int] = {}
         self.last_writes = 0
         self.last_persona = ""
+        self.last_proposal = ""
         self.evidence_error = ""
 
     def after_extraction(self) -> None:
@@ -56,8 +60,9 @@ class PersonaEvolutionService:
                 self.writer.ensure_ready()
                 writes = build_self_impressions(self.artifacts, self.sources, self.cache,
                                                 writer=self.writer)
-                persona = distill_self_persona(self.artifacts, self.sources, self.cache,
-                                               writer=self.writer)
+                proposal = propose_self_persona(
+                    self.proposals, self.subject_key(), self.sources, self.cache,
+                )
             except VersionError as exc:
                 # Never replay a stale plan; rebuild from durable heads.
                 self.last_error = f"VersionError: {exc}"
@@ -72,7 +77,8 @@ class PersonaEvolutionService:
                 self.last_error = f"{type(exc).__name__}: {exc}"
                 break
             self.last_writes = int(writes)
-            self.last_persona = persona.header.id if persona is not None else ""
+            self.last_persona = ""  # A proposal is not an applied persona.
+            self.last_proposal = proposal["id"] if proposal is not None else ""
             self.dirty = False
             self.degraded = False
             self.last_error = ""
@@ -109,6 +115,7 @@ class PersonaEvolutionService:
             },
             "last_writes": self.last_writes,
             "last_persona": self.last_persona,
+            "last_proposal": self.last_proposal,
             "evidence_error": self.evidence_error,
         }
 

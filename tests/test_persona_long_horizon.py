@@ -108,6 +108,8 @@ class PersonaLongHorizonTest(PersonaCase):
             config=lambda key, default: defaults.get(key, default),
             persona_model=factory,
             clock=lambda: self.base,
+            proposals=self.db.persona_proposals,
+            subject_key=lambda: self.subject_key,
         )
 
     def bootstrap(self) -> str:
@@ -173,6 +175,7 @@ class PersonaLongHorizonTest(PersonaCase):
         service.artifacts = self.db.artifacts
         service.sources = self.db.sources
         service.cache = self.cache
+        service.proposals = self.db.persona_proposals
         service.clock = lambda: self.base
 
     def manager(self) -> ManagementService:
@@ -222,13 +225,20 @@ class PersonaLongHorizonTest(PersonaCase):
                     statuses = sorted(
                         result["persona_result"]["status"] for result in results
                     )
-                    self.assertEqual(statuses, ["failed", "updated"])
+                    self.assertEqual(statuses, ["proposed", "proposed"])
+                    self.assertEqual(self.cache.active("persona")[0].header.revision, before)
+                    self.assertEqual(len(self.pending_proposals()), 1)
+                    self.approve_pending()
                     self.assertEqual(
                         self.cache.active("persona")[0].header.revision, before + 1
                     )
                     concurrent_days.append(day)
                 else:
-                    asyncio.run(service.weekly())
+                    result = asyncio.run(service.weekly())
+                    if result["persona_result"]["status"] == "proposed":
+                        self.assertEqual(self.cache.active("persona")[0].header.revision, before)
+                        self.approve_pending()
+                        self.assertEqual(self.cache.active("persona")[0].header.revision, before + 1)
 
                 active = self.cache.active("persona")
                 self.assertEqual(len(active), 1)
@@ -260,7 +270,7 @@ class PersonaLongHorizonTest(PersonaCase):
                     )
                     restored = self.cache.active("persona")[0]
                     self.assertEqual(restored.header.id, persona_id)
-                    self.assertEqual(restored.payload["origin"], "dream")
+                    self.assertEqual(restored.payload["origin"], "seed")
                     block, _info = self.recall()
                     self.assertIn(str(restored.payload["text"]), block)
 
@@ -278,12 +288,8 @@ class PersonaLongHorizonTest(PersonaCase):
                     checkpoint_texts.append(str(payload["text"]))
                     self.assertEqual(payload["corpus_count"], 12)
                     self.assertEqual(len(payload["corpus_hash"]), 64)
-                    if payload.get("origin") == "dream":
-                        # Synthesized revisions carry only count/hash.
-                        self.assertNotIn("corpus", payload)
-                    else:
-                        # A seed rollback restores the trusted seed payload.
-                        self.assertEqual(len(payload["corpus"]), 12)
+                    # Owner-approved revisions preserve the trusted seed corpus.
+                    self.assertEqual(len(payload["corpus"]), 12)
                     self.assertTrue(self.trusted(current))
                     block, info = self.recall()
                     self.assertIn(str(payload["text"]), block)
@@ -304,11 +310,12 @@ class PersonaLongHorizonTest(PersonaCase):
 
         persona = self.cache.active("persona")[0]
         self.assertEqual(persona.header.id, persona_id)
-        self.assertEqual(persona.payload["origin"], "dream")
-        self.assertEqual(persona.payload["synthesis"], "persona.v1")
+        self.assertEqual(persona.payload["origin"], "seed")
         self.assertEqual(persona.payload["seed_id"], "long_horizon")
-        self.assertTrue(persona.header.lineage.sources)
-        self.assertTrue(persona.header.lineage.derived_from)
+        approved = self.db.persona_proposals.list_status(self.subject_key, "approved")
+        self.assertTrue(approved)
+        self.assertTrue(all(row["reason"] == "dream persona synthesis" for row in approved))
+        self.assertTrue(all(row["approved_revision"] > row["base_revision"] for row in approved))
         self.assertTrue(model.prompts)
         for prompt in model.prompts:
             self.assertNotIn("PRIVATE_EVIDENCE_MARKER", prompt)
@@ -321,7 +328,7 @@ class PersonaLongHorizonTest(PersonaCase):
         )
         origins = [row["payload"].get("origin") for row in history]
         self.assertIn("seed", origins)
-        self.assertIn("dream", origins)
+        self.assertGreater(len(approved), 8)
         self.assertEqual(len(self.cache.active("persona")), 1)
 
     async def weekly_pair(self, first, second):

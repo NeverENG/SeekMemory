@@ -61,6 +61,14 @@ def make_handler(service: MemoryService, token: str):
                     return self._send(*service.persona(query))
                 if path == "/persona" and method == "POST":
                     return self._send(*service.persona_write(self._read_body()))
+                if path == "/persona/proposals" and method == "GET":
+                    return self._send(*service.persona_proposals(query))
+                parts = path.split("/")
+                if (method == "POST" and len(parts) == 5
+                        and parts[1:3] == ["persona", "proposals"]
+                        and parts[3] and parts[4] in {"approve", "reject", "revise"}):
+                    action = getattr(service, "persona_proposal_" + parts[4])
+                    return self._send(*action(parts[3], self._read_body()))
                 if path == "/status" and method == "GET":
                     return self._send(*service.status())
                 if path == "/extract/plan" and method == "GET":

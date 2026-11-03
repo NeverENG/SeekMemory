@@ -15,8 +15,6 @@ try:
         parse_persona_draft,
     )
     from .ports import ArtifactCache, ArtifactStore, SourceStore, PersonaModelFactory, ServiceJournal, ServiceLogger
-    from ..core.domain.character.bot_behavior import SELF_SUBJECT
-    from ..core.domain.character.persona import PERSONA_SYNTHESIS_VERSION
 except ImportError:  # Standalone root / 独立测试以仓库为导入根。
     from app.persona_synthesis import (
         PersonaEvidence,
@@ -24,22 +22,19 @@ except ImportError:  # Standalone root / 独立测试以仓库为导入根。
         parse_persona_draft,
     )
     from services.ports import ArtifactCache, ArtifactStore, SourceStore, PersonaModelFactory, ServiceJournal, ServiceLogger
-    from core.domain.character.bot_behavior import SELF_SUBJECT
-    from core.domain.character.persona import PERSONA_SYNTHESIS_VERSION
 
 
 try:
     from ..maintain.writer import MaintenanceWriter
     from ..app.cache_repair import CacheRepairs
-    from ..maintain.plans import RevisionPlan, RevisionWrite
     from ..maintain.merge_policy import DEFAULT_MERGE_THRESHOLD
 except ImportError:
     from maintain.writer import MaintenanceWriter
     from app.cache_repair import CacheRepairs
-    from maintain.plans import RevisionPlan, RevisionWrite
     from maintain.merge_policy import DEFAULT_MERGE_THRESHOLD
 
 from .persona_policy import persona_evidence, persona_revision, relationship_weight
+from .persona_proposals import propose_candidate, propose_self_persona
 
 
 class MaintenanceService:
@@ -58,6 +53,8 @@ class MaintenanceService:
         persona_model: PersonaModelFactory | None = None,
         clock: Callable[[], datetime.datetime] | None = None,
         cache_repairs: CacheRepairs | None = None,
+        proposals: Any = None,
+        subject_key: Callable[[], str] | None = None,
     ) -> None:
         self.artifacts = artifacts
         self.sources = sources
@@ -67,6 +64,8 @@ class MaintenanceService:
         self.logger = logger
         self._c = config or (lambda _key, default: default)
         self.persona_model = persona_model
+        self.proposals = proposals
+        self.subject_key = subject_key or (lambda: "")
         self.clock = clock or datetime.datetime.now
         self._writer = MaintenanceWriter(artifacts, cache, defer_cache_errors=True, cache_repairs=cache_repairs)
 
@@ -125,13 +124,11 @@ class MaintenanceService:
         try:
             from ..maintain.decay import decay_all
             from ..maintain.merge import merge_similar
-            from ..maintain.persona import distill_self_persona
             from ..maintain.self_impression import build_self_impressions
             from ..maintain.relationship import consolidate_relationships
         except ImportError:
             from maintain.decay import decay_all
             from maintain.merge import merge_similar
-            from maintain.persona import distill_self_persona
             from maintain.self_impression import build_self_impressions
             from maintain.relationship import consolidate_relationships
 
@@ -160,28 +157,20 @@ class MaintenanceService:
             metrics["merged"] = merged
         with self.journal.span("weekly", "persona") as metrics:
             if self.persona_model is None:
-                persona = distill_self_persona(self.artifacts, self.sources, self.cache, today, writer=self._writes)
-                persona_result = {
-                    "status": "updated" if persona else "unchanged",
-                    "mode": "legacy_deterministic",
-                }
+                persona_result = self._deterministic_persona_proposal(today, "legacy_deterministic")
+                persona = False
             else:
                 persona_result = await self._synthesize_persona_async()
-                persona = persona_result.get("status") == "updated"
-                if not persona and persona_result.get("status") in (
+                persona = False
+                if persona_result.get("status") in (
                     "no_persona", "not_bootstrapped"
                 ):
                     # Backward-compatible transition for legacy installs: if
                     # there is no seeded persona to synthesize from, keep the
                     # historical deterministic self-impression persona path.
-                    persona = distill_self_persona(
-                        self.artifacts, self.sources, self.cache, today, writer=self._writes
-                    )
-                    persona_result = {
-                        "status": "updated" if persona else "unchanged",
-                        "mode": "legacy_deterministic_fallback",
-                        "synthesis": persona_result,
-                    }
+                    fallback = self._deterministic_persona_proposal(today, "legacy_deterministic_fallback")
+                    fallback["synthesis"] = persona_result
+                    persona_result = fallback
             metrics.update(persona_result)
         self.journal.record(
             "weekly",
@@ -205,10 +194,12 @@ class MaintenanceService:
         }
 
     async def _synthesize_persona_async(self) -> dict:
-        """Select evidence, request a draft and commit before updating cache / 选择证据并请求草案，提交后再更新缓存。"""
+        """Select evidence and persist a draft without changing the active persona."""
         self._writes.ensure_ready()
         if not bool(self._c("persona_synthesis_enabled", True)):
             return {"status": "disabled"}
+        if self.proposals is None or not self.subject_key():
+            return {"status": "proposal_unavailable"}
         active = sorted(
             self.cache.active("persona"),
             key=lambda art: (
@@ -260,19 +251,20 @@ class MaintenanceService:
             return {"status": "unchanged", "reason": "same_text"}
         try:
             replacement = self._persona_revision(current, draft, evidence)
-            plan = RevisionPlan((RevisionWrite(
-                replacement, current.header.revision, tuple(replacement.header.lineage.sources),
-            ),), "revise", "dream persona synthesis")
-            self._writes.execute(plan, grouped=False)
+            proposal = propose_candidate(
+                self.proposals, self.subject_key(), current, replacement,
+                "dream persona synthesis",
+            )
         except Exception as exc:  # noqa: BLE001 - no partial persona write
             self.logger.warning(
                 f"[seekmemory] persona synthesis write failed: {type(exc).__name__}"
             )
             return {"status": "failed", "error": type(exc).__name__}
         return {
-            "status": "updated",
+            "status": "proposed" if proposal else "unchanged",
+            "proposal_id": proposal["id"] if proposal else "",
             "writeback_pending": self._writes.pending(),
-            "revision": replacement.header.revision,
+            "base_revision": current.header.revision,
             "evidence": len(evidence),
             "usage": {
                 "in": int(getattr(response, "usage_in", 0) or 0),
@@ -280,6 +272,18 @@ class MaintenanceService:
                 "out": int(getattr(response, "usage_out", 0) or 0),
             },
         }
+
+    def _deterministic_persona_proposal(self, today: str, mode: str) -> dict:
+        """Keep weekly memory stages independent of a failed persona draft."""
+        try:
+            proposal = propose_self_persona(
+                self.proposals, self.subject_key(), self.sources, self.cache, today,
+            )
+        except Exception as exc:
+            self.logger.warning(f"[seekmemory] persona proposal failed: {type(exc).__name__}")
+            return {"status": "failed", "mode": mode, "error": type(exc).__name__}
+        return {"status": "proposed" if proposal else "unchanged", "mode": mode,
+                "proposal_id": proposal["id"] if proposal else ""}
 
     def _persona_age_days(self, current) -> float | None:
         """Read persona age with the existing timezone-alignment behavior / 沿用现有时区对齐行为读取人格年龄。"""

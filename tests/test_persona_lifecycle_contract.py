@@ -115,6 +115,8 @@ class PersonaLifecycleContractTest(PersonaCase):
             config=lambda key, default: defaults.get(key, default),
             persona_model=factory,
             clock=clock or datetime.datetime.now,
+            proposals=self.db.persona_proposals,
+            subject_key=lambda: self.subject_key,
         )
 
     def add_memory(
@@ -190,8 +192,11 @@ class PersonaLifecycleContractTest(PersonaCase):
 
         fake = _FakeModel(_draft())
         updated = asyncio.run(self.service(fake).weekly())
-        self.assertEqual(updated["persona_result"]["status"], "updated")
+        self.assertEqual(updated["persona_result"]["status"], "proposed")
         self.assertEqual(fake.calls, 1)
+        self.assertEqual(self.cache.active("persona")[0].header.revision, 1)
+        proposal = self.approve_pending()
+        self.assertEqual(self.cache.active("persona")[0].payload["text"], proposal["new_text"])
         self.assertEqual(self.cache.active("persona")[0].header.revision, 2)
 
     def test_private_and_secret_memories_never_reach_the_prompt(self) -> None:
@@ -205,7 +210,9 @@ class PersonaLifecycleContractTest(PersonaCase):
 
         fake = _FakeModel(_draft())
         result = asyncio.run(self.service(fake).weekly())
-        self.assertEqual(result["persona_result"]["status"], "updated")
+        self.assertEqual(result["persona_result"]["status"], "proposed")
+        self.assertEqual(len(self.pending_proposals()), 1)
+        self.assertEqual(self.cache.active("persona")[0].header.revision, 1)
         prompt = fake.request.prompt
         self.assertIn("SHARED_OK", prompt)
         self.assertNotIn("PRIVATE_ONLY", prompt)
@@ -277,6 +284,8 @@ class PersonaLifecycleContractTest(PersonaCase):
             }.get(key, default),
             persona_model=no_provider,
             clock=datetime.datetime.now,
+            proposals=self.db.persona_proposals,
+            subject_key=lambda: self.subject_key,
         )
         result = asyncio.run(service.weekly())
         self.assertEqual(result["persona_result"]["status"], "failed")
@@ -453,6 +462,8 @@ class PersonaLifecycleContractTest(PersonaCase):
         self.bootstrap()
         self.add_memory("公开摘要")
         asyncio.run(self.service(_FakeModel(_draft(1))).weekly())
+        proposal = self.approve_pending()
+        self.assertEqual(self.cache.active("persona")[0].payload["text"], proposal["new_text"])
         persona_id = self.cache.active("persona")[0].header.id
         manager = ManagementService(
             self.db.artifacts, self.db.sources, self.db.ledger, self.cache, None
@@ -497,9 +508,14 @@ class PersonaLifecycleContractTest(PersonaCase):
 
         results = asyncio.run(run())
         statuses = sorted(result["status"] for result in results)
-        self.assertEqual(statuses, ["failed", "updated"])
+        self.assertEqual(statuses, ["proposed", "proposed"])
         active = self.cache.active("persona")
         self.assertEqual(len(active), 1)
+        self.assertEqual(active[0].header.revision, 1)
+        pending = self.pending_proposals()
+        self.assertEqual(len(pending), 2)
+        self.approve_proposal(pending[0]["id"])
+        active = self.cache.active("persona")
         self.assertEqual(active[0].header.revision, 2)
         self.assertEqual(len(self.db.artifacts.history(active[0].header.id)), 2)
         self.assertEqual(
@@ -522,6 +538,8 @@ class PersonaLifecycleContractTest(PersonaCase):
         self.bootstrap()
         self.add_memory("公开摘要")
         asyncio.run(self.service(_FakeModel(_draft())).weekly())
+        proposal = self.approve_pending()
+        self.assertEqual(self.cache.active("persona")[0].payload["text"], proposal["new_text"])
         persona_id = self.cache.active("persona")[0].header.id
 
         self.restart_store()
@@ -530,7 +548,7 @@ class PersonaLifecycleContractTest(PersonaCase):
         self.assertEqual(len(active), 1)
         self.assertEqual(active[0].header.id, persona_id)
         self.assertEqual(active[0].header.revision, 2)
-        self.assertEqual(active[0].payload["origin"], "dream")
+        self.assertEqual(active[0].payload["origin"], "seed")
         self.assertEqual(len(self.db.artifacts.history(persona_id)), 2)
 
     # ---- additional edge coverage ----------------------------------------
@@ -584,7 +602,8 @@ class PersonaLifecycleContractTest(PersonaCase):
         result = asyncio.run(
             self.service(fake, persona_synthesis_evidence_limit=2).weekly()
         )
-        self.assertEqual(result["persona_result"]["status"], "updated")
+        self.assertEqual(result["persona_result"]["status"], "proposed")
+        self.assertEqual(len(self.pending_proposals()), 1)
         prompt = fake.request.prompt
         self.assertIn("MEM_ONE", prompt)
         self.assertIn("MEM_TWO", prompt)
@@ -634,6 +653,8 @@ class PersonaLifecycleContractTest(PersonaCase):
         self.bootstrap()
         self.add_memory("公开摘要")
         asyncio.run(self.service(_FakeModel(_draft())).weekly())
+        proposal = self.approve_pending()
+        self.assertEqual(self.cache.active("persona")[0].payload["text"], proposal["new_text"])
         persona_id = self.cache.active("persona")[0].header.id
         self.restart_store()
         result = ManagementService(

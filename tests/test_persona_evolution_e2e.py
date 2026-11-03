@@ -65,6 +65,22 @@ class PersonaGrowthEndToEndTest(unittest.TestCase):
         self.assertEqual(code, 200)
         return body
 
+    def pending(self) -> list[dict]:
+        code, body = self.service.persona_proposals({"subject_key": UMO})
+        self.assertEqual(code, 200, body)
+        return body["proposals"]
+
+    def approve_one(self) -> dict:
+        pending = self.pending()
+        self.assertEqual(len(pending), 1, pending)
+        proposal = pending[0]
+        code, result = self.service.persona_proposal_approve(
+            proposal["id"], {"subject_key": UMO, "actor": "self", "confirmed": True})
+        self.assertEqual(code, 200, result)
+        self.assertEqual(result["revision"], proposal["base_revision"] + 1)
+        self.assertEqual(self.persona()["text"], proposal["new_text"])
+        return proposal
+
     def grow(self, number: int, behavior: str = "respond_emotion",
              confidence: float = 0.95) -> dict:
         """Capture one reply-paired exchange and commit one validated observation."""
@@ -97,6 +113,14 @@ class PersonaGrowthEndToEndTest(unittest.TestCase):
         self.assertEqual(self.grow(1)["revision"], 1)
         self.assertEqual(self.grow(2)["revision"], 1)
         after = self.grow(3)
+        self.assertEqual(after, before)
+        proposal = self.pending()[0]
+        self.assertEqual(len(self.pending()), 1)
+        self.assertEqual(proposal["base_revision"], 1)
+        self.assertEqual(proposal["old_text"], before["text"])
+        self.assertIn("回应情绪", proposal["new_text"])
+        self.approve_one()
+        after = self.persona()
         self.assertEqual(after["revision"], 2)
         self.assertNotEqual(after["text"], before["text"])
         self.assertIn("回应情绪", after["text"])
@@ -145,6 +169,14 @@ class PersonaGrowthEndToEndTest(unittest.TestCase):
         try:
             code, _ = reopened.extract_plan({"subject_key": UMO})
             self.assertEqual(code, 204)  # no pending extraction left
+            self.assertEqual(reopened.persona({"subject_key": UMO})[1]["revision"], 1)
+            code, proposals = reopened.persona_proposals({"subject_key": UMO})
+            self.assertEqual(code, 200)
+            self.assertEqual(len(proposals["proposals"]), 1)
+            code, approved = reopened.persona_proposal_approve(
+                proposals["proposals"][0]["id"],
+                {"subject_key": UMO, "actor": "self", "confirmed": True})
+            self.assertEqual(code, 200, approved)
             self.assertEqual(reopened.persona({"subject_key": UMO})[1]["revision"], 2)
         finally:
             reopened.store.close()
@@ -154,18 +186,15 @@ class PersonaGrowthEndToEndTest(unittest.TestCase):
         self.grow(2)
         self.grow(3)
         grown = self.persona()
+        self.assertEqual(grown["revision"], 1)
+        pending = self.pending()
+        self.assertEqual(len(pending), 1)
         history = self.service.store.artifacts.history(
             self.service.status_service.persona()["id"])
         self.assertEqual(self.service.persona_evolution.maybe_run(), False)
-        from maintain.persona import distill_self_persona
-        from maintain.self_impression import build_self_impressions
-
-        build_self_impressions(self.service.store.artifacts,
-                               self.service.store.sources, self.service.cache)
-        again = distill_self_persona(self.service.store.artifacts,
-                                     self.service.store.sources, self.service.cache)
-        self.assertEqual(len(self.service.store.artifacts.history(again.header.id)),
-                         len(history))
+        self.assertEqual(self.pending(), pending)
+        self.assertEqual(len(self.service.store.artifacts.history(
+            self.service.status_service.persona()["id"])), len(history))
         self.assertEqual(self.persona(), grown)
 
     def test_mixed_behaviors_wait_for_three_of_one_kind(self) -> None:
@@ -184,14 +213,22 @@ class PersonaGrowthEndToEndTest(unittest.TestCase):
         })
         self.assertEqual(diagnostics["last_writes"], 0)
         fifth = self.grow(5, behavior="admit_uncertainty")
-        self.assertEqual(fifth["revision"], 2)
+        self.assertEqual(fifth["revision"], 1)
+        proposal = self.pending()[0]
+        self.assertEqual(len(self.pending()), 1)
+        self.assertEqual(proposal["base_revision"], 1)
+        self.approve_one()
+        self.assertEqual(self.persona()["revision"], 2)
 
     def test_new_commits_drain_dirty_even_inside_success_interval(self) -> None:
         """A successful no-op cannot defer a newly completed third episode."""
         self.service.persona_evolution.min_interval_s = 3600
         self.assertEqual(self.grow(1)["revision"], 1)
         self.assertEqual(self.grow(2)["revision"], 1)
-        self.assertEqual(self.grow(3)["revision"], 2)
+        self.assertEqual(self.grow(3)["revision"], 1)
+        self.assertEqual(len(self.pending()), 1)
+        self.approve_one()
+        self.assertEqual(self.persona()["revision"], 2)
 
 
 if __name__ == "__main__":
