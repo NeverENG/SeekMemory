@@ -37,8 +37,8 @@ class RunContractsTest(unittest.TestCase):
     def test_policy_values_are_immutable(self) -> None:
         values = (
             (RunTrigger(RunKind.DEFERRED, None, now=12.0), "now", 13.0),
-            (ActiveRunView("r1", 1, RunKind.USER, started_at=10.0), "epoch", 2),
-            (RunTransition(), "cancel_active", True),
+            (ActiveRunView("r1", "lane-1", 1, RunKind.USER, started_at=10.0), "epoch", 2),
+            (RunTransition(), "supersede_active", True),
         )
         for value, field, replacement in values:
             with self.subTest(contract=type(value).__name__):
@@ -54,23 +54,31 @@ class RunContractsTest(unittest.TestCase):
             "return": RunTransition,
         })
 
-        class KeepActivePolicy:
+        class ReplaceOnUserPolicy:
             def decide(
                 self,
                 state: SessionState,
                 trigger: RunTrigger,
                 active: ActiveRunView | None,
             ) -> RunTransition:
-                return RunTransition(start_new=active is None)
+                if active is None:
+                    return RunTransition()
+                if trigger.kind is RunKind.USER:
+                    return RunTransition(supersede_active=True)
+                return RunTransition(start_new=False)
 
-        policy: RunPolicy = KeepActivePolicy()
+        policy: RunPolicy = ReplaceOnUserPolicy()
         state = SessionState("s1")
         trigger = RunTrigger(RunKind.USER, RuntimeInput("s1", "hello"), now=12.0)
         self.assertEqual(policy.decide(state, trigger, None), RunTransition())
-        active = ActiveRunView("r1", 1, RunKind.USER, started_at=10.0)
+        active = ActiveRunView("r1", "s1", 1, RunKind.USER, started_at=10.0)
         self.assertEqual(
             policy.decide(state, trigger, active),
-            RunTransition(start_new=False, cancel_active=False, reason=""),
+            RunTransition(supersede_active=True),
+        )
+        self.assertEqual(
+            policy.decide(state, RunTrigger(RunKind.PROACTIVE, None, now=12.0), active),
+            RunTransition(start_new=False),
         )
 
 

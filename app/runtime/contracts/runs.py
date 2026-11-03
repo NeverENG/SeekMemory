@@ -23,9 +23,13 @@ class RunKind(str, Enum):
 
 @dataclass(frozen=True)
 class RunTrigger:
-    """Transient trigger, not audit data; time is explicit and background events are optional.
+    """Transient admitted trigger with explicit time; background events are optional.
 
-    使用调用方提供时间的临时触发，后台任务可以没有事件；不作为审计记录。
+    Callers accept user input and reject stale/replayed events before policy evaluation.
+    This value does not perform admission or become audit data.
+
+    携带显式时间的临时触发，后台事件可为空；调用方先接纳用户输入并排除过期/重放。
+    本对象不执行接纳判断，也不作为审计记录。
     """
 
     kind: RunKind
@@ -35,33 +39,46 @@ class RunTrigger:
 
 @dataclass(frozen=True)
 class ActiveRunView:
-    """Read-only run identity and per-session epoch; no payload or cancellation handle.
+    """Read-only lane-local metadata; action_started records a boundary, not its outcome.
 
-    只读运行标识及会话内代次，不携带正文或取消句柄。
+    lane_id is scoped to one Runtime instance, not a memory subject or persisted key.
+
+    只读 lane 内运行元数据；action_started 仅表示已跨过动作开始边界，不表示结果。
+    lane_id 仅在当前 Runtime 实例内有效，不是记忆主体或持久化键。
     """
 
     run_id: str
+    lane_id: str
     epoch: int
     kind: RunKind
     started_at: float
+    action_started: bool = False
 
 
 @dataclass(frozen=True)
 class RunTransition:
-    """Pure start/cancel intent; applying it belongs to the runtime.
+    """Same-lane admission and logical supersession intent, applied by the runtime.
 
-    仅表达启动及取消意图，由运行时负责执行。
+    Supersession blocks unstarted actions; it does not abort calls, undo effects or yield.
+
+    表达同 lane 准入及逻辑覆盖意图，由运行时应用；覆盖阻止未开始动作，
+    不表示调用已终止、副作用已撤销或任务已让位。
     """
 
     start_new: bool = True
-    cancel_active: bool = False
+    supersede_active: bool = False
     reason: str = ""
 
 
 class RunPolicy(Protocol):
-    """Synchronous pure policy; no input mutation, I/O, model calls or action execution.
+    """Pure same-lane policy; no mutation, I/O, global priority or YIELD decisions.
 
-    同步纯策略，不修改输入、不读写、不调用模型或执行动作。
+    Runtime supplies admitted input and a same-lane active view. Keeping active work
+    requires reliable pending input and later reevaluation; otherwise use the default.
+
+    同步纯策略，不修改输入、不读写，也不决定全局优先级或 YIELD。
+    Runtime 提供已接纳输入及同 lane 视图；保留旧运行须有可靠待处理入口和后续重评估，
+    否则回退默认策略。
     """
 
     def decide(
