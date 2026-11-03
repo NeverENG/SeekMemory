@@ -1,6 +1,7 @@
 import { Fragment, useState } from "react"
 import { systemSections } from "@/features/control/sections"
 import {
+  BookOpen,
   ChevronDown,
   Fish,
   History,
@@ -25,6 +26,7 @@ const groups = [
       { id: "home", label: "首页", icon: House },
       { id: "persona", label: "成长时间线", icon: History },
       { id: "memory", label: "记忆星图", icon: Network },
+      { id: "library", label: "记忆库", icon: BookOpen },
       { id: "impressions", label: "人物印象", icon: Users },
     ],
   },
@@ -63,7 +65,7 @@ export function Sidebar({
 }) {
   const [hiddenForSection, setHiddenForSection] = useState<string | null>(null)
   const activeSection =
-    systemSections.find((item) => item.id === section)?.id ?? "memory"
+    systemSections.find((item) => item.id === section)?.id ?? "runtime"
   const systemOpen = page === "system" && hiddenForSection !== activeSection
   return (
     <aside className="console-sidebar" aria-label="侧边栏">
@@ -99,7 +101,7 @@ export function Sidebar({
                     onClick={() => {
                       if (page !== "system") {
                         setHiddenForSection(null)
-                        window.location.hash = "/system"
+                        window.location.hash = "/system?section=runtime"
                       } else
                         setHiddenForSection(systemOpen ? activeSection : null)
                     }}

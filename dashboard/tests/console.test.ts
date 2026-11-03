@@ -21,6 +21,12 @@ void test("hash links validate pages and preserve encoded node identities", () =
   assert.equal(parseRoute("#/persona?revision=wrong").revision, null)
   assert.equal(parseRoute("#/untrusted").page, "home")
   assert.deepEqual(
+    parseRoute("#/system?section=memory"),
+    parseRoute("#/library")
+  )
+  assert.deepEqual(parseRoute("#/system"), parseRoute("#/library"))
+  assert.equal(parseRoute("#/system?section=runtime").section, "runtime")
+  assert.deepEqual(
     parseRoute("#/traces?node=run-1"),
     parseRoute("#/system?section=traces&node=run-1")
   )

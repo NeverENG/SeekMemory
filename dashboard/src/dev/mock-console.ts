@@ -1,7 +1,7 @@
 import { digest, settingsDigest, artworkDigest } from "./persona-digests.ts"
 import { detailSchema, type ArtifactDetail } from "../features/control/model.ts"
 import type { MemoryRecord } from "../features/memory/model.ts"
-import { recentGraph } from "../features/memory-graph/model.ts"
+import { mockGraph } from "./graph-snapshot.ts"
 import {
   seedSchema,
   bundleSchema,
@@ -74,7 +74,7 @@ export function mockConsole(
         restoredRevision: command.revision,
       }
     },
-    async graph() {
+    async graph(sort = "weight") {
       const nodes = records().map((r) => ({
         id: r.id,
         kind: r.category,
@@ -91,7 +91,7 @@ export function mockConsole(
         protected:
           r.scope === "shadow" || ["secret", "designated"].includes(r.category),
       }))
-      return recentGraph(
+      return mockGraph(
         {
           nodes,
           edges: nodes.slice(1).flatMap((n, i) => [
@@ -104,7 +104,7 @@ export function mockConsole(
           total: nodes.length,
           limit: 120,
         },
-        120
+        sort
       )
     },
     async impressions(offset = 0) {

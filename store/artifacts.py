@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 
 try:
-    from .artifact_sql import SELECT_SQL, UPSERT_SQL
+    from .artifact_sql import GRAPH_WEIGHT_SQL, SELECT_SQL, UPSERT_SQL
     from .artifact_codec import (
         node_values,
         payload_blob,
@@ -18,7 +18,7 @@ try:
     from .ledger import append_ledger_conn
     from .sqlite import SqliteRepository, dump_json, now_iso
 except ImportError:
-    from artifact_sql import SELECT_SQL, UPSERT_SQL
+    from artifact_sql import GRAPH_WEIGHT_SQL, SELECT_SQL, UPSERT_SQL
     from artifact_codec import (
         node_values,
         payload_blob,
@@ -199,6 +199,25 @@ class ArtifactRepository(SqliteRepository):
             "WITH recent AS (SELECT * FROM nodes ORDER BY updated_at DESC, id DESC LIMIT ?) "
             "SELECT n.*, b.content AS blob_content FROM recent n "
             "LEFT JOIN blobs b ON b.hash = n.blob ORDER BY n.updated_at DESC, n.id DESC",
+            (limit,),
+        ).fetchall()
+        return [art for art in map(row_to_artifact, rows) if art is not None]
+
+    def list_graph(self, limit: int, sort: str = "weight") -> list[Artifact]:
+        """Select active graph headers globally before loading bounded payloads.
+
+        从全库有效记忆中排序选取头部，再限量读取正文；不改写旧权重。
+        """
+        if type(limit) is not int or not 1 <= limit <= 120:
+            raise ValueError("graph limit must be between 1 and 120")
+        if sort not in ("weight", "recent"):
+            raise ValueError("invalid graph sort")
+        order = "graph_weight DESC, updated_at DESC, id DESC" if sort == "weight" else "updated_at DESC, id DESC"
+        rows = self.conn.execute(
+            f"WITH selected AS (SELECT *, {GRAPH_WEIGHT_SQL} AS graph_weight "
+            f"FROM nodes WHERE state = 'active' ORDER BY {order} LIMIT ?) "
+            "SELECT n.*, b.content AS blob_content FROM selected n "
+            f"LEFT JOIN blobs b ON b.hash = n.blob ORDER BY {order}",
             (limit,),
         ).fetchall()
         return [art for art in map(row_to_artifact, rows) if art is not None]

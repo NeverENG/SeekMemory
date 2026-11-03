@@ -104,6 +104,9 @@ class ArtifactStore(Protocol):
     def list_recent(self, limit: int) -> list[Artifact]:
         """Read a bounded list of recent memories / 限量读取近期记忆。"""
         ...
+    def list_graph(self, limit: int, sort: str = "weight") -> list[Artifact]:
+        """Read globally ranked active graph candidates / 读取全库排序的有效星图候选。"""
+        ...
     def list_impressions(self, limit: int, offset: int = 0) -> list[Artifact]:
         """Read one bounded impression page / 限量读取一页印象。"""
         ...

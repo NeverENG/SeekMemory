@@ -30,11 +30,13 @@ def timestamp(value: str) -> str:
         return "1970-01-01T00:00:00+00:00"
 
 
-def graph(artifacts: ArtifactStore, limit: int = 120) -> dict:
+def graph(artifacts: ArtifactStore, limit: int = 120, sort: str = "weight") -> dict:
     """Read a bounded graph projection without Source bodies / 读取有数量上限且不含原始消息正文的图视图。"""
     if type(limit) is not int or not 1 <= limit <= 120:
         raise ValueError("星图上限必须为 1–120")
-    return console_projection.graph(artifacts, limit=limit)
+    if sort not in ("weight", "recent"):
+        raise ValueError("星图排序参数无效")
+    return console_projection.graph(artifacts, limit=limit, sort=sort)
 
 
 def impressions(artifacts: ArtifactStore, offset: int = 0, limit: int = 100) -> dict:

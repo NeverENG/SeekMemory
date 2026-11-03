@@ -2,7 +2,10 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import { newPackId } from "../src/features/persona-store/pack-id.ts"
 import { seedSchema } from "../src/features/shell/model.ts"
-import { recentGraph } from "../src/features/memory-graph/model.ts"
+import {
+  displayGraph,
+  recentGraph,
+} from "../src/features/memory-graph/model.ts"
 import {
   focusOrbit,
   layoutSphere,
@@ -49,4 +52,17 @@ void test("display limits remain capped at 120 and focus brings any selected nod
     assert.ok(Math.abs(projected.y) < 1e-10)
     assert.ok(projected.z > 0.99)
   }
+})
+
+void test("display preserves server rank across limits and snapshot filters without dangling edges", () => {
+  const graph = loadGraph()
+  const before = JSON.stringify(graph)
+  for (const limit of [40, 80, 120]) {
+    const result = displayGraph(graph, limit)
+    assert.deepEqual(result.nodes, graph.nodes.slice(0, limit))
+    assert.ok(result.edges.length <= 2 * limit)
+    const ids = new Set(result.nodes.map((n) => n.id))
+    assert.ok(result.edges.every((e) => ids.has(e.source) && ids.has(e.target)))
+  }
+  assert.equal(JSON.stringify(graph), before)
 })

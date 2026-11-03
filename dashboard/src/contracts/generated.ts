@@ -169,7 +169,7 @@ export interface paths {
         };
         /**
          * 控制台 graph
-         * @description 固定读取最近更新的最多 120 个节点及 240 条关联，不接收 limit 参数。前端默认显示 80 条，可选 40/80/120，切换数量和筛选仅作用于这批记忆，不重新请求。total 为数据库中 Artifact 总数。
+         * @description 从全库 active Artifact 中按 sort 读取最多 120 个节点及 240 条关联，不接收 limit 参数。weight 为现有记忆强度，不代表正确率；缺失、非数值、负数或非有限权重按 1.0 排序，不改写数据。同权重按更新时间、ID 降序。前端默认显示 80 条，可选 40/80/120，保留后端顺序；切换数量和筛选仅作用于当前快照，切换排序重新请求。total 为所有状态的 Artifact 总数。
          */
         get: operations["graph"];
         put?: never;
@@ -1676,7 +1676,9 @@ export interface operations {
     };
     graph: {
         parameters: {
-            query?: never;
+            query?: {
+                sort?: "weight" | "recent";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1692,7 +1694,7 @@ export interface operations {
                     "application/json": components["schemas"]["GraphResponse"];
                 };
             };
-            /** @description 输入无效或版本冲突 */
+            /** @description 排序参数无效 */
             400: {
                 headers: {
                     [name: string]: unknown;

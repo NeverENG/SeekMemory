@@ -75,6 +75,23 @@ export function filterGraph(
   }
 }
 
+export function displayGraph(
+  graph: GraphSnapshot,
+  limit: number
+): GraphSnapshot {
+  const bound = Math.min(120, Math.max(1, Math.floor(limit) || 80))
+  const nodes = graph.nodes.slice(0, bound)
+  const ids = new Set(nodes.map((node) => node.id))
+  return {
+    ...graph,
+    limit: bound,
+    nodes,
+    edges: graph.edges
+      .filter((edge) => ids.has(edge.source) && ids.has(edge.target))
+      .slice(0, bound * 2),
+  }
+}
+
 export const memoryLimits = [40, 80, 120] as const
 export function recentGraph(
   graph: GraphSnapshot,

@@ -19,7 +19,14 @@ export function MemoryList({
   return (
     <section aria-label="记忆列表" className="space-y-3">
       <h3 className="text-sm font-medium">匹配的记忆 · {nodes.length} 条</h3>
-      {!nodes.length && <p role="status">没有匹配的记忆</p>}
+      {!nodes.length && (
+        <p role="status">
+          当前快照没有匹配的记忆。
+          <a href="#/library" className="ml-2 underline">
+            打开完整记忆库
+          </a>
+        </p>
+      )}
       <ul className="space-y-2">
         {nodes.slice(current * 30, (current + 1) * 30).map((node) => (
           <li key={node.id}>

@@ -2,10 +2,10 @@ import { useCallback, useMemo, useState } from "react"
 import { Button, Input, Select, DetailDrawer } from "@/ui"
 import { PageIntro, ResourceState } from "@/features/shell/page-parts"
 import { useResource } from "@/features/shell/use-resource"
-import type { ConsoleClient } from "@/features/shell/model"
+import type { ConsoleClient, GraphSort } from "@/features/shell/model"
 import {
   filterGraph,
-  recentGraph,
+  displayGraph,
   memoryLimits,
   kindLabels,
   kindColors,
@@ -27,7 +27,8 @@ export function MemoryMap({
   onInspect: (id: string) => void
 }) {
   const [limit, setLimit] = useState(80)
-  const read = useCallback(() => client.graph(), [client])
+  const [sort, setSort] = useState<GraphSort>("weight")
+  const read = useCallback(() => client.graph(sort), [client, sort])
   const vm = useResource(read)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [layer, setLayer] = useState("")
@@ -53,7 +54,7 @@ export function MemoryMap({
     [vm.data, query, kind, scope, subject, since, focus]
   )
   const filtered = useMemo(
-    () => (matching ? recentGraph(matching, limit) : null),
+    () => (matching ? displayGraph(matching, limit) : null),
     [matching, limit]
   )
   const nodes = filtered?.nodes ?? []
@@ -90,10 +91,16 @@ export function MemoryMap({
           寻找记忆{activeFilters ? " · 已筛选" : ""}
         </Button>
       </PageIntro>
+      <p className="mb-4 text-sm text-muted-foreground">
+        高权重优先按系统记忆强度排序，不代表事实正确率。
+        搜索和筛选仅覆盖当前加载的最多 120 条有效记忆。
+        <a href="#/library" className="ml-2 underline">
+          打开完整记忆库
+        </a>
+      </p>
       <ResourceState
         loading={vm.loading}
         error={vm.error}
-        empty={vm.data?.nodes.length === 0}
         onRetry={vm.reload}
       />
       {vm.data && filtered && (
@@ -102,12 +109,12 @@ export function MemoryMap({
             open={filtersOpen}
             onOpenChange={setFiltersOpen}
             title="寻找记忆"
-            description="筛选当前星图中的记忆"
+            description="仅筛选当前加载的最多 120 条有效记忆，不搜索全库"
           >
             <div className="map-filters">
               <Input
                 aria-label="搜索记忆星图"
-                placeholder="搜索记忆…"
+                placeholder="搜索当前星图快照…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -218,7 +225,21 @@ export function MemoryMap({
           <div className="console-panel constellation-surface">
             <div className="map-status">
               <label className="sphere-limit">
-                最近更新
+                排序
+                <select
+                  aria-label="星图排序"
+                  value={sort}
+                  onChange={(e) => {
+                    setSort(e.target.value === "recent" ? "recent" : "weight")
+                    resetView()
+                  }}
+                >
+                  <option value="weight">高权重优先</option>
+                  <option value="recent">最近更新</option>
+                </select>
+              </label>
+              <label className="sphere-limit">
+                显示
                 <select
                   aria-label="星图记忆数量上限"
                   value={limit}
@@ -274,15 +295,15 @@ export function MemoryMap({
                 <span>
                   {nodes.length
                     ? "拖动旋转 · 悬停预览 · 点击展开"
-                    : "没有匹配的记忆，请调整筛选"}
+                    : "当前快照没有匹配的记忆，请调整筛选或打开完整记忆库"}
                 </span>
               )}
             </div>
           </div>
           {vm.data.total > vm.data.nodes.length && (
             <p className="my-3 text-xs text-muted-foreground">
-              搜索范围为最近更新 {vm.data.nodes.length} 条记忆，共{" "}
-              {vm.data.total} 条。筛选作用于当前快照。
+              当前加载 {vm.data.nodes.length} 条有效记忆，库内共 {vm.data.total}{" "}
+              条（含非有效状态）。筛选仅作用于当前快照。
             </p>
           )}
         </>
