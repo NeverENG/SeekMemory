@@ -22,8 +22,10 @@ export function consoleClient(bridge: () => Promise<Bridge>): ConsoleClient {
         await (await bridge()).apiPost("manage/rollbackPersona", command)
       )
     },
-    async graph() {
-      return graphSchema.parse(await (await bridge()).apiGet("manage/graph"))
+    async graph(sort = "weight") {
+      return graphSchema.parse(
+        await (await bridge()).apiGet("manage/graph", { sort })
+      )
     },
     async impressions(offset = 0) {
       return impressionsSchema.parse(

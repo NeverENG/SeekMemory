@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { afterEach, test } from "node:test"
 import { astrbotClient } from "../src/infrastructure/astrbot-client.ts"
-import { recentGraph } from "../src/features/memory-graph/model.ts"
+import { displayGraph } from "../src/features/memory-graph/model.ts"
 import { consoleClient } from "../src/infrastructure/console-client.ts"
 
 afterEach(() => {
@@ -13,7 +13,7 @@ void test("graph reads one snapshot capped at 120 for local display limits", asy
   const client = consoleClient(async () => ({
     async apiGet(endpoint, query) {
       assert.equal(endpoint, "manage/graph")
-      assert.equal(query, undefined)
+      assert.deepEqual(query, { sort: calls === 0 ? "weight" : "recent" })
       calls++
       return { nodes: [], edges: [], total: 5000, limit: 120 }
     },
@@ -23,10 +23,12 @@ void test("graph reads one snapshot capped at 120 for local display limits", asy
   }))
   const snapshot = await client.graph()
   for (const limit of [40, 80, 120]) {
-    const display = recentGraph(snapshot, limit)
+    const display = displayGraph(snapshot, limit)
     assert.equal(display.total, 5000)
   }
   assert.equal(calls, 1)
+  await client.graph("recent")
+  assert.equal(calls, 2)
 })
 
 void test("production client requires the host Page bridge and never falls back to fixtures", async () => {
