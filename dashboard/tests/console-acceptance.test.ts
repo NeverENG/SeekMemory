@@ -54,7 +54,7 @@ void test("display limits remain capped at 120 and focus brings any selected nod
   }
 })
 
-void test("display preserves server rank across limits and snapshot filters without dangling edges", () => {
+void test("display preserves server rank across display limits without dangling edges", () => {
   const graph = loadGraph()
   const before = JSON.stringify(graph)
   for (const limit of [40, 80, 120]) {

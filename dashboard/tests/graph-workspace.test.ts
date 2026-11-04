@@ -12,7 +12,7 @@ import type {
   GraphSnapshot,
 } from "../src/features/shell/model.ts"
 
-void test("graph switches server sorting, keeps local counts, and offers library access on empty/error", async () => {
+void test("graph switches server sorting, keeps local counts, and handles empty/error states", async () => {
   const dom = new Window({ url: "http://localhost/#/memory" })
   const before = Object.getOwnPropertyDescriptors(globalThis)
   const globals = {
@@ -112,8 +112,7 @@ void test("graph switches server sorting, keeps local counts, and offers library
       graph: async () => ({ nodes: [], edges: [], limit: 120, total: 1000 }),
     })
     await act(async () => pending[1]?.(snapshot))
-    assert.match(dom.document.body.textContent ?? "", /当前快照没有匹配的记忆/)
-    assert.ok(dom.document.querySelector('a[href="#/library"]'))
+    assert.match(dom.document.body.textContent ?? "", /暂无可展示的记忆/)
     await render({
       ...client,
       graph: async () => {
@@ -124,7 +123,6 @@ void test("graph switches server sorting, keeps local counts, and offers library
       dom.document.querySelector('[role="alert"]')?.textContent ?? "",
       /测试读取失败/
     )
-    assert.ok(dom.document.querySelector('a[href="#/library"]'))
   } finally {
     await act(async () => root.unmount())
     await vite.close()

@@ -4,7 +4,7 @@
 
 ### 中文
 
-- #218：星图默认从全库有效记忆中按现有权重选取，支持最近更新排序及 40/80/120 条显示；明确局部筛选范围和完整记忆库入口。记忆库提升为一级导航，旧链接仍可访问。管理 graph 接口新增可选 sort 参数；无数据库、历史数据、聊天召回或公开配置变更。
+- #218：星图默认从全库有效记忆中按现有权重选取，支持最近更新排序及 40/80/120 条显示；移除星图解释文案与详细搜索抽屉，详细查找统一在记忆库进行，导航改用轨道图标。记忆库提升为一级导航，旧链接仍可访问。管理 graph 接口新增可选 sort 参数；无数据库、历史数据、聊天召回或公开配置变更。
 
 - #215：首页固定展示内置蓝发 Q 版形象，不随人格包封面变化，也不因缺少封面显示占位图。人格工作室继续展示关联封面；无数据、接口或公开配置变更。
 
@@ -14,7 +14,7 @@
 
 ### English
 
-- #218: Rank the graph across all active memories by existing weight by default, retaining recent-update sorting and 40/80/120 display counts. Clarify snapshot-only filters and link to the full library. Promote Library to top-level navigation while preserving old links. Add an optional sort query to the management graph API; no database, historical-data, chat-recall or public-configuration changes.
+- #218: Rank the graph across all active memories by existing weight by default, retaining recent-update sorting and 40/80/120 display counts. Remove the graph explanation and detailed search drawer, keep detailed lookup in Library, and use an orbit navigation icon. Promote Library to top-level navigation while preserving old links. Add an optional sort query to the management graph API; no database, historical-data, chat-recall or public-configuration changes.
 
 - #215: Always show the bundled blue-haired chibi character on Home, independently of persona-pack artwork and without a missing-cover placeholder. Studio continues to show associated artwork; no data, API or public configuration changes.
 

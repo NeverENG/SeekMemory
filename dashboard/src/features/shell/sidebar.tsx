@@ -7,7 +7,7 @@ import {
   History,
   House,
   Moon,
-  Network,
+  Orbit,
   PanelLeftClose,
   PanelLeftOpen,
   RefreshCw,
@@ -25,7 +25,7 @@ const groups = [
     pages: [
       { id: "home", label: "首页", icon: House },
       { id: "persona", label: "成长时间线", icon: History },
-      { id: "memory", label: "记忆星图", icon: Network },
+      { id: "memory", label: "记忆星图", icon: Orbit },
       { id: "library", label: "记忆库", icon: BookOpen },
       { id: "impressions", label: "人物印象", icon: Users },
     ],
