@@ -4,6 +4,8 @@
 
 ### 中文
 
+- #222：抽出临时 HostRequest 与 HostGateway 入站投影；AstrBot 与 DSH 现有 Python HTTP 入口共用 RuntimeInput 构造边界。保持原字段、线协议、运行时行为及用户配置不变；不新增身份认证、限流或持久幂等。
+
 - #215：首页固定展示内置蓝发 Q 版形象，不随人格包封面变化，也不因缺少封面显示占位图。人格工作室继续展示关联封面；无数据、接口或公开配置变更。
 
 - #178：人格工作室新增姓名、正文、风格和边界表单；个人包支持创建、编辑、另存及复制官方包，自动处理分页外目标和版本/内容冲突。应用前对照当前设定，明确替换与历史保留；状态区分应用基线、成长和包更新。新应用在现有人格 payload 保存可选来源与摘要，旧记录保持未知，无数据库结构或包格式迁移。工作室按原包及图片摘要展示封面，缺失或改变时使用占位图，不自动切换形象或合并成长。
@@ -13,6 +15,8 @@
 - #154：新增同 lane 运行控制契约及独立内存 RunControl；显式覆盖后才可替换有效运行，结束句柄拒绝新动作，清理不影响其他控制器或替代运行。实例级单调代次避免保留历史 lane 键，已开始工作仍保留真实结果；尚未接入 Runtime/宿主，不改现有运行行为、数据格式或公开配置。
 
 ### English
+
+- #222: Extract a transient HostRequest and HostGateway projection so AstrBot and the existing DSH Python HTTP entry share one RuntimeInput construction boundary. Preserve fields, wire protocol, runtime behavior and user configuration; no authentication, rate limiting or persistent idempotency is added.
 
 - #215: Always show the bundled blue-haired chibi character on Home, independently of persona-pack artwork and without a missing-cover placeholder. Studio continues to show associated artwork; no data, API or public configuration changes.
 

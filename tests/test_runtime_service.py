@@ -97,6 +97,15 @@ class RuntimeServiceTest(unittest.TestCase):
         self.assertIn("text", context)
         self.assertIsInstance(context["info"], dict)
 
+    def test_unknown_dsh_input_field_keeps_existing_bad_request(self) -> None:
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            self._post("/runtime/events", {
+                "kind": "accept_user", "input": {
+                    "session_id": "s", "text": "hello", "host_object": {},
+                },
+            })
+        self.assertEqual(caught.exception.code, 400)
+
     def test_loopback_requires_bearer_token(self) -> None:
         request = urllib.request.Request(
             f"http://127.0.0.1:{self.endpoint['port']}/runtime/events",

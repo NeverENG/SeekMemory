@@ -19,9 +19,11 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from adapters.host_gateway import HostGateway, HostRequest
+
 from app.runtime import (
     AgentRuntime, EpisodeRecorder, JsonlEpisodeStore, JsonStateStore,
-    MemoryContextRequest, RunRecorder, RuntimeInput,
+    MemoryContextRequest, RunRecorder,
 )
 
 
@@ -66,7 +68,7 @@ class RuntimeService:
         kind = str(body.get("kind") or "")
         if kind == "accept_user":
             try:
-                event = RuntimeInput(**dict(body.get("input") or {}))
+                event = HostGateway.project(HostRequest(**dict(body.get("input") or {})))
                 receipt = self.runtime.accept_user(
                     event, event_id=str(body.get("event_id") or ""), now=time.time()
                 )

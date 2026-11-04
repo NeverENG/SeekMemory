@@ -8,9 +8,10 @@ from __future__ import annotations
 from dataclasses import replace
 
 from .time import utc8_timestamp
-from .events import event_id as host_event_id, to_runtime_input
+from .events import event_id as host_event_id, to_host_request
 
 try:
+    from ..host_gateway import HostGateway
     from ...app.runtime.contracts import (
         RunDecision,
         RuntimeInput,
@@ -22,6 +23,7 @@ try:
     from ...core.domain.social.interaction_policy import InteractionGate
     from ...app.runtime.tools import ToolPolicy, trace_tool_call
 except ImportError:
+    from adapters.host_gateway import HostGateway
     from app.runtime.contracts import (
         RunDecision,
         RuntimeInput,
@@ -44,13 +46,13 @@ class AstrBotRuntimeAdapter:
                    names: tuple[str, ...] = (),
                    clock=None) -> RuntimeInput:
         """Use the single host-event mapper and supplied clock / 使用唯一宿主事件映射及给定时钟。"""
-        mapped = to_runtime_input(
+        mapped = to_host_request(
             event, session_id=umo, owner_id=owner_id, names=names,
             unread_count=unread_count, unread_seq=unread_seq, received_at=received_at,
             clock=clock,
         )
         value = str(text or "")
-        return replace(
+        request = replace(
             mapped,
             session_id=str(umo or ""),
             text=value,
@@ -58,6 +60,7 @@ class AstrBotRuntimeAdapter:
             mentioned=mapped.mentioned,
             question=("?" in value or "\uff1f" in value),
         )
+        return HostGateway.project(request)
 
     @staticmethod
     def source_event_time(source: dict | None) -> float:
