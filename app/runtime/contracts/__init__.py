@@ -30,6 +30,7 @@ from .ports import (
     TraceSink,
 )
 from .proactive import ProactiveDecision, ProactivePolicy
+from .runs import ActiveRunView, RunKind, RunPolicy, RunTransition, RunTrigger
 from .sessions import SessionState, SessionStateStore
 
 __all__ = [
@@ -40,6 +41,7 @@ __all__ = [
     "ActionResult",
     "ActionSink",
     "ActionStatus",
+    "ActiveRunView",
     "AttentionDecision",
     "AttentionLevel",
     "Clock",
@@ -53,7 +55,11 @@ __all__ = [
     "ProactivePolicy",
     "RunContext",
     "RunDecision",
+    "RunKind",
+    "RunPolicy",
     "RunResult",
+    "RunTransition",
+    "RunTrigger",
     "RuntimeInput",
     "SessionState",
     "SessionStateStore",
