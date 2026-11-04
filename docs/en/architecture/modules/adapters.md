@@ -2,7 +2,7 @@
 
 ## Responsibility
 
-adapters translates AstrBot events, providers, and message sending into application ports. Host objects do not leak into core, recall, or app/runtime domain policies.
+adapters translates AstrBot and DSH events, providers, and message sending into application ports. Host objects do not leak into core, recall, or app/runtime domain policies. `adapters/host_gateway/` owns transient `HostRequest` and the single Python inbound `RuntimeInput` projection, not authentication, scheduling or domain policy.
 
 ## Composition root
 
@@ -16,7 +16,7 @@ Start and stop share a lifecycle lock. Partial initialization releases resources
 
 ## Port adapters
 
-- AstrBotRuntimeAdapter reuses astrbot.events.to_runtime_input, preserving existing scene, role, addressed, thread, and message-ID fields, and manages event-extra values for user/reply Source IDs, turn IDs, final recall IDs, and episode deduplication. Event time and process receipt time are recorded separately.
+- AstrBotRuntimeAdapter extracts facts through astrbot.events and projects through HostGateway, preserving existing scene, role, addressed, thread, and message-ID fields, and manages event-extra values for user/reply Source IDs, turn IDs, final recall IDs, and episode deduplication. Event time and process receipt time are recorded separately.
 - AstrBotModelGateway provides ModelGateway for deferred replies.
 - AstrBotActionPort provides both ActionPort and MessageSender: execute accepts ActionRequest and returns ActionResult; the existing send method delegates to execute and returns a boolean.
 - ProviderChatModel wraps a host extraction/persona provider as ChatModel.

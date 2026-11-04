@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT))
 
 from adapters.astrbot.runtime import AstrBotRuntimeAdapter  # noqa: E402
 from adapters.astrbot.events import to_runtime_input  # noqa: E402
+from adapters.host_gateway import HostGateway, HostRequest  # noqa: E402
 from app.runtime import (  # noqa: E402
     ActionRequest, ActionResult, MemoryContext, MemoryContextRequest, RunDecision,
     RunResult, RuntimeInput, UserRunReceipt,
@@ -35,6 +36,12 @@ class RuntimeHostContractTest(unittest.TestCase):
         receipt = dict(FIXTURE["receipt"])
         receipt["decision"] = RunDecision(**receipt["decision"])
         self.assertEqual(asdict(UserRunReceipt(**receipt)), FIXTURE["receipt"])
+
+    def test_gateway_projects_the_complete_dsh_wire_example(self):
+        request = HostRequest(**FIXTURE["input"])
+        self.assertEqual(asdict(HostGateway.project(request)), FIXTURE["input"])
+        self.assertEqual(asdict(HostGateway.project(HostRequest("s", "t"))),
+                         asdict(RuntimeInput("s", "t")))
 
     def test_astrbot_maps_the_same_event_as_the_node_example(self):
         data = FIXTURE["input"]
