@@ -1,162 +1,156 @@
+import { useState } from "react"
+import { Button, DetailDrawer } from "@/ui"
+import { downloadPack } from "../pack-file"
 import { PackArtwork } from "./pack-artwork"
-import type { ConsoleClient } from "@/features/shell/model"
-import { Download } from "lucide-react"
-import { Badge, Button, DetailDrawer } from "@/ui"
-import type { PersonaPack, PersonaSeed } from "@/features/shell/model"
-import type { RuntimeStatus } from "@/features/control/model"
+import { SettingsComparison } from "@/features/persona/views/settings-comparison"
+import { settingsFromDetail } from "@/features/persona/settings"
+import type {
+  ConsoleClient,
+  PersonaPack,
+  PersonaSeed,
+} from "@/features/shell/model"
+import type { ArtifactDetail } from "@/features/control/model"
+
 export function PackPreview({
   client,
-  licenseText,
-  onExport,
   selected,
   seed,
+  current,
+  licenseText,
   error,
   busy,
-  status,
+  blocked,
   confirmed,
   setConfirmed,
-  removeConfirmed,
-  setRemoveConfirmed,
+  reviewRequired,
   onClose,
   onInstall,
   onRemove,
+  onExport,
+  onEdit,
+  onReload,
 }: {
   client: ConsoleClient
-  licenseText: string
-  onExport: () => void
   selected: PersonaPack | null
   seed: PersonaSeed | null
+  current: ArtifactDetail | null
+  licenseText: string
   error: string
   busy: boolean
-  status: RuntimeStatus | null
+  blocked: boolean
   confirmed: boolean
   setConfirmed: (value: boolean) => void
-  removeConfirmed: boolean
-  setRemoveConfirmed: (value: boolean) => void
+  reviewRequired: boolean
   onClose: () => void
   onInstall: () => void
   onRemove: () => void
+  onExport: () => void
+  onEdit: () => void
+  onReload: () => void
 }) {
+  const [removeConfirmed, setRemoveConfirmed] = useState(false)
   return (
     <DetailDrawer
       open={!!selected}
       onOpenChange={(open) => {
         if (!open && !busy) onClose()
       }}
-      title={selected?.name ?? "人格预览"}
-      description="查看设定、示例和来源后再安装"
+      title={selected?.name ?? "人格包预览"}
+      description="比较当前与目标设定，确认后应用"
     >
       <div className="space-y-5 p-6">
-        {!seed && !error && <p role="status">正在读取人格…</p>}
-        {seed && (
+        <h2 className="text-xl font-semibold">{selected?.name}</h2>
+        {!seed && !error && <p role="status">正在读取人格与当前设定…</p>}
+        {seed && selected && (
           <>
-            {selected && (
-              <div className="seed-art seed-art-neutral">
-                <PackArtwork pack={selected} client={client} />
-              </div>
-            )}
-            <div className="flex gap-2">
-              <Badge>{seed.license || "许可未声明"}</Badge>
-              <Badge variant="outline">
-                {seed.content_rating === "general"
-                  ? "全年龄"
-                  : seed.content_rating || "未分级"}
-              </Badge>
+            <div className="seed-art seed-art-neutral">
+              <PackArtwork pack={selected} client={client} />
             </div>
-            <p className="text-xs text-muted-foreground">
-              来源：{seed.source || "未声明"} · 版本 {seed.version}
+            <p className="text-sm text-muted-foreground">
+              包版本 {seed.version} · 许可证：{seed.license || "未声明"} ·
+              来源：{seed.source || "未声明"}
             </p>
+            <SettingsComparison
+              before={current ? settingsFromDetail(current) : null}
+              after={{
+                name: seed.name,
+                persona: seed.persona,
+                style: seed.style ?? {},
+                boundaries: seed.boundaries ?? [],
+              }}
+            />
             {!!licenseText && (
-              <details className="rounded-xl border p-4 text-sm">
+              <details>
                 <summary>许可证正文</summary>
-                <pre className="mt-3 font-sans whitespace-pre-wrap">
+                <p className="wrap-anywhere whitespace-pre-wrap">
                   {licenseText}
-                </pre>
+                </p>
               </details>
             )}
-            <p className="leading-8 whitespace-pre-wrap">{seed.persona}</p>
-            {!!seed.boundaries?.length && (
-              <section>
-                <h3 className="mb-2 font-semibold">相处的边界</h3>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  {seed.boundaries.map((line, index) => (
-                    <li key={index}>· {line}</li>
-                  ))}
-                </ul>
-              </section>
-            )}
             {!!seed.corpus?.length && (
-              <details className="rounded-xl border p-4">
-                <summary>听听它会怎么说（创作示例）</summary>
-                {seed.corpus.slice(0, 3).map((pair, index) => (
-                  <div key={index} className="mt-4 text-sm leading-7">
-                    <p className="text-muted-foreground">{pair.user}</p>
-                    <p>{pair.assistant}</p>
+              <details>
+                <summary>创作样例（{seed.corpus.length} 组）</summary>
+                {seed.corpus.slice(0, 3).map((item, index) => (
+                  <div key={index} className="my-3 text-sm">
+                    <p>{item.user}</p>
+                    <p>{item.assistant}</p>
                   </div>
                 ))}
               </details>
             )}
-            <label className="flex gap-2 text-sm">
+            <p className="rounded-xl border p-4 text-sm">
+              应用会新增一个人格版本，用上面的设定替换当前设定，保留历史。已积累的成长内容不会自动合并；需要保留时请先保存为个人包。
+            </p>
+            <label className="flex items-start gap-2 text-sm">
               <input
                 type="checkbox"
                 checked={confirmed}
-                disabled={busy}
+                disabled={busy || blocked || reviewRequired}
                 onChange={(e) => setConfirmed(e.target.checked)}
               />
-              我确认用这个设定创建当前人格的新版本，旧版本仍保留。
+              <span>我已核对差异，确认替换当前人格设定</span>
             </label>
-            <Button
-              disabled={
-                !confirmed ||
-                busy ||
-                !status?.ready ||
-                !!status.activeTask ||
-                !selected
-              }
-              onClick={onInstall}
-            >
-              安装 / 重新安装
-            </Button>
-            <Button
-              variant="outline"
-              className="ml-2"
-              disabled={busy}
-              onClick={() => {
-                const blob = new Blob([JSON.stringify(seed, null, 2)], {
-                  type: "application/json",
-                })
-                const url = URL.createObjectURL(blob)
-                const link = document.createElement("a")
-                link.href = url
-                link.download = `${seed.id}.json`
-                link.click()
-                setTimeout(() => URL.revokeObjectURL(url), 1000)
-              }}
-            >
-              <Download size={14} />
-              导出设定
-            </Button>
-            <Button
-              variant="outline"
-              className="ml-2"
-              disabled={busy}
-              onClick={onExport}
-            >
-              导出完整包
-            </Button>
-            {selected?.reference.startsWith("mine/") && (
-              <div className="space-y-3">
-                <label className="flex items-center gap-2 text-sm">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                disabled={busy || blocked || reviewRequired || !confirmed}
+                onClick={onInstall}
+              >
+                应用此包
+              </Button>
+              <Button
+                variant="outline"
+                disabled={busy || blocked}
+                onClick={onEdit}
+              >
+                {selected.reference.startsWith("mine/")
+                  ? "编辑已保存包"
+                  : "复制到我的包"}
+              </Button>
+              <Button variant="outline" disabled={busy} onClick={onExport}>
+                导出完整包
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={busy}
+                onClick={() => downloadPack(seed, `${seed.id}.json`)}
+              >
+                导出设定 JSON
+              </Button>
+            </div>
+            {selected.reference.startsWith("mine/") && (
+              <div className="space-y-2 border-t pt-4">
+                <label className="flex items-start gap-2 text-sm">
                   <input
                     type="checkbox"
                     checked={removeConfirmed}
+                    disabled={busy || blocked}
                     onChange={(e) => setRemoveConfirmed(e.target.checked)}
                   />
-                  确认移除此本地包，当前人格不受影响
+                  确认移除此包；当前人格内容保留，封面可能变为占位图
                 </label>
                 <Button
                   variant="ghost"
-                  disabled={busy || !removeConfirmed}
+                  disabled={busy || blocked || !removeConfirmed}
                   onClick={onRemove}
                 >
                   移入回收目录
@@ -170,6 +164,14 @@ export function PackPreview({
             {error}
           </p>
         )}
+        {(error || reviewRequired) && (
+          <Button variant="outline" disabled={busy} onClick={onReload}>
+            重新加载并核对
+          </Button>
+        )}
+        <Button variant="ghost" disabled={busy} onClick={onClose}>
+          取消
+        </Button>
       </div>
     </DetailDrawer>
   )

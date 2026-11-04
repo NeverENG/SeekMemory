@@ -39,7 +39,8 @@ class Context:
 class Event:
     def __init__(self) -> None:
         self.extras = {}
-        self.call_llm = True
+        # AstrBot uses True to prohibit its default model request.
+        self.call_llm = False
 
     def set_extra(self, key, value):
         self.extras[key] = value
@@ -84,15 +85,16 @@ class ActionTest(unittest.TestCase):
         event = Event()
         decision = RunDecision(WakeAction.OBSERVE, "ambient")
         AstrBotRuntimeAdapter.apply_llm_gate(event, decision, False)
-        self.assertTrue(event.call_llm)
-        AstrBotRuntimeAdapter.apply_llm_gate(event, decision, True)
         self.assertFalse(event.call_llm)
+        AstrBotRuntimeAdapter.apply_llm_gate(event, decision, True)
+        self.assertTrue(event.call_llm)
 
     def test_llm_gate_honors_must_reply(self) -> None:
         event = Event()
         decision = RunDecision(WakeAction.WAIT, "deferred", must_reply=True)
         AstrBotRuntimeAdapter.apply_llm_gate(event, decision, True)
-        self.assertTrue(event.call_llm)
+        self.assertFalse(event.call_llm)
+
 
 
     def test_tool_policy_and_trace(self) -> None:

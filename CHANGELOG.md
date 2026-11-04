@@ -5,17 +5,201 @@
 ### 中文
 - 修复关系 V2：已核验事件按显式时间回放熟悉、信任、温度、张力、稳定性与置信度，关联修复降低对应张力；按 subject 提交带 Source 证据与版本历史的 Artifact，读取坏旧行时保持中性。V1 历史只在 Source 可归属且有时区时进入独立复核队列，旧 affinity 不复制。观察期不影响回复或语气；不重置已有数据、不新增表或配置。离线误报率由真实模型评测产生，未运行时不报告数值。每周语义核验兼容 AstrBot 包模式，关系衰减兼容 Python 3.10（#163）。
 
-- #183 以现有树边表达多父关系，移除唯一父节点查询与单父字段写入。旧列保留但不用于树语义，旧库缺边时只读回退平面召回，不自动迁移。树查询分别限制深度、分支、访问量和结果数，合成相关性、路径距离及证据支持分后仍经披露；同主体、同范围、当前版本与 Source 证据仍是硬约束。内部开关默认关闭，不改公开配置或数据库结构。
+- #215：首页固定展示内置蓝发 Q 版形象，不随人格包封面变化，也不因缺少封面显示占位图。人格工作室继续展示关联封面；无数据、接口或公开配置变更。
 
-- 修复用户消息跨会话复用 event_id 时被误去重的问题：RunRecorder 的已完成记录与待补偿写入统一按现有 Source ID 区分，保留同一消息重放的幂等性及对外 turn_id，无数据格式或配置变化（#187）。
+- #178：人格工作室新增姓名、正文、风格和边界表单；个人包支持创建、编辑、另存及复制官方包，自动处理分页外目标和版本/内容冲突。应用前对照当前设定，明确替换与历史保留；状态区分应用基线、成长和包更新。新应用在现有人格 payload 保存可选来源与摘要，旧记录保持未知，无数据库结构或包格式迁移。工作室按原包及图片摘要展示封面，缺失或改变时使用占位图，不自动切换形象或合并成长。
+
+- #178 review 修复：人工编辑成长正文保存为可召回的人工基线，保留成长历史、证据和回滚，披露规则不放宽；完整人格按 UTF-8 容量校验，支持长中文设定改名；普通保存错误保留可编辑草稿，仅确认包内容变化后要求重新载入。沿用现有字段与人工设定语义，无数据迁移。
+
+- #154：新增同 lane 运行控制契约及独立内存 RunControl；显式覆盖后才可替换有效运行，结束句柄拒绝新动作，清理不影响其他控制器或替代运行。实例级单调代次避免保留历史 lane 键，已开始工作仍保留真实结果；尚未接入 Runtime/宿主，不改现有运行行为、数据格式或公开配置。
 
 ### English
 
 - Repair Relationship V2: replay verified events at an explicit clock into familiarity, trust, warmth, tension, stability, and confidence, with linked repair reducing its prior tension; commit per-subject Artifacts with Source evidence and version history, and treat invalid legacy rows as neutral. Queue V1 history for independent verification only when Sources are attributable and timezone-aware, without copying affinity. Observation does not change replies or tone; existing data remains intact with no new tables or config. Offline false-positive rates require a real model evaluation and are not reported otherwise. Weekly semantic verification works in AstrBot package mode, and relationship decay supports Python 3.10 (#163).
 
+- #215: Always show the bundled blue-haired chibi character on Home, independently of persona-pack artwork and without a missing-cover placeholder. Studio continues to show associated artwork; no data, API or public configuration changes.
+
+- #178: Add dedicated name/text/style/boundary editing and personal-pack create/edit/save-as/copy flows, with automatic lookup beyond catalog pages and version/content conflict checks. Compare settings before application and explain replacement/history; distinguish the applied baseline, growth and saved-pack updates. New applications add optional provenance/digests to the existing persona payload; legacy records remain unknown, without database-schema or pack-format migration. Studio uses the original pack's verified artwork or a neutral placeholder when missing/changed, without automatic image switching or growth merging.
+
+- #178 review fixes: Save manually edited grown text as a recallable authored baseline while retaining growth history, evidence and rollback without relaxing disclosure. Validate complete persona payloads by UTF-8 size so long Chinese settings remain editable. Preserve editable drafts after ordinary save errors and require reload only after observing changed pack content. Existing fields/authored semantics remain compatible without migration.
+
+- #154: add same-lane run-control contracts and a standalone in-memory RunControl. Replacing valid work requires explicit supersession; finished handles reject new actions, and cleanup preserves other controllers/replacement runs. Instance-wide monotonic epochs avoid retaining historical lane keys while started work keeps its actual outcome. Runtime/host integration is not enabled; existing behavior, data formats and public configuration are unchanged.
+
+## 0.6.0 — 2026-11-01
+
+### 中文
+
+- 正式版包含 0.6.0-rc.1 的功能，以及发布前合入的 #201、#202、#203 修复；因此并非与候选版完全相同的代码。先前服务器隔离测试验证了候选版的 AstrBot SDK 导入、运行时测试、DSH 与 Python 本机服务桥接及抽取召回；新增修复依赖本次发布 CI 验证。真实聊天平台与付费模型端到端链路仍未验证，线上插件未升级。
+
+- #203 仅对后续抽取，在候选自身的同会话用户 Source 验证编号后将精确 `user(id)` 规范化为纯编号，统一 payload、header 与去重主体；提示词要求纯编号。保留旧数据、版本及账本，不自动迁移，不改变披露阈值、schema 或配置键；旧错误记录仍需另行决定修订。
+
+- #202 修复 AstrBot 运行时 gate 的反向映射：启用后允许正常回复，强制关系拒绝阻止默认模型请求；关闭时不干预宿主标记。保留宿主唤醒检查，无数据格式或配置键变化。
+
+- #201 修复到期清理及容量统计忽略较早 valid_to 的问题：任一截止日期已过即判定到期，保留截止当天有效的边界和 Source；修复 Source 查询对不同时区时间的筛选和排序：已知时刻按实际时间查询，旧无时区及仅日期值保留既有行为；修复 deferred 积压达到软阈值后无法恢复抽取的问题，按 pending 余量有界放行。均不改数据格式或配置。
+
+### English
+
+- The final release includes the 0.6.0-rc.1 features plus fixes for #201, #202 and #203 merged before release; it is not byte-identical to the candidate. Earlier isolated server tests covered the candidate's AstrBot SDK import and runtime tests, plus DSH bridging, extraction and recall against Python loopback; the additional fixes are subject to this release's CI. Live chat-platform and paid-model end-to-end paths remain unverified, and the production plugin was not upgraded.
+
+- #203 For future extraction only, normalize exact `user(id)` labels to bare IDs after verification against the candidate's own same-session user Sources; align payload, header and deduplication identity, and request bare IDs in the prompt. Preserve existing data, versions and ledger without automatic migration or changes to disclosure thresholds, schema or configuration keys; existing incorrect records need a separate revision decision.
+
+- #202 Fix the reversed AstrBot runtime gate mapping: allow normal replies and block default model requests on enforced relationship denial when enabled; preserve the host flag when disabled. Host wake checks remain in place, with no data-format or configuration-key changes.
+
+- #201 Fix expiry cleanup and capacity metrics overlooking an earlier valid_to: either elapsed deadline expires the Artifact, preserving inclusive date boundaries and Sources. Fix Source filtering and ordering across timezones by comparing known instants chronologically while retaining legacy naive and date-only behavior. Fix deferred extraction stalling at its soft threshold by releasing bounded batches according to pending headroom. Data formats and configuration remain unchanged.
+
+## 0.6.0-rc.1 — 2026-10-31
+
+### 中文
+
+- #177 将现有策略键归入 SeekMemory 配置契约，记录范围、模式、依赖、版本及仅供说明的 profiles；诊断只报告不改写配置，不激活新策略。AstrBot 旧键与默认值、数据格式和运行行为保持不变；YAML 不进入插件运行依赖。
+
+- #198：本机服务支持多个平台以同一稳定主体键共享一份记忆与 Persona；显式不一致的键在捕获、召回、人格与任务拉取前返回 403。默认缺省键继续归于 `owner_umo`，无数据库结构或公开配置键变化；此前混存多主体的旧数据库需先审计/拆分，回滚会恢复原有跨主体访问。真实 DSH 付费模型端到端尚待验证。
+
+- 接续 #193 的可选本机服务入口，补齐拉取式任务计划及模型结果提交：仅接纳本进程已派发的任务，复用既有证据校验与 Artifact CAS 提交；失败保留待处理输入，任务进程内保存；召回请求的预算及命中数可逐次收紧服务上限，不新增数据库格式或公开配置。实际 DSH 宿主验证与抽取后召回仍须按验证结果单独确认。
+
+- 将 #193 本机记忆服务的 HTTP 与服务组装移至 adapters/loopback，保留 scripts/serve.py 启动命令；底层异常不再回显给客户端，健康检查不暴露数据库路径，新建目录与令牌元数据仅所有者可读。原始版本的跨进程抽取在有任务时无法生成可执行 ChatRequest，计划和提交都明确返回 501，契约与冒烟检查将未验证的端到端场景明确标为未完成，不再显示全通过。端点、已存数据格式及公开配置不变。
+
+- #183 以现有树边表达多父关系，移除唯一父节点查询与单父字段写入。旧列保留但不用于树语义，旧库缺边时只读回退平面召回，不自动迁移。树查询分别限制深度、分支、访问量和结果数，合成相关性、路径距离及证据支持分后仍经披露；同主体、同范围、当前版本与 Source 证据仍是硬约束。内部开关默认关闭，不改公开配置或数据库结构。
+
+- 修复用户消息跨会话复用 event_id 时被误去重的问题：RunRecorder 的已完成记录与待补偿写入统一按现有 Source ID 区分，保留同一消息重放的幂等性及对外 turn_id，无数据格式或配置变化（#187）。
+
+- 将 core 的领域实现归入 `core/domain/`，图存储协议归入 `core/port/`；旧模块导入与 `core.ports` 保留同一对象的兼容入口。移除 `main.py` 整文件 40 行上限测试，保留入口职责边界检查。未改模型调用、持久化格式或公开配置。
+
+- 运行轨迹新增宿主无关的运行编号、结果及时间范围查询，AstrBot 与独立 HTTP 共用契约；控制台可定位已记录的失败步骤，并标明未结束或不完整时间轴。保留既有白名单、只读边界和响应格式；切换查询时丢弃迟到结果，不新增数据库或公开配置。
+
+- 修复独立控制台启动和读取时隐式裁剪历史 trace；轨迹只读筛选，不改写原文件。HTTP 连接并行读写，管理操作继续在单个 SQLite 所属线程串行执行，避免空闲连接阻塞正常请求；保持 API、配置与数据格式兼容。
+
+- 新增本机独立控制台：无需启动 AstrBot 即可通过 HTTP API 查看和编辑记忆、管理人格包及运行只读诊断。支持可配置 API 地址和独立管理员令牌；令牌仅在页面内存保存，断开或过期后需重新连接。新增 `SEEKMEMORY_CONSOLE_TOKEN` 与独立启动参数，保留旧宿主入口及数据格式；首版不运行后台维护、远程部署或导入任务 API。
+
+- app 卫生：保留兼容入口，内部区分纯规则、状态变化、执行和补写；全量规范中英双语源码说明，同步双语文件职责、接口及验证入口。存储和宿主转接暂留原处，供后续跨模块整理。
+
+- 运行时：确认发送后保留进程内凭据，写回失败仅补状态、原始消息/队列及审计；关闭后台发言及停止时仍补写。保存失败可被编排识别，文件失败不覆盖旧状态，新增审计使用稳定运行编号。不改数据库结构或旧记录，不保证断电后绝对不重发。
+
+- 夜间整理：分离纯时间/预算规则；台账结束失败如实返回失败及已完成数量，错误不再保存异常正文，诊断失败不影响整理结果。
+
+- 修复强化提交成功但缓存失败后的重复提交；缓存补偿读取最新版本，未提交命中和缓存补偿分别保留。
+
+- 内部接口：增加 `app.domain`，并在 `app.ports` 集中列出应用层提供的能力与外部依赖；补齐中英接口清单、逻辑复杂度及职责缺口。保留原导入路径和实现位置，未改变业务规则、持久化格式或公开配置。
+
+- 文档：补齐 core 能力与现有测试的对应入口、定向验证命令及证据范围；澄清测试分层混用、旧跑分的样本权重与字数指标，以及报告生成不等于质量验收。测试、跑分和运行代码保持不变。
+
+- 内部卫生：算法阈值与系数在所属 core 文件内具名维护；关系校验和追踪复用领域词表，互动规则复用已有默认概率。保持策略数值、边界判断、配置及持久化约定不变。
+
+- 内部接口：将 `core.interfaces` 拆为对外能力入口 `core.domain` 和外部依赖声明 `core.ports`，移除图的延迟导入绑定。内部调用需更新导入路径；现有领域实现入口、策略数值和外层契约保持兼容。
+
+- 内部架构：树读写集中迁入 `services.TreeService`，所需存储和缓存接口迁至 `app/ports.py`；内部 Python 调用需替换原 `core.tree.Tree` 入口。保持宿主、管理接口、配置、持久化格式及原有读写行为兼容。
+
+- 人格小铺支持兼容旧 JSON 的完整包导入/导出、PNG 封面及许可证预览；封面经管理员鉴权读取，图片校验与打包覆盖大小、尺寸、损坏及路径边界。更新保留旧包备份，不改变 Persona/Source 数据结构；旧代码回退前需导出纯设定 JSON。替换或取消导入会丢弃迟到的封面读取结果。角色内容与正式插画留待后续。
+
+- 星图每次加载最多读取 120 条记忆和 240 条关联，默认显示 80 条，40/80/120 切换不再请求；移除千节点选项与后台布局，避免预读过多记忆。
+
+- 将星图读取改为数据库限量快照与批量关联查询；补齐抽屉中的键盘列表、聚焦和关联视图，修复普通 HTTP 页面保存人格包的随机 ID 兼容性。保持数据库格式与公开配置不变。
+
+- 兼容 v0.5.0 的 AstrBot 包结构，修正内置人格包路径，保留上游动作审计及自动测试发现机制；验证人格包、Dream 历史及重启恢复。无额外数据库或配置变更。
+
+- 同步 v0.4.3 后的宿主运行时，保留人格包与 Dream 控制台接线；补齐重载及启动失败重试验证，将控制台文档迁入中英双语目录，日志增加“允许回复／本轮不回复”状态筛选。无新增数据库或配置变更。
+
+- 按界面反馈移除星图数量提示、关联筛选入口、底部键盘列表及重复详情按钮；浮动卡片的详情按钮跟随记忆点配色，明黄、淡绿使用深色文字。
+
+- 修复星图入场计时停止后亮面残留：高亮在入场结束前淡出，常态只随波纹短暂亮起；将土黄、橄榄黄绿调整为明黄、淡绿，并统一明暗主题。
+
+- 收紧星图节点光晕，改用单路接力的淡色连线脉冲，无亮头或拖尾；入场沿球面由左向右分支扩散，镜头稍滞后于前沿，在 6.6 秒内逆时针环绕一整圈，同步拉远并居中，避免末尾额外平移，支持中途接管视角与减少动态效果。
+
+- 星图改用高对比发光节点，面片只随波纹或入场短暂亮起；默认显示最近更新 80 条（可选 40/80/120），随数量放大默认半径，进入/刷新时播放点→线→面→体动画。点击横幅展开既有详情接口返回的正文与元信息，保留受保护内容遮蔽并丢弃过期请求。
+
+- 记忆星图改为可旋转的立体记忆球，支持同类分组、分类配色、呼吸/波纹/流光、悬停凸起及信息框、点击固定与缩放；球面网格与真实关联区分呈现，修复交互时重建画布造成的闪动，筛选收进抽屉；生命周期日志改为只读控制台，支持定时刷新、暂停更新、自动跟随及展开详情，保留既有筛选与脱敏接口。
+
+- 根据 DeepSeek 首页与 Harness 实际页面调整明暗主题：浅蓝白底与淡网格、石墨黑底与柔和蓝光；侧栏、面板和抽屉加入适量磨砂玻璃层次，补齐页面进入、侧栏折叠与悬停动效，并适配减少动态效果偏好。
+
+- 记忆筛选收拢为单一入口，提供带解释的类型/范围选项、明确的记忆条数和可逐个取消的条件标签；修复侧栏收起后文字溢出及预览页底部按钮超出视口。
+
+- 记忆库改为单栏列表：统计收拢为摘要，集中类型/状态/范围/会话筛选并支持统一重置，详情改为点击后打开抽屉。
+
+- 记忆库移除重复的独立侧栏，将类型及数量合并至列表筛选，统一桌面与窄屏入口。
+
+- 首页采用居中人格展示与下方运行/成长分栏，调整标题、胶囊按钮与留白；按用户提供的画风和人设参考生成透明 Q 版头像，替换首页与小铺的鱼插画。
+
+- 管理面板统一蓝白黑配色，图表与深色模式共用主题；移除装饰英文、重复说明与页脚标语，以留白和标题层级组织内容。
+
+- 控制台改用分组式左侧导航，支持桌面折叠和窄屏图标栏，连接状态与刷新移至侧栏底部。
+
+- 人格控制台接入历史版本回滚、差异比较与变化原因；安装时校验预览内容，按版本显示已安装状态；Dream 日志区分预算停止与完成，并显示调度开关。新增控制台接口需与 dashboard 同步更新，不涉及数据库迁移或配置变化（#82 / #83）。
+
+### English
+
+- #177 inventories existing policy keys in a SeekMemory-owned contract with ranges, modes, dependencies, version and descriptive-only profiles. Diagnostics report without rewriting configuration or activating new policies. AstrBot keys, defaults, persisted formats and runtime behavior stay unchanged; YAML is not a plugin runtime dependency.
+
+- #198: Multiple platforms may share one memory store and Persona under the same stable subject key. Explicitly mismatched keys now receive 403 before capture, recall, Persona reads or task planning. Omitted keys retain the `owner_umo` default; no schema or public config keys change. Audit/separate legacy mixed-subject databases before reuse; rollback restores the former cross-subject access. Real DSH paid-model end-to-end verification is still pending.
+
+- Complete pull-style task planning and host-supplied model-result commits for the optional #193 loopback entry. Only tasks issued by this process are accepted; existing evidence validation and Artifact CAS writes apply. Failures retain pending input and tasks are process-local; recall requests may narrow the service character and result limits without a new persisted format or public configuration. Real DSH host and post-extraction recall remain subject to separate verification.
+
+- Move the #193 loopback memory HTTP transport and service composition into adapters/loopback while preserving the scripts/serve.py command; underlying exception text and unauthenticated database paths are no longer disclosed; new directories and token metadata are owner-only. In the initial version, cross-process extraction could not create a runnable ChatRequest: both pending plans and commits explicitly returned 501, and contract/smoke checks now mark unverified end-to-end scenarios incomplete rather than all passing. Endpoints, stored formats and public configuration are unchanged.
+
 - #183 uses existing tree edges for multiple parents and removes unique-parent lookup and writes to the single-parent column. The old column remains inert; missing legacy edges trigger read-only flat-recall fallback without automatic migration. Depth, fan-out, visits and results are bounded, with query relevance, path distance and evidence support ranked before disclosure. Same subject/scope, current version and Source evidence remain hard guards. The internal rollout is off by default; no public configuration or schema change.
 
 - Fix user messages being incorrectly deduplicated when event IDs are reused across sessions: RunRecorder keys completed and pending user writeback by the existing Source ID, preserving exact replay idempotency and public turn_id values. No data-format or configuration changes (#187).
+
+- Group core domain implementations under `core/domain/` and the graph storage protocol under `core/port/`; legacy module imports and `core.ports` still resolve to the same objects. Remove the whole-file 40-line limit test for `main.py` while retaining entry-point ownership checks. Model calls, persisted formats and public configuration are unchanged.
+
+- Add host-neutral run ID, result and time-range queries with a shared contract for AstrBot and standalone HTTP. The console locates recorded failure steps and marks unfinished or partial timelines. Preserve the allowlist, read-only boundary and response format, discard late query results, and add no database or public configuration changes.
+
+- Fix implicit pruning of historical traces when starting or reading the standalone console; filter traces read-only without rewriting the original file. Handle HTTP connections concurrently while serializing management operations on the SQLite owner thread, so idle connections do not block normal requests. API, configuration, and data formats remain compatible.
+
+- Add a local standalone console for HTTP-based memory inspection/editing, persona packs, and read-only diagnostics without starting AstrBot. API addresses and independent administrator tokens are configurable; tokens remain in page memory and require reconnection after disconnect or expiry. Add `SEEKMEMORY_CONSOLE_TOKEN` and standalone CLI options while preserving the host entry and data formats. The first version starts no maintenance workers and includes no remote deployment or import-task API.
+
+- Clarify app pure rules, transitions, dispatch and write-back behind compatible entries; standardize bilingual source documentation and update mirrored responsibility/interface/verification maps. Storage and host adapters remain in place pending cross-module inventory.
+
+- Retain process-local receipts after confirmed sending and retry only state, Source/projection and audit writes, including with speaking disabled and at shutdown. Surface storage failures, preserve old file state and derive stable IDs for new audit rows. No schema or historical-row changes; crashes may still lead to resend.
+
+- Separate daily time/budget rules; report journal finish failure with completed counts, omit exception bodies, and isolate diagnostic failures.
+
+- Prevent duplicate reinforcement after a successful commit followed by cache failure; repair from the latest head and retain uncommitted hits separately.
+
+- Internal interfaces: add `app.domain` and centralize required capabilities in `app.ports`; document the provided/required interface inventory, logical complexity, and responsibility gaps in both languages. Existing import paths and implementation locations remain available; business rules, persisted formats, and public configuration are unchanged.
+
+- Documentation: map core capabilities to existing tests, focused commands and evidence limits; clarify mixed test layers, fixture-weight/character-count metrics in the legacy benchmark, and report generation versus quality acceptance. Test, benchmark and runtime code remain unchanged.
+
+- Internal hygiene: name algorithm thresholds/factors within their owning core files; relationship validation and trace reuse domain vocabularies, and interaction rules reuse existing default probabilities. Policy values, boundary comparisons, configuration and persisted contracts remain unchanged.
+
+- Internal interfaces: split `core.interfaces` into the provided `core.domain` entry and required declarations in `core.ports`, removing lazy graph binding. Internal callers must update imports; existing domain implementation entries, policy values and outer contracts remain compatible.
+
+- Internal architecture: move tree orchestration to `services.TreeService` and its storage/cache ports to `app/ports.py`; internal Python callers must replace `core.tree.Tree`. Host/management contracts, configuration, persisted formats, and existing read/write behavior remain compatible.
+
+- Add complete persona-pack import/export compatible with legacy JSON, PNG artwork and license previews. Serve artwork through administrator authentication and validate packaging, size, dimensions, corruption and path boundaries. Preserve backups on update without changing Persona/Source schemas; export seed-only JSON before reverting to older code. Discard late cover reads after an import is replaced or cancelled. Character content and final artwork remain deferred.
+
+- Read at most 120 graph nodes and 240 associations on load, display 80 nodes by default, and switch between 40/80/120 locally. Remove the 1,000-node option and background layout to avoid excessive prefetching.
+
+- Bound graph reads in SQL and batch association queries; add a drawer-based keyboard list, focus and neighborhood actions, HTTP-compatible random persona-pack IDs. Database formats and public configuration are unchanged.
+
+- Integrate the v0.5.0 AstrBot package layout, correct the built-in persona-pack path, and retain upstream action auditing and automatic test discovery. Verify persona packs, Dream history and restart recovery without additional database or configuration changes.
+
+- Integrate the post-v0.4.3 host runtime while retaining persona-pack and Dream console wiring. Verify reload and failed-start retry, move console documentation into the bilingual tree, and expose allow-reply/skip-reply log filters. No additional database or configuration changes.
+
+- Remove the graph count, relation filter, bottom keyboard list and duplicate detail action. Match floating-card detail buttons to their memory node colors with dark text on bright yellow and light green.
+
+- Fade memory-sphere assembly highlights before the entrance clock stops, preventing permanently lit facets while retaining transient ripple illumination. Replace ochre and olive tones with clear yellow and light green in both themes.
+
+- Tighten node halos and replace travelling heads/tails with one muted, continuous edge-pulse relay. Sweep the entrance left to right along branching mesh paths while the camera trails the frontier through exactly one counterclockwise turn in 6.6 seconds, pulling back and centering continuously without a separate final translation; support interaction takeover and reduced motion.
+
+- Use higher-contrast luminous nodes and transient ripple/assembly facets. Show the 80 most recently updated memories by default (40/80/120 choices), scale the default radius with density, and assemble points → lines → faces → volume on entry/refresh. Expand annotations on selection using the existing detail API, retaining protected-content masking and discarding stale replies.
+
+- Rework the memory map into a rotatable 3D memory sphere with category patches, muted colors, breathing/ripple/flow motion, raised hover nodes, annotations, pinned selection and zoom. Distinguish surface geometry from real relationships and avoid canvas recreation during interaction; move filters into a drawer. Present lifecycle logs as a read-only console with polling, pause, follow-latest and expandable details, retaining existing filters and sanitized APIs.
+
+- Adapt light/dark themes from the live DeepSeek and Harness pages: icy-blue backgrounds and a faint grid, graphite surfaces and soft blue light. Add restrained frosted navigation, panels and drawers, plus page-entry, sidebar and hover motion with reduced-motion support.
+
+- Consolidate memory filters into one entry with explained type/scope choices, explicit record counts and removable filter chips; fix collapsed sidebar text overflow and off-screen preview footer controls.
+
+- Simplify the memory library to a single list with inline statistics, unified category/state/scope/session filters and reset, and on-demand detail drawers.
+
+- Remove the duplicate memory-library sidebar and move category counts into the list filter, shared across desktop and narrow layouts.
+
+- Recompose the home page around a centered persona and separate activity/history columns, with lighter headings, pill buttons and more whitespace; replace the home/store fish with a transparent chibi head generated from user-supplied style and character references.
+
+- Unify the dashboard around blue, white and neutral black, including charts and dark mode; remove decorative labels, repeated introductions and footer slogans in favor of spacing and clear headings.
+
+- Replace console top navigation with a grouped left sidebar, desktop collapse and a compact icon rail on narrow screens; move connection status and refresh to its footer.
+
+- Connect persona rollback with version diffs and change reasons; validate previewed pack content before installation and show installed versions accurately. Dream distinguishes budget stops from completion and reports scheduling state. Ship the new console API and dashboard together; no database migration or configuration change (#82 / #83).
 
 ## 0.5.1 — 2026-10-28
 
@@ -136,136 +320,6 @@
 ### English
 
 - Fix `AttentionHooks` raising `'Main' object has no attribute '_may_observe'`: the helper lives on `host.hooks`, not the host object; it now delegates explicitly and has a regression test.
-
-## Unreleased
-
-### 中文
-
-- 将 core 的领域实现归入 `core/domain/`，图存储协议归入 `core/port/`；旧模块导入与 `core.ports` 保留同一对象的兼容入口。移除 `main.py` 整文件 40 行上限测试，保留入口职责边界检查。未改模型调用、持久化格式或公开配置。
-
-- 运行轨迹新增宿主无关的运行编号、结果及时间范围查询，AstrBot 与独立 HTTP 共用契约；控制台可定位已记录的失败步骤，并标明未结束或不完整时间轴。保留既有白名单、只读边界和响应格式；切换查询时丢弃迟到结果，不新增数据库或公开配置。
-
-- 修复独立控制台启动和读取时隐式裁剪历史 trace；轨迹只读筛选，不改写原文件。HTTP 连接并行读写，管理操作继续在单个 SQLite 所属线程串行执行，避免空闲连接阻塞正常请求；保持 API、配置与数据格式兼容。
-
-- 新增本机独立控制台：无需启动 AstrBot 即可通过 HTTP API 查看和编辑记忆、管理人格包及运行只读诊断。支持可配置 API 地址和独立管理员令牌；令牌仅在页面内存保存，断开或过期后需重新连接。新增 `SEEKMEMORY_CONSOLE_TOKEN` 与独立启动参数，保留旧宿主入口及数据格式；首版不运行后台维护、远程部署或导入任务 API。
-
-- app 卫生：保留兼容入口，内部区分纯规则、状态变化、执行和补写；全量规范中英双语源码说明，同步双语文件职责、接口及验证入口。存储和宿主转接暂留原处，供后续跨模块整理。
-
-- 运行时：确认发送后保留进程内凭据，写回失败仅补状态、原始消息/队列及审计；关闭后台发言及停止时仍补写。保存失败可被编排识别，文件失败不覆盖旧状态，新增审计使用稳定运行编号。不改数据库结构或旧记录，不保证断电后绝对不重发。
-
-- 夜间整理：分离纯时间/预算规则；台账结束失败如实返回失败及已完成数量，错误不再保存异常正文，诊断失败不影响整理结果。
-
-- 修复强化提交成功但缓存失败后的重复提交；缓存补偿读取最新版本，未提交命中和缓存补偿分别保留。
-
-- 内部接口：增加 `app.domain`，并在 `app.ports` 集中列出应用层提供的能力与外部依赖；补齐中英接口清单、逻辑复杂度及职责缺口。保留原导入路径和实现位置，未改变业务规则、持久化格式或公开配置。
-
-- 文档：补齐 core 能力与现有测试的对应入口、定向验证命令及证据范围；澄清测试分层混用、旧跑分的样本权重与字数指标，以及报告生成不等于质量验收。测试、跑分和运行代码保持不变。
-
-- 内部卫生：算法阈值与系数在所属 core 文件内具名维护；关系校验和追踪复用领域词表，互动规则复用已有默认概率。保持策略数值、边界判断、配置及持久化约定不变。
-
-- 内部接口：将 `core.interfaces` 拆为对外能力入口 `core.domain` 和外部依赖声明 `core.ports`，移除图的延迟导入绑定。内部调用需更新导入路径；现有领域实现入口、策略数值和外层契约保持兼容。
-
-- 内部架构：树读写集中迁入 `services.TreeService`，所需存储和缓存接口迁至 `app/ports.py`；内部 Python 调用需替换原 `core.tree.Tree` 入口。保持宿主、管理接口、配置、持久化格式及原有读写行为兼容。
-
-- 人格小铺支持兼容旧 JSON 的完整包导入/导出、PNG 封面及许可证预览；封面经管理员鉴权读取，图片校验与打包覆盖大小、尺寸、损坏及路径边界。更新保留旧包备份，不改变 Persona/Source 数据结构；旧代码回退前需导出纯设定 JSON。替换或取消导入会丢弃迟到的封面读取结果。角色内容与正式插画留待后续。
-
-- 星图每次加载最多读取 120 条记忆和 240 条关联，默认显示 80 条，40/80/120 切换不再请求；移除千节点选项与后台布局，避免预读过多记忆。
-
-- 将星图读取改为数据库限量快照与批量关联查询；补齐抽屉中的键盘列表、聚焦和关联视图，修复普通 HTTP 页面保存人格包的随机 ID 兼容性。保持数据库格式与公开配置不变。
-
-- 兼容 v0.5.0 的 AstrBot 包结构，修正内置人格包路径，保留上游动作审计及自动测试发现机制；验证人格包、Dream 历史及重启恢复。无额外数据库或配置变更。
-
-- 同步 v0.4.3 后的宿主运行时，保留人格包与 Dream 控制台接线；补齐重载及启动失败重试验证，将控制台文档迁入中英双语目录，日志增加“允许回复／本轮不回复”状态筛选。无新增数据库或配置变更。
-
-- 按界面反馈移除星图数量提示、关联筛选入口、底部键盘列表及重复详情按钮；浮动卡片的详情按钮跟随记忆点配色，明黄、淡绿使用深色文字。
-
-- 修复星图入场计时停止后亮面残留：高亮在入场结束前淡出，常态只随波纹短暂亮起；将土黄、橄榄黄绿调整为明黄、淡绿，并统一明暗主题。
-
-- 收紧星图节点光晕，改用单路接力的淡色连线脉冲，无亮头或拖尾；入场沿球面由左向右分支扩散，镜头稍滞后于前沿，在 6.6 秒内逆时针环绕一整圈，同步拉远并居中，避免末尾额外平移，支持中途接管视角与减少动态效果。
-
-- 星图改用高对比发光节点，面片只随波纹或入场短暂亮起；默认显示最近更新 80 条（可选 40/80/120），随数量放大默认半径，进入/刷新时播放点→线→面→体动画。点击横幅展开既有详情接口返回的正文与元信息，保留受保护内容遮蔽并丢弃过期请求。
-
-- 记忆星图改为可旋转的立体记忆球，支持同类分组、分类配色、呼吸/波纹/流光、悬停凸起及信息框、点击固定与缩放；球面网格与真实关联区分呈现，修复交互时重建画布造成的闪动，筛选收进抽屉；生命周期日志改为只读控制台，支持定时刷新、暂停更新、自动跟随及展开详情，保留既有筛选与脱敏接口。
-
-- 根据 DeepSeek 首页与 Harness 实际页面调整明暗主题：浅蓝白底与淡网格、石墨黑底与柔和蓝光；侧栏、面板和抽屉加入适量磨砂玻璃层次，补齐页面进入、侧栏折叠与悬停动效，并适配减少动态效果偏好。
-
-- 记忆筛选收拢为单一入口，提供带解释的类型/范围选项、明确的记忆条数和可逐个取消的条件标签；修复侧栏收起后文字溢出及预览页底部按钮超出视口。
-
-- 记忆库改为单栏列表：统计收拢为摘要，集中类型/状态/范围/会话筛选并支持统一重置，详情改为点击后打开抽屉。
-
-- 记忆库移除重复的独立侧栏，将类型及数量合并至列表筛选，统一桌面与窄屏入口。
-
-- 首页采用居中人格展示与下方运行/成长分栏，调整标题、胶囊按钮与留白；按用户提供的画风和人设参考生成透明 Q 版头像，替换首页与小铺的鱼插画。
-
-- 管理面板统一蓝白黑配色，图表与深色模式共用主题；移除装饰英文、重复说明与页脚标语，以留白和标题层级组织内容。
-
-- 控制台改用分组式左侧导航，支持桌面折叠和窄屏图标栏，连接状态与刷新移至侧栏底部。
-
-- 人格控制台接入历史版本回滚、差异比较与变化原因；安装时校验预览内容，按版本显示已安装状态；Dream 日志区分预算停止与完成，并显示调度开关。新增控制台接口需与 dashboard 同步更新，不涉及数据库迁移或配置变化（#82 / #83）。
-
-### English
-
-- Group core domain implementations under `core/domain/` and the graph storage protocol under `core/port/`; legacy module imports and `core.ports` still resolve to the same objects. Remove the whole-file 40-line limit test for `main.py` while retaining entry-point ownership checks. Model calls, persisted formats and public configuration are unchanged.
-
-- Add host-neutral run ID, result and time-range queries with a shared contract for AstrBot and standalone HTTP. The console locates recorded failure steps and marks unfinished or partial timelines. Preserve the allowlist, read-only boundary and response format, discard late query results, and add no database or public configuration changes.
-
-- Fix implicit pruning of historical traces when starting or reading the standalone console; filter traces read-only without rewriting the original file. Handle HTTP connections concurrently while serializing management operations on the SQLite owner thread, so idle connections do not block normal requests. API, configuration, and data formats remain compatible.
-
-- Add a local standalone console for HTTP-based memory inspection/editing, persona packs, and read-only diagnostics without starting AstrBot. API addresses and independent administrator tokens are configurable; tokens remain in page memory and require reconnection after disconnect or expiry. Add `SEEKMEMORY_CONSOLE_TOKEN` and standalone CLI options while preserving the host entry and data formats. The first version starts no maintenance workers and includes no remote deployment or import-task API.
-
-- Clarify app pure rules, transitions, dispatch and write-back behind compatible entries; standardize bilingual source documentation and update mirrored responsibility/interface/verification maps. Storage and host adapters remain in place pending cross-module inventory.
-
-- Retain process-local receipts after confirmed sending and retry only state, Source/projection and audit writes, including with speaking disabled and at shutdown. Surface storage failures, preserve old file state and derive stable IDs for new audit rows. No schema or historical-row changes; crashes may still lead to resend.
-
-- Separate daily time/budget rules; report journal finish failure with completed counts, omit exception bodies, and isolate diagnostic failures.
-
-- Prevent duplicate reinforcement after a successful commit followed by cache failure; repair from the latest head and retain uncommitted hits separately.
-
-- Internal interfaces: add `app.domain` and centralize required capabilities in `app.ports`; document the provided/required interface inventory, logical complexity, and responsibility gaps in both languages. Existing import paths and implementation locations remain available; business rules, persisted formats, and public configuration are unchanged.
-
-- Documentation: map core capabilities to existing tests, focused commands and evidence limits; clarify mixed test layers, fixture-weight/character-count metrics in the legacy benchmark, and report generation versus quality acceptance. Test, benchmark and runtime code remain unchanged.
-
-- Internal hygiene: name algorithm thresholds/factors within their owning core files; relationship validation and trace reuse domain vocabularies, and interaction rules reuse existing default probabilities. Policy values, boundary comparisons, configuration and persisted contracts remain unchanged.
-
-- Internal interfaces: split `core.interfaces` into the provided `core.domain` entry and required declarations in `core.ports`, removing lazy graph binding. Internal callers must update imports; existing domain implementation entries, policy values and outer contracts remain compatible.
-
-- Internal architecture: move tree orchestration to `services.TreeService` and its storage/cache ports to `app/ports.py`; internal Python callers must replace `core.tree.Tree`. Host/management contracts, configuration, persisted formats, and existing read/write behavior remain compatible.
-
-- Add complete persona-pack import/export compatible with legacy JSON, PNG artwork and license previews. Serve artwork through administrator authentication and validate packaging, size, dimensions, corruption and path boundaries. Preserve backups on update without changing Persona/Source schemas; export seed-only JSON before reverting to older code. Discard late cover reads after an import is replaced or cancelled. Character content and final artwork remain deferred.
-
-- Read at most 120 graph nodes and 240 associations on load, display 80 nodes by default, and switch between 40/80/120 locally. Remove the 1,000-node option and background layout to avoid excessive prefetching.
-
-- Bound graph reads in SQL and batch association queries; add a drawer-based keyboard list, focus and neighborhood actions, HTTP-compatible random persona-pack IDs. Database formats and public configuration are unchanged.
-
-- Integrate the v0.5.0 AstrBot package layout, correct the built-in persona-pack path, and retain upstream action auditing and automatic test discovery. Verify persona packs, Dream history and restart recovery without additional database or configuration changes.
-
-- Integrate the post-v0.4.3 host runtime while retaining persona-pack and Dream console wiring. Verify reload and failed-start retry, move console documentation into the bilingual tree, and expose allow-reply/skip-reply log filters. No additional database or configuration changes.
-
-- Remove the graph count, relation filter, bottom keyboard list and duplicate detail action. Match floating-card detail buttons to their memory node colors with dark text on bright yellow and light green.
-
-- Fade memory-sphere assembly highlights before the entrance clock stops, preventing permanently lit facets while retaining transient ripple illumination. Replace ochre and olive tones with clear yellow and light green in both themes.
-
-- Tighten node halos and replace travelling heads/tails with one muted, continuous edge-pulse relay. Sweep the entrance left to right along branching mesh paths while the camera trails the frontier through exactly one counterclockwise turn in 6.6 seconds, pulling back and centering continuously without a separate final translation; support interaction takeover and reduced motion.
-
-- Use higher-contrast luminous nodes and transient ripple/assembly facets. Show the 80 most recently updated memories by default (40/80/120 choices), scale the default radius with density, and assemble points → lines → faces → volume on entry/refresh. Expand annotations on selection using the existing detail API, retaining protected-content masking and discarding stale replies.
-
-- Rework the memory map into a rotatable 3D memory sphere with category patches, muted colors, breathing/ripple/flow motion, raised hover nodes, annotations, pinned selection and zoom. Distinguish surface geometry from real relationships and avoid canvas recreation during interaction; move filters into a drawer. Present lifecycle logs as a read-only console with polling, pause, follow-latest and expandable details, retaining existing filters and sanitized APIs.
-
-- Adapt light/dark themes from the live DeepSeek and Harness pages: icy-blue backgrounds and a faint grid, graphite surfaces and soft blue light. Add restrained frosted navigation, panels and drawers, plus page-entry, sidebar and hover motion with reduced-motion support.
-
-- Consolidate memory filters into one entry with explained type/scope choices, explicit record counts and removable filter chips; fix collapsed sidebar text overflow and off-screen preview footer controls.
-
-- Simplify the memory library to a single list with inline statistics, unified category/state/scope/session filters and reset, and on-demand detail drawers.
-
-- Remove the duplicate memory-library sidebar and move category counts into the list filter, shared across desktop and narrow layouts.
-
-- Recompose the home page around a centered persona and separate activity/history columns, with lighter headings, pill buttons and more whitespace; replace the home/store fish with a transparent chibi head generated from user-supplied style and character references.
-
-- Unify the dashboard around blue, white and neutral black, including charts and dark mode; remove decorative labels, repeated introductions and footer slogans in favor of spacing and clear headings.
-
-- Replace console top navigation with a grouped left sidebar, desktop collapse and a compact icon rail on narrow screens; move connection status and refresh to its footer.
-
-- Connect persona rollback with version diffs and change reasons; validate previewed pack content before installation and show installed versions accurately. Dream distinguishes budget stops from completion and reports scheduling state. Ship the new console API and dashboard together; no database migration or configuration change (#82 / #83).
 
 ## 0.5.0 — 2026-10-28
 

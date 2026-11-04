@@ -194,13 +194,13 @@ class AstrBotRuntimeAdapter:
 
     @classmethod
     def apply_llm_gate(cls, event, decision: RunDecision, enabled: bool) -> None:
-        """Apply stop/allow only when the existing runtime gate is explicitly enabled / 仅在既有运行时条件明确启用时执行停止或允许。"""
+        """Map reply permission to AstrBot's prohibition flag only when enabled / 仅启用时将回复许可映射为 AstrBot 的禁止标记。"""
         if not enabled:
             return
 
         try:
             event.should_call_llm(
-                decision.must_reply or decision.action is WakeAction.REPLY
+                not (decision.must_reply or decision.action is WakeAction.REPLY)
             )
         except Exception:  # noqa: BLE001 - Optional host gate / 可选宿主条件。
             return

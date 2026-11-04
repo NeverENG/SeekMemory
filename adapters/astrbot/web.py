@@ -9,6 +9,7 @@ from collections import Counter
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from ...app.management_limits import request_body_limit
 from ...services.trace_query import query_traces
 
 if TYPE_CHECKING:
@@ -170,7 +171,7 @@ class WebRoutes:
         plugin = self.plugin
         if not request.username:
             return error_response("需要管理员登录", status_code=401)
-        read_actions = {"status", "records", "detail", "events", "traces", "graph", "impressions", "dream", "packs", "pack", "packArtwork", "packExport"}
+        read_actions = {"status", "records", "detail", "events", "traces", "graph", "impressions", "dream", "packs", "pack", "packArtwork", "packExport", "packLookup"}
         write_actions = {"update", "rollbackPersona", "diagnose", "task", "cancel", "persona"}
         if action not in read_actions | write_actions:
             return error_response("未知操作", status_code=404)
@@ -214,8 +215,10 @@ class WebRoutes:
                 return json_response(service.dream_journal())
             if action == "packs":
                 return json_response(service.pack_catalog(request.query.get("collection", "official"), int(request.query.get("offset", "0"))))
+            if action == "packLookup":
+                return json_response(service.pack_lookup(request.query.get("reference", "")))
             if action == "packArtwork":
-                return json_response(service.pack_artwork(request.query.get("reference", "")))
+                return json_response(service.pack_artwork(request.query.get("reference", ""), request.query.get("expectedDigest")))
             if action == "packExport":
                 return json_response(service.pack_export(request.query.get("reference", "")))
             if action == "pack":
@@ -224,7 +227,7 @@ class WebRoutes:
                 return json_response({"records": service.catalog()})
             if action == "detail":
                 return json_response(service.detail(request.query.get("id", "")))
-            if len(await request.body()) > (3 * 1024 * 1024 if action == "persona" else 65536):
+            if len(await request.body()) > request_body_limit(action):
                 return error_response("请求内容过大", status_code=413)
             body = await request.json()
             if not isinstance(body, dict):

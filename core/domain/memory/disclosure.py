@@ -14,6 +14,11 @@ from .artifact import Artifact, content_of
 FULL_MIN = 0.55
 PARAPHRASE_MIN = 0.18
 HINT_MIN = 0.03
+# Owner 1:1 chats are the only place where a private memory of the owner himself may be
+# quoted verbatim across sessions. A cross-session owner memory reaches at most
+# 0.70 (speaker affinity) x 1.0 (subject fit) x 0.8 (private prior) x 0.8 (privacy) = 0.448,
+# so the strict FULL_MIN can never be met without relaxing the gate. Opt-in, off by default.
+OWNER_PRIVATE_FULL_MIN = 0.40
 
 # Continuous priors, not visibility gates. Private memory participates in
 # retrieval globally; it is simply less likely to be quoted verbatim.
@@ -56,6 +61,9 @@ class RecallScene:
     speaker_id: str
     owner_id: str = ""
     present_ids: tuple[str, ...] = ()
+    # True only when the caller has established that this recall happens inside a
+    # trusted owner 1:1 chat (see OWNER_PRIVATE_FULL_MIN). Defaults to the strict policy.
+    owner_private: bool = False
 
 
 @dataclass(frozen=True)
@@ -151,6 +159,24 @@ def exposure(art: Artifact, scene: RecallScene, relevance: float,
     return max(0.0, min(1.0, score))
 
 
+def owner_private_quote(art: Artifact, scene: RecallScene) -> bool:
+    """Return whether this memory belongs to the owner and may be quoted in a trusted 1:1 chat.
+
+    返回该记忆是否属于所有者且可在可信一对一会话中引用。只放宽 owner 自己的 private 记忆，
+    shadow/secret/他人的记忆一律保持原策略。
+    """
+    if not scene.owner_private or not scene.owner_id:
+        return False
+    if str(art.header.family or "") in ("persona", "secret", "designated"):
+        return False
+    if str(art.header.scope or "") not in ("private",):
+        return False
+    if str(art.header.shareable or "") == "secret":
+        return False
+    subject = str(art.header.subject_id or "")
+    return bool(subject) and subject in (scene.owner_id, scene.speaker_id)
+
+
 def decide(art: Artifact, scene: RecallScene, relevance: float,
            origin_sessions: Iterable[str] = ()) -> DisclosureDecision:
     """Choose full, paraphrase, hint or silence using existing thresholds.
@@ -158,7 +184,8 @@ def decide(art: Artifact, scene: RecallScene, relevance: float,
     按既有阈值选择全文、改述、提示或静默。
     """
     score = exposure(art, scene, relevance, origin_sessions)
-    if score >= FULL_MIN:
+    full_min = OWNER_PRIVATE_FULL_MIN if owner_private_quote(art, scene) else FULL_MIN
+    if score >= full_min:
         return DisclosureDecision(DisclosureLevel.FULL, score, "high exposure")
     if score >= PARAPHRASE_MIN:
         return DisclosureDecision(DisclosureLevel.PARAPHRASE, score, "partial exposure")

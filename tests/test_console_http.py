@@ -101,7 +101,7 @@ class ConsoleHttpTests(unittest.TestCase):
         self.api("records", "PUT", expected=405)
         self.api("update", "POST", [], expected=400)
         self.assertEqual(self.request("/api/manage/update", "POST", raw=b"{")[0], 400)
-        self.assertEqual(self.request("/api/manage/update", "POST", raw=b"x" * 65537)[0], 413)
+        self.assertEqual(self.request("/api/manage/update", "POST", raw=b"x", headers={"Content-Length": str(1024 * 1024 + 1)})[0], 413)
         self.assertEqual(self.request("/api/manage/nope")[0], 404)
         status, headers, _ = self.request("/api/manage/records", "OPTIONS", auth=False,
                                         headers={"Origin": "http://127.0.0.1:5176"})
@@ -136,6 +136,24 @@ class ConsoleHttpTests(unittest.TestCase):
         self.assertEqual({json.loads(row["content"])["text"] for row in detail["versions"]},
                          {"Original fact", "Updated fact"})
         self.assertEqual(len(detail["ledger"]), 2)
+
+    def test_installed_chinese_pack_can_be_renamed_over_escaped_json_http(self) -> None:
+        seed = {"id": "long-chinese", "version": "1", "name": "星灯",
+                "persona": "星" * 20000, "license": "CC0-1.0", "source": "Original fixture"}
+        imported = self.api("persona", "POST", {"operation": "importPack",
+                            "pack": pack(seed), "confirmed": True})
+        ref = imported["reference"]
+        digest = self.api(f"packLookup?reference={ref}")["digest"]
+        installed = self.api("persona", "POST", {"operation": "install", "reference": ref,
+            "expectedId": None, "expectedRevision": 0, "expectedDigest": digest, "confirmed": True})
+        detail = self.api(f"detail?id={installed['id']}")
+        payload = {**detail["artifact"]["payload"], "persona_name": "新的名字"}
+        self.api("update", "POST", {"id": installed["id"], "expectedRevision": 1,
+            "payload": payload, "scope": "shared", "state": "active",
+            "reason": "Rename Chinese persona", "confirmed": True})
+        edited = self.api(f"detail?id={installed['id']}")
+        self.assertEqual(edited["artifact"]["payload"], payload)
+        self.assertEqual(edited["artifact"]["header"]["revision"], 2)
 
     def test_idle_connections_do_not_block_authenticated_requests(self) -> None:
         with ExitStack() as connections:

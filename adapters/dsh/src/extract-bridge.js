@@ -49,6 +49,10 @@ async function chatViaHost(ctx, { provider, model, system, user, maxTokens, temp
       system,
       messages: [message],
       temperature: temperature ?? 0,
+      // Extraction is a mechanical JSON transform. The provider defaults to reasoningEffort
+      // "high", which spends the whole output budget on hidden reasoning and returns empty
+      // text (observed as llm_empty / commit 422). Ask for no reasoning here.
+      reasoningEffort: 'off',
       maxTokens: maxTokens ?? 800,
       signal: AbortSignal.timeout(120_000),
     });
@@ -139,8 +143,11 @@ export function startExtractLoop({ ctx, config, kernel, logger }) {
 
   async function tick() {
     if (stopped) return;
+    // 心跳：没有这行，就分不清"循环死了"和"轮询了但队列一直空"。
+    let beat = '';
     try {
       const r = await runOnce({ ctx, config, kernel, logger });
+      beat = r.outcome;
       if (r.outcome === 'done') {
         backoff = IDLE_MS;
         logger?.info?.(`${config.logPrefix} 抽取完成 ${r.detail ?? ''}`);
@@ -155,9 +162,15 @@ export function startExtractLoop({ ctx, config, kernel, logger }) {
       return schedule(backoff);
     } catch (err) {
       // 循环里任何异常都不能冒出去（未处理 rejection 会杀宿主）
+      beat = 'throw';
       logger?.warn?.(`${config.logPrefix} 抽取循环异常（已吞掉）: ${errBrief(err)}`);
       backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
       return schedule(backoff);
+    }
+    finally {
+      if (beat === 'idle') {
+        logger?.info?.(`${config.logPrefix} 抽取心跳 outcome=idle`);
+      }
     }
   }
 

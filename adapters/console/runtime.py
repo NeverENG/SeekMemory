@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ...app.budget import ContextBudget
+from ...app.config import Settings
 from ...core.graph import Graph
 from ...recall.retriever import HybridRetriever
 from ...services.management_service import ManagementService
@@ -21,6 +22,7 @@ class ConsoleRuntime:
 
     def __init__(self, data_dir: Path) -> None:
         data_dir.mkdir(parents=True, exist_ok=True)
+        self.settings = Settings()
         self.store = open_store(str(data_dir / "memory.db"))
         try:
             cache = Cache(self.store.artifacts)
@@ -29,7 +31,7 @@ class ConsoleRuntime:
             recall = RecallService(
                 cache=cache, graph=graph, artifacts=self.store.artifacts,
                 sources=self.store.sources, budget=ContextBudget(),
-                config={}.get, owner_umo=lambda: "",
+                config=self.settings.get, owner_umo=lambda: "",
                 hybrid_retriever=HybridRetriever(graph, cache),
             )
             self.management = ManagementService(

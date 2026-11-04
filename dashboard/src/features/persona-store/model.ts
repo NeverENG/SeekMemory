@@ -26,13 +26,38 @@ export function personaBlueprint(
   })
 }
 
-/** Compare provenance versions; a newer local file is not installed automatically. */
+/** Only an explicit namespaced baseline can establish application state. */
 export function packInstallLabel(
-  pack: { id: string; version: string },
-  persona: { seedId?: string; seedVersion?: string } | null | undefined
+  pack: {
+    reference: string
+    id: string
+    version: string
+    digest?: string
+    settingsDigest?: string
+  },
+  persona:
+    | Pick<
+        NonNullable<import("../control/model.ts").RuntimeStatus["persona"]>,
+        "seedId" | "packApplication"
+      >
+    | null
+    | undefined
 ): string {
-  if (!persona?.seedId || persona.seedId !== pack.id) return ""
-  return persona.seedVersion === pack.version
-    ? " · 已安装此版本"
-    : ` · 当前使用 v${persona.seedVersion || "未知"}，此版本未安装`
+  if (!persona) return ""
+  const application = persona.packApplication
+  if (!application) return persona.seedId === pack.id ? " · 应用来源未知" : ""
+  if (application.reference !== pack.reference) return ""
+  const changed =
+    application.currentSettingsDigest !== application.settingsDigest
+  const base = ` · 基于此包${changed ? "，当前设定已变化" : "，当前设定与应用时一致"}`
+  if (!pack.digest || !pack.settingsDigest) return base + "；无法核对已保存包"
+  if (application.packDigest === pack.digest) return base
+  if (application.version !== pack.version)
+    return base + `；已保存包版本不同（应用时 v${application.version}）`
+  return (
+    base +
+    (application.settingsDigest === pack.settingsDigest
+      ? "；仅包资源或其他元数据变化"
+      : "；已保存包设定已变化")
+  )
 }

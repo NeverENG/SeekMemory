@@ -220,7 +220,7 @@ class CapacityGovernor:
         if snapshot.pending_rows:
             actions.append("schedule_extraction")
         if (snapshot.deferred_rows and snapshot.pending_rows < limits.pending_release_rows
-                and not pending_soft and not deferred_soft):
+                and not pending_soft):
             actions.append("release_deferred")
         if pending_soft:
             actions.append("raise_batch_size")

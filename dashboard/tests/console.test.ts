@@ -202,22 +202,50 @@ void test("persona diffs identify changes and preserve both exact texts, includi
   )
 })
 
-void test("available pack versions are not confused with installed versions", async () => {
+void test("application labels require namespaced provenance and distinguish growth from pack metadata", async () => {
   const { packInstallLabel } =
     await import("../src/features/persona-store/model.ts")
-  const pack = { id: "fish", version: "2" }
+  const pack = {
+    reference: "official/fish",
+    id: "fish",
+    version: "2",
+    digest: "a".repeat(64),
+    settingsDigest: "b".repeat(64),
+  }
   assert.equal(packInstallLabel(pack, null), "")
+  assert.match(packInstallLabel(pack, { seedId: "fish" }), /来源未知/)
+  const packApplication = {
+    reference: pack.reference,
+    version: "2",
+    packDigest: pack.digest,
+    settingsDigest: pack.settingsDigest,
+    currentSettingsDigest: pack.settingsDigest,
+    artworkDigest: null,
+  }
+  assert.match(packInstallLabel(pack, { packApplication }), /与应用时一致/)
   assert.equal(
-    packInstallLabel(pack, { seedId: "other", seedVersion: "2" }),
+    packInstallLabel({ ...pack, reference: "mine/fish" }, { packApplication }),
     ""
   )
-  assert.equal(
-    packInstallLabel(pack, { seedId: "fish", seedVersion: "2" }),
-    " · 已安装此版本"
+  assert.match(
+    packInstallLabel(pack, {
+      packApplication: {
+        ...packApplication,
+        currentSettingsDigest: "c".repeat(64),
+      },
+    }),
+    /当前设定已变化/
   )
   assert.match(
-    packInstallLabel(pack, { seedId: "fish", seedVersion: "1" }),
-    /当前使用 v1， 此版本未安装|当前使用 v1，此版本未安装/
+    packInstallLabel({ ...pack, digest: "d".repeat(64) }, { packApplication }),
+    /仅包资源或其他元数据变化/
+  )
+  assert.match(
+    packInstallLabel(
+      { ...pack, version: "3", digest: "d".repeat(64) },
+      { packApplication }
+    ),
+    /已保存包版本不同/
   )
 })
 

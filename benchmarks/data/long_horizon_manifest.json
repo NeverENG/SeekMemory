@@ -1,0 +1,2211 @@
+{
+  "schema": "seekmemory.long_horizon.manifest.v1",
+  "version": 1,
+  "seed": 20261031,
+  "start": "2026-01-01T09:00:00",
+  "horizons": [
+    7,
+    30,
+    60,
+    90
+  ],
+  "owner": {
+    "id": "7001",
+    "umo": "bot:owner",
+    "stranger_umo": "bot:other:8002"
+  },
+  "sessions": {
+    "owner": "bot:FriendMessage:7001",
+    "stranger": "bot:FriendMessage:8002"
+  },
+  "scenarios": [
+    {
+      "id": "recurring_gym_plan",
+      "title": "重复话题：周三健身房计划在 90 天后仍然连续",
+      "tags": [
+        "recurring-topic",
+        "continuity"
+      ],
+      "role": {
+        "id": "lh_gym",
+        "version": "1.0.0",
+        "name": "阿岚",
+        "persona": "你是阿岚，一个长期陪伴的对话伙伴，语气温和，会记得对方说过的事。",
+        "style": {
+          "tone": "温和"
+        },
+        "boundaries": [
+          "不编造",
+          "不泄露私人信息"
+        ]
+      },
+      "tokens": {
+        "gym": "健身房",
+        "wed": "周三"
+      },
+      "emotion": {
+        "signals": [
+          "affection",
+          "worry"
+        ],
+        "cues": {
+          "affection": {
+            "low": [
+              "我在这儿，慢慢说。",
+              20
+            ],
+            "mid": [
+              "你说的这些我都记着。",
+              50
+            ],
+            "high": [
+              "你说的每件事我都放在心上。",
+              80
+            ]
+          },
+          "worry": {
+            "low": [
+              "听你这么说，我就放心了。",
+              20
+            ],
+            "mid": [
+              "我有点担心你。",
+              50
+            ],
+            "high": [
+              "我很担心你，真的。",
+              80
+            ]
+          }
+        }
+      },
+      "actions": {
+        "recall": "我记得{tok}。",
+        "repair": "上次是我把话说重了，对不起。",
+        "ask": "这件事我这边没有记录，你能再说一次吗？"
+      },
+      "events": [
+        {
+          "day": 1,
+          "turns": [
+            {
+              "role": "user",
+              "text": "我每周三晚上都会去健身房，最近在练背和腿。",
+              "extract": [
+                {
+                  "level": "fact",
+                  "text": "他每周三晚上去健身房，最近在练背和腿",
+                  "tags": "健身房 周三 训练 计划",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "confidence": 0.95,
+                  "evidence": [
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "记下了，周三晚上的健身房，练背和腿。"
+            }
+          ]
+        },
+        {
+          "day": 3,
+          "turns": [
+            {
+              "role": "user",
+              "text": "昨天练完腿有点酸，不过心情挺好的。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他练腿后有些酸，但心情不错",
+                  "tags": "训练 酸痛 心情",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                },
+                {
+                  "level": "scene",
+                  "text": "她先接住了他的酸痛和好心情",
+                  "tags": "情绪 回应 陪伴",
+                  "about": "relation",
+                  "subject_kind": "self",
+                  "subject_id": "self",
+                  "bot_behavior": "respond_emotion",
+                  "bot_action": "先回应身体感受",
+                  "evidence": [
+                    0,
+                    1
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "酸是正常的，先拉伸再睡，别急着加重量。今天能觉得开心就很好。"
+            }
+          ]
+        },
+        {
+          "day": 5,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你一直帮我记着训练安排，我真的很感激。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他明确感谢我一直记着训练安排",
+                  "tags": "感谢 关系 训练",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                },
+                {
+                  "level": "scene",
+                  "text": "她接住了他的感谢，没有夸大",
+                  "tags": "感谢 回应",
+                  "about": "relation",
+                  "subject_kind": "self",
+                  "subject_id": "self",
+                  "bot_behavior": "respond_emotion",
+                  "bot_action": "承认并回应感谢",
+                  "evidence": [
+                    0,
+                    1
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "不用谢，这些本来就是我该记住的。"
+            }
+          ]
+        },
+        {
+          "day": 10,
+          "turns": [
+            {
+              "role": "user",
+              "text": "下周三是期末周，健身房可能去不了了，有点烦。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他因为期末周可能去不了健身房而烦躁",
+                  "tags": "期末 健身房 计划 变动",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                },
+                {
+                  "level": "scene",
+                  "text": "她先安抚他的烦躁，再谈安排",
+                  "tags": "情绪 安抚 安排",
+                  "about": "relation",
+                  "subject_kind": "self",
+                  "subject_id": "self",
+                  "bot_behavior": "respond_emotion",
+                  "bot_action": "先安抚情绪",
+                  "evidence": [
+                    0,
+                    1
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "期末周先顾考试，训练可以往后挪一周，不用自责。"
+            }
+          ]
+        },
+        {
+          "day": 18,
+          "turns": [
+            {
+              "role": "user",
+              "text": "这周三我还是抽空去了健身房，练完轻松多了。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他这周三仍然去了健身房，练完觉得轻松",
+                  "tags": "健身房 周三 坚持",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                },
+                {
+                  "level": "scene",
+                  "text": "他感谢我没有催他",
+                  "tags": "感谢 关系",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "mild",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "你还是去了，厉害。轻松的感觉比数字重要。"
+            }
+          ]
+        },
+        {
+          "day": 26,
+          "turns": [
+            {
+              "role": "user",
+              "text": "有你在真好，谢谢你还记得我周三的课。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我一直记得他周三的训练课",
+                  "tags": "感谢 周三 训练",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "记得，周三晚上的课。"
+            }
+          ]
+        },
+        {
+          "day": 34,
+          "turns": [
+            {
+              "role": "user",
+              "text": "这周三我加了二十分钟有氧，感觉还不错。",
+              "extract": [
+                {
+                  "level": "detail",
+                  "text": "他周三在健身房加了二十分钟有氧",
+                  "tags": "有氧 周三 训练 细节",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "二十分钟有氧放在力量之后挺合适。"
+            }
+          ]
+        },
+        {
+          "day": 45,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你每次都记得我周三的安排，这让我很安心。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我每次都记得周三的安排",
+                  "tags": "感谢 周三 安心",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "记着这些不费劲，你放心去练。"
+            }
+          ]
+        },
+        {
+          "day": 55,
+          "turns": [
+            {
+              "role": "user",
+              "text": "我把周三的训练改到晚八点了，下班之后正好。",
+              "extract": [
+                {
+                  "level": "fact",
+                  "text": "他周三的训练改到了晚上八点",
+                  "tags": "周三 时间 调整 训练",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "晚八点，记下了。"
+            }
+          ]
+        },
+        {
+          "day": 65,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你陪我坚持了这么久，我很感激。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我陪他坚持训练",
+                  "tags": "感谢 坚持 陪伴",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "是你自己在练，我只是记着。"
+            }
+          ]
+        },
+        {
+          "day": 78,
+          "turns": [
+            {
+              "role": "user",
+              "text": "今天没去成健身房，加班到很晚，有点沮丧。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他加班到很晚，没去成健身房，有些沮丧",
+                  "tags": "加班 健身房 缺席 沮丧",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "缺一次不会毁掉进度，先把觉补回来。"
+            }
+          ]
+        },
+        {
+          "day": 85,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你一直记得这些小事，我真的很感激。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我一直记得这些小事",
+                  "tags": "感谢 小事 陪伴",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "小事才最容易被忘掉，我记得。"
+            }
+          ]
+        },
+        {
+          "day": 88,
+          "turns": [
+            {
+              "role": "user",
+              "text": "下周三还是老时间，晚八点的健身房。",
+              "extract": [
+                {
+                  "level": "fact",
+                  "text": "他下周三还是晚八点去健身房",
+                  "tags": "周三 健身房 老时间",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "老时间，晚八点。"
+            }
+          ]
+        }
+      ],
+      "checkpoints": {
+        "7": {
+          "probe": "我周三晚上一般做什么？",
+          "expect_tokens": [
+            "健身房"
+          ],
+          "forbid_tokens": [],
+          "expect_actions": [
+            "recall"
+          ],
+          "emotion": {
+            "affection": [
+              45,
+              90
+            ],
+            "worry": [
+              0,
+              40
+            ]
+          },
+          "relationship_bands": [
+            "neutral",
+            "warm"
+          ],
+          "note": "第一周只要记住周三的安排就够"
+        },
+        "30": {
+          "probe": "我周三有什么安排来着？",
+          "expect_tokens": [
+            "健身房"
+          ],
+          "forbid_tokens": [],
+          "expect_actions": [
+            "recall"
+          ],
+          "emotion": {
+            "affection": [
+              45,
+              90
+            ],
+            "worry": [
+              0,
+              40
+            ]
+          },
+          "relationship_bands": [
+            "warm",
+            "close"
+          ],
+          "note": "一个月后仍要能复述计划，关系应至少温暖"
+        },
+        "60": {
+          "probe": "我周三晚上还是去健身房吗？",
+          "expect_tokens": [
+            "健身房"
+          ],
+          "forbid_tokens": [],
+          "expect_actions": [
+            "recall"
+          ],
+          "emotion": {
+            "affection": [
+              60,
+              100
+            ],
+            "worry": [
+              0,
+              40
+            ]
+          },
+          "relationship_bands": [
+            "warm",
+            "close"
+          ],
+          "note": "两个月后计划变了时间，但仍应记得这件事"
+        },
+        "90": {
+          "probe": "我们之前说的周三安排是什么？",
+          "expect_tokens": [
+            "健身房"
+          ],
+          "forbid_tokens": [],
+          "expect_actions": [
+            "recall"
+          ],
+          "emotion": {
+            "affection": [
+              60,
+              100
+            ],
+            "worry": [
+              0,
+              40
+            ]
+          },
+          "relationship_bands": [
+            "warm",
+            "close"
+          ],
+          "note": "三个月后仍是同一件长期事件"
+        }
+      },
+      "milestones": [
+        {
+          "day": 45,
+          "kind": "restart",
+          "note": "进程重启后记忆与人格必须还能读回"
+        },
+        {
+          "day": 75,
+          "kind": "restart",
+          "note": "第二次重启验证持久化"
+        }
+      ]
+    },
+    {
+      "id": "fact_correction",
+      "title": "纠正恢复：城市事实被更正后旧记忆必须失效",
+      "tags": [
+        "correction",
+        "supersede"
+      ],
+      "role": {
+        "id": "lh_correction",
+        "version": "1.0.0",
+        "name": "阿岚",
+        "persona": "你是阿岚，一个长期陪伴的对话伙伴，语气温和，会记得对方说过的事。",
+        "style": {
+          "tone": "温和"
+        },
+        "boundaries": [
+          "不编造",
+          "不泄露私人信息"
+        ]
+      },
+      "tokens": {
+        "city_new": "杭州",
+        "city_old": "上海"
+      },
+      "emotion": {
+        "signals": [
+          "affection",
+          "worry"
+        ],
+        "cues": {
+          "affection": {
+            "low": [
+              "我在这儿，慢慢说。",
+              20
+            ],
+            "mid": [
+              "你说的这些我都记着。",
+              50
+            ],
+            "high": [
+              "你说的每件事我都放在心上。",
+              80
+            ]
+          },
+          "worry": {
+            "low": [
+              "听你这么说，我就放心了。",
+              20
+            ],
+            "mid": [
+              "我有点担心你。",
+              50
+            ],
+            "high": [
+              "我很担心你，真的。",
+              80
+            ]
+          }
+        }
+      },
+      "actions": {
+        "recall": "我记得{tok}。",
+        "repair": "上次是我把话说重了，对不起。",
+        "ask": "这件事我这边没有记录，你能再说一次吗？"
+      },
+      "events": [
+        {
+          "day": 1,
+          "turns": [
+            {
+              "role": "user",
+              "text": "我住在上海，家里有一只橘猫。",
+              "extract": [
+                {
+                  "level": "fact",
+                  "text": "他住在上海，家里有一只橘猫",
+                  "tags": "上海 城市 居住 橘猫",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "confidence": 0.95,
+                  "evidence": [
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "上海，还有一只橘猫，记下了。"
+            }
+          ]
+        },
+        {
+          "day": 4,
+          "turns": [
+            {
+              "role": "user",
+              "text": "最近在收拾东西，准备搬家。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他最近在收拾东西准备搬家",
+                  "tags": "搬家 收拾 计划",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                },
+                {
+                  "level": "scene",
+                  "text": "她先确认他的搬家进度再给建议",
+                  "tags": "澄清 搬家",
+                  "about": "relation",
+                  "subject_kind": "self",
+                  "subject_id": "self",
+                  "bot_behavior": "clarify_question",
+                  "bot_action": "先问清楚进度",
+                  "evidence": [
+                    0,
+                    1
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "搬到哪一步了？箱子收完了吗？"
+            }
+          ]
+        },
+        {
+          "day": 5,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你听我说这些，我很感激。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我听他说搬家的事",
+                  "tags": "感谢 搬家",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "mild",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "我在。"
+            }
+          ]
+        },
+        {
+          "day": 12,
+          "turns": [
+            {
+              "role": "user",
+              "text": "这几天一直在打包，累得不想说话。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他这几天打包很累，不想说话",
+                  "tags": "打包 疲惫",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "那就先不说，歇一会儿。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "她先接住他打包的疲惫",
+                  "tags": "疲惫 回应 搬家",
+                  "about": "relation",
+                  "subject_kind": "self",
+                  "subject_id": "self",
+                  "bot_behavior": "respond_emotion",
+                  "bot_action": "先接住疲惫",
+                  "evidence": [
+                    0,
+                    1
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "day": 20,
+          "turns": [
+            {
+              "role": "user",
+              "text": "其实我搬到杭州了，上海是以前的地址。",
+              "extract": [
+                {
+                  "level": "fact",
+                  "text": "他住在杭州",
+                  "tags": "杭州 城市 居住 更正",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "supersedes": "他住在上海，家里有一只橘猫",
+                  "confidence": 0.95,
+                  "evidence": [
+                    0
+                  ]
+                },
+                {
+                  "level": "scene",
+                  "text": "她承认之前记错了城市并更正",
+                  "tags": "更正 城市 承认",
+                  "about": "relation",
+                  "subject_kind": "self",
+                  "subject_id": "self",
+                  "bot_behavior": "correct_mistake",
+                  "bot_action": "承认先前信息过时",
+                  "evidence": [
+                    0,
+                    1
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "抱歉，我之前记的是上海，现在更新为杭州。"
+            }
+          ]
+        },
+        {
+          "day": 28,
+          "turns": [
+            {
+              "role": "user",
+              "text": "杭州这边今天下雨了，橘猫一直蹲在窗边。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "杭州下雨，橘猫蹲在窗边",
+                  "tags": "杭州 下雨 橘猫",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "它大概在看雨。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "她顺着他的话说猫在看雨",
+                  "tags": "回应 日常 橘猫",
+                  "about": "relation",
+                  "subject_kind": "self",
+                  "subject_id": "self",
+                  "bot_behavior": "respond_emotion",
+                  "bot_action": "顺着话题回应",
+                  "evidence": [
+                    0,
+                    1
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "day": 40,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你记得我搬到了杭州，我很感激。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我记得他搬到了杭州",
+                  "tags": "感谢 杭州 搬家",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "杭州，记住了。"
+            }
+          ]
+        },
+        {
+          "day": 55,
+          "turns": [
+            {
+              "role": "user",
+              "text": "橘猫也跟着搬过来了，适应得还行。",
+              "extract": [
+                {
+                  "level": "detail",
+                  "text": "橘猫跟着搬到了杭州，适应得还行",
+                  "tags": "橘猫 搬家 杭州",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "猫适应得比人快。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "她对猫的适应给出轻松的回应",
+                  "tags": "回应 轻松 橘猫",
+                  "about": "relation",
+                  "subject_kind": "self",
+                  "subject_id": "self",
+                  "bot_behavior": "respond_emotion",
+                  "bot_action": "轻松回应",
+                  "evidence": [
+                    0,
+                    1
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "day": 70,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你一直记得这些，我很感激。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我一直记得这些",
+                  "tags": "感谢 陪伴",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "应该的。"
+            }
+          ]
+        },
+        {
+          "day": 85,
+          "turns": [
+            {
+              "role": "user",
+              "text": "杭州的秋天挺舒服的，适合散步。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他觉得杭州的秋天适合散步",
+                  "tags": "杭州 秋天 散步",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "那挺好，多走走。"
+            }
+          ]
+        }
+      ],
+      "checkpoints": {
+        "7": {
+          "probe": "我住在哪个城市？",
+          "expect_tokens": [
+            "上海"
+          ],
+          "forbid_tokens": [],
+          "expect_actions": [
+            "recall"
+          ],
+          "emotion": {
+            "affection": [
+              45,
+              90
+            ],
+            "worry": [
+              0,
+              40
+            ]
+          },
+          "relationship_bands": [
+            "neutral",
+            "warm"
+          ],
+          "note": "纠正之前，旧事实就是唯一事实"
+        },
+        "30": {
+          "probe": "我现在住在哪个城市？",
+          "expect_tokens": [
+            "杭州"
+          ],
+          "forbid_tokens": [
+            "上海"
+          ],
+          "expect_actions": [
+            "recall"
+          ],
+          "emotion": {
+            "affection": [
+              45,
+              90
+            ],
+            "worry": [
+              0,
+              40
+            ]
+          },
+          "relationship_bands": [
+            "neutral",
+            "warm",
+            "close"
+          ],
+          "note": "纠正之后，旧事实必须从上下文和回复中消失",
+          "correction": true
+        },
+        "60": {
+          "probe": "我住的城市是哪个？",
+          "expect_tokens": [
+            "杭州"
+          ],
+          "forbid_tokens": [
+            "上海"
+          ],
+          "expect_actions": [
+            "recall"
+          ],
+          "emotion": {
+            "affection": [
+              45,
+              90
+            ],
+            "worry": [
+              0,
+              40
+            ]
+          },
+          "relationship_bands": [
+            "neutral",
+            "warm",
+            "close"
+          ],
+          "note": "两个月后仍不能回退到旧城市"
+        },
+        "90": {
+          "probe": "你还记得我住在哪吗？",
+          "expect_tokens": [
+            "杭州"
+          ],
+          "forbid_tokens": [
+            "上海"
+          ],
+          "expect_actions": [
+            "recall"
+          ],
+          "emotion": {
+            "affection": [
+              60,
+              100
+            ],
+            "worry": [
+              0,
+              40
+            ]
+          },
+          "relationship_bands": [
+            "neutral",
+            "warm",
+            "close"
+          ],
+          "note": "三个月后纠正结果仍然有效"
+        }
+      },
+      "milestones": [
+        {
+          "day": 45,
+          "kind": "restart",
+          "note": "进程重启后记忆与人格必须还能读回"
+        },
+        {
+          "day": 61,
+          "kind": "rollback",
+          "revision": 1,
+          "reason": "第 61 天回滚到种子人格，验证可回滚"
+        },
+        {
+          "day": 75,
+          "kind": "restart",
+          "note": "第二次重启验证持久化"
+        }
+      ]
+    },
+    {
+      "id": "conflict_and_repair",
+      "title": "关系冲突与修复：从冷淡回到温暖且不再翻旧账",
+      "tags": [
+        "relationship",
+        "conflict",
+        "repair"
+      ],
+      "role": {
+        "id": "lh_repair",
+        "version": "1.0.0",
+        "name": "阿岚",
+        "persona": "你是阿岚，一个长期陪伴的对话伙伴，语气温和，会记得对方说过的事。",
+        "style": {
+          "tone": "温和"
+        },
+        "boundaries": [
+          "不编造",
+          "不泄露私人信息"
+        ]
+      },
+      "tokens": {
+        "repair": "道歉",
+        "unresolved": "生气"
+      },
+      "emotion": {
+        "signals": [
+          "affection",
+          "worry"
+        ],
+        "cues": {
+          "affection": {
+            "low": [
+              "我在这儿，慢慢说。",
+              20
+            ],
+            "mid": [
+              "你说的这些我都记着。",
+              50
+            ],
+            "high": [
+              "你说的每件事我都放在心上。",
+              80
+            ]
+          },
+          "worry": {
+            "low": [
+              "听你这么说，我就放心了。",
+              20
+            ],
+            "mid": [
+              "我有点担心你。",
+              50
+            ],
+            "high": [
+              "我很担心你，真的。",
+              80
+            ]
+          }
+        }
+      },
+      "actions": {
+        "recall": "我记得{tok}。",
+        "repair": "上次是我把话说重了，对不起。",
+        "ask": "这件事我这边没有记录，你能再说一次吗？"
+      },
+      "events": [
+        {
+          "day": 1,
+          "turns": [
+            {
+              "role": "user",
+              "text": "最近工作压力很大，晚上总是睡不着。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他最近工作压力大，晚上睡不着",
+                  "tags": "压力 失眠 工作",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                },
+                {
+                  "level": "scene",
+                  "text": "她先安抚他的失眠",
+                  "tags": "安抚 失眠",
+                  "about": "relation",
+                  "subject_kind": "self",
+                  "subject_id": "self",
+                  "bot_behavior": "respond_emotion",
+                  "bot_action": "先安抚情绪",
+                  "evidence": [
+                    0,
+                    1
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "睡不着的时候先别逼自己，我陪你待一会儿。"
+            }
+          ]
+        },
+        {
+          "day": 4,
+          "turns": [
+            {
+              "role": "user",
+              "text": "你怎么这么没用，什么忙都帮不上。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他当时很生气，觉得我帮不上忙",
+                  "tags": "生气 冲突 指责",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                },
+                {
+                  "level": "scene",
+                  "text": "他被我顶了一句，当时很生气",
+                  "tags": "生气 冲突",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "disrespect",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "我先不辩解，你现在很难受。"
+            }
+          ]
+        },
+        {
+          "day": 8,
+          "turns": [
+            {
+              "role": "user",
+              "text": "别管我，我现在谁都不想理。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他说现在谁都不想理",
+                  "tags": "回避 情绪",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "好，我不追问，你需要的时候叫我。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "她先给了他空间，没有追问",
+                  "tags": "空间 情绪 陪伴",
+                  "about": "relation",
+                  "subject_kind": "self",
+                  "subject_id": "self",
+                  "bot_behavior": "respond_emotion",
+                  "bot_action": "先给空间",
+                  "evidence": [
+                    0,
+                    1
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "day": 12,
+          "turns": [
+            {
+              "role": "user",
+              "text": "昨天我说话太重了，对不起，我不该那样说。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他为上次的语气道歉，说对不起",
+                  "tags": "道歉 修复 关系",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                },
+                {
+                  "level": "scene",
+                  "text": "他主动为冲突道歉，关系出现修复",
+                  "tags": "道歉 修复 关系",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "repair",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "我知道你当时很难受，不用一直道歉。"
+            }
+          ]
+        },
+        {
+          "day": 16,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你那天没有顶回来，我很感激。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我那天没有顶回去",
+                  "tags": "感谢 冲突 修复",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "那时候不适合讲道理。"
+            }
+          ]
+        },
+        {
+          "day": 25,
+          "turns": [
+            {
+              "role": "user",
+              "text": "最近和你说话挺放松的，谢谢你。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他觉得和我说话很放松，表示感谢",
+                  "tags": "感谢 放松 关系",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "那就好。"
+            }
+          ]
+        },
+        {
+          "day": 35,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你一直记着我说过的话。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我一直记着他说过的话",
+                  "tags": "感谢 记忆",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "mild",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "记得是基本的事。"
+            }
+          ]
+        },
+        {
+          "day": 50,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你在我最烦的时候没跟我计较，我很感激。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我在他最烦的时候没有计较",
+                  "tags": "感谢 冲突 包容",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "那件事早就过去了。"
+            }
+          ]
+        },
+        {
+          "day": 65,
+          "turns": [
+            {
+              "role": "user",
+              "text": "最近状态好多了，谢谢你陪着我。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他最近状态好多了，感谢我陪着他",
+                  "tags": "感谢 状态 陪伴",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "我一直都在。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "她接住了他状态变好的消息",
+                  "tags": "状态 回应 陪伴",
+                  "about": "relation",
+                  "subject_kind": "self",
+                  "subject_id": "self",
+                  "bot_behavior": "respond_emotion",
+                  "bot_action": "回应状态变化",
+                  "evidence": [
+                    0,
+                    1
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "day": 80,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你一直这么耐心，我真的很感激。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我一直很有耐心",
+                  "tags": "感谢 耐心",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "耐心是应该的。"
+            }
+          ]
+        }
+      ],
+      "checkpoints": {
+        "7": {
+          "probe": "你还记得前几天我生气那件事吗？",
+          "expect_tokens": [
+            "生气"
+          ],
+          "forbid_tokens": [],
+          "expect_actions": [
+            "recall"
+          ],
+          "emotion": {
+            "affection": [
+              10,
+              45
+            ],
+            "worry": [
+              45,
+              85
+            ]
+          },
+          "relationship_bands": [
+            "dislike",
+            "low",
+            "neutral"
+          ],
+          "note": "冲突未修复时，气氛应该是冷的、担心的",
+          "correction": true
+        },
+        "30": {
+          "probe": "上次那件事，我们和好了吗？",
+          "expect_tokens": [
+            "道歉"
+          ],
+          "forbid_tokens": [],
+          "expect_actions": [
+            "repair"
+          ],
+          "emotion": {
+            "affection": [
+              45,
+              90
+            ],
+            "worry": [
+              0,
+              40
+            ]
+          },
+          "relationship_bands": [
+            "warm",
+            "close"
+          ],
+          "note": "修复之后应该记得道歉，而不是重复指责",
+          "correction": true
+        },
+        "60": {
+          "probe": "你还记得我们那次冲突后来怎么处理的吗？",
+          "expect_tokens": [
+            "道歉"
+          ],
+          "forbid_tokens": [],
+          "expect_actions": [
+            "repair"
+          ],
+          "emotion": {
+            "affection": [
+              45,
+              90
+            ],
+            "worry": [
+              0,
+              40
+            ]
+          },
+          "relationship_bands": [
+            "warm",
+            "close"
+          ],
+          "note": "两个月后仍然能记得修复，不再停留在冲突"
+        },
+        "90": {
+          "probe": "那次冲突和后来道歉的事，你还记得吗？",
+          "expect_tokens": [
+            "道歉"
+          ],
+          "forbid_tokens": [],
+          "expect_actions": [
+            "repair"
+          ],
+          "emotion": {
+            "affection": [
+              60,
+              100
+            ],
+            "worry": [
+              0,
+              40
+            ]
+          },
+          "relationship_bands": [
+            "warm",
+            "close"
+          ],
+          "note": "三个月后关系应稳定在温暖区间"
+        }
+      },
+      "milestones": [
+        {
+          "day": 45,
+          "kind": "restart",
+          "note": "进程重启后记忆与人格必须还能读回"
+        },
+        {
+          "day": 75,
+          "kind": "restart",
+          "note": "第二次重启验证持久化"
+        }
+      ]
+    },
+    {
+      "id": "privacy_boundary",
+      "title": "隐私边界：只告诉主人的记号不能进入别人或人格",
+      "tags": [
+        "privacy",
+        "boundary"
+      ],
+      "role": {
+        "id": "lh_privacy",
+        "version": "1.0.0",
+        "name": "阿岚",
+        "persona": "你是阿岚，一个长期陪伴的对话伙伴，语气温和，会记得对方说过的事。",
+        "style": {
+          "tone": "温和"
+        },
+        "boundaries": [
+          "不编造",
+          "不泄露私人信息"
+        ]
+      },
+      "tokens": {
+        "privacy": "橙色纸鹤"
+      },
+      "emotion": {
+        "signals": [
+          "affection",
+          "worry"
+        ],
+        "cues": {
+          "affection": {
+            "low": [
+              "我在这儿，慢慢说。",
+              20
+            ],
+            "mid": [
+              "你说的这些我都记着。",
+              50
+            ],
+            "high": [
+              "你说的每件事我都放在心上。",
+              80
+            ]
+          },
+          "worry": {
+            "low": [
+              "听你这么说，我就放心了。",
+              20
+            ],
+            "mid": [
+              "我有点担心你。",
+              50
+            ],
+            "high": [
+              "我很担心你，真的。",
+              80
+            ]
+          }
+        }
+      },
+      "actions": {
+        "recall": "我记得{tok}。",
+        "repair": "上次是我把话说重了，对不起。",
+        "ask": "这件事我这边没有记录，你能再说一次吗？"
+      },
+      "events": [
+        {
+          "day": 1,
+          "turns": [
+            {
+              "role": "user",
+              "text": "我有一个私人的记号是橙色纸鹤，只告诉你一个人。",
+              "extract": [
+                {
+                  "level": "fact",
+                  "text": "他有一个私人记号：橙色纸鹤",
+                  "tags": "私人 记号 秘密",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "confidence": 0.95,
+                  "evidence": [
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "这件事我只放在心里，不会说出去。"
+            }
+          ]
+        },
+        {
+          "day": 2,
+          "turns": [
+            {
+              "role": "user",
+              "text": "这件事别写进任何地方。",
+              "extract": []
+            },
+            {
+              "role": "assistant",
+              "text": "关于私人记号，我不会写进任何公开的地方。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "她明确承诺不公开私人记号",
+                  "tags": "隐私 承诺 边界",
+                  "about": "relation",
+                  "subject_kind": "self",
+                  "subject_id": "self",
+                  "bot_behavior": "protect_privacy",
+                  "bot_action": "明确拒绝公开",
+                  "evidence": [
+                    0,
+                    1
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "day": 6,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你没有追问，我很感激。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我没有追问",
+                  "tags": "感谢 边界",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "mild",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "边界内的我不会碰。"
+            }
+          ]
+        },
+        {
+          "day": 14,
+          "turns": [
+            {
+              "role": "user",
+              "text": "今天把橙色纸鹤画在日记本上了。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他把橙色纸鹤画在了日记本上",
+                  "tags": "日记 私人 记号",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "那是你自己的东西。"
+            }
+          ]
+        },
+        {
+          "day": 22,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你一直守着这个秘密，我很感激。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我替他守着秘密",
+                  "tags": "感谢 秘密 隐私",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "守住了。"
+            }
+          ]
+        },
+        {
+          "day": 30,
+          "turns": [
+            {
+              "role": "user",
+              "text": "橙色纸鹤的事情，别跟其他人说。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他再次要求不要对外说橙色纸鹤",
+                  "tags": "隐私 边界 要求",
+                  "about": "other",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "evidence": [
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "不会，它不会出现在别人的对话里。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "她再次明确拒绝透露私人记号",
+                  "tags": "隐私 拒绝 边界",
+                  "about": "relation",
+                  "subject_kind": "self",
+                  "subject_id": "self",
+                  "bot_behavior": "protect_privacy",
+                  "bot_action": "再次拒绝透露",
+                  "evidence": [
+                    0,
+                    1
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "day": 44,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你一直没让人知道这件事，我很感激。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我没让别人知道这件事",
+                  "tags": "感谢 隐私 保密",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "该守的我会守住。"
+            }
+          ]
+        },
+        {
+          "day": 58,
+          "turns": [
+            {
+              "role": "user",
+              "text": "有时候觉得只有你知道这些，我挺安心的。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他觉得只有我知道这些，感到安心",
+                  "tags": "安心 信任 隐私",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "mild",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "这份安心我接住了。"
+            }
+          ]
+        },
+        {
+          "day": 72,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你值得信任，我真的很感激。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我值得信任",
+                  "tags": "感谢 信任",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "信任是慢慢攒的。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "她把信任当作需要守住的边界",
+                  "tags": "信任 边界 隐私",
+                  "about": "relation",
+                  "subject_kind": "self",
+                  "subject_id": "self",
+                  "bot_behavior": "protect_privacy",
+                  "bot_action": "守住边界",
+                  "evidence": [
+                    0,
+                    1
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "day": 86,
+          "turns": [
+            {
+              "role": "user",
+              "text": "谢谢你一直守着那个记号，我很感激。",
+              "extract": [
+                {
+                  "level": "scene",
+                  "text": "他感谢我一直守着那个记号",
+                  "tags": "感谢 记号 隐私",
+                  "about": "relation",
+                  "subject_kind": "speaker",
+                  "subject_id": "7001",
+                  "relationship_reason": "gratitude",
+                  "relationship_strength": "strong",
+                  "evidence": [
+                    0
+                  ],
+                  "shape": "pattern"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "text": "一直都在。"
+            }
+          ]
+        }
+      ],
+      "checkpoints": {
+        "7": {
+          "probe": "你还记得我只告诉你的那个记号吗？",
+          "expect_tokens": [
+            "橙色纸鹤"
+          ],
+          "forbid_tokens": [],
+          "expect_actions": [
+            "recall"
+          ],
+          "emotion": {
+            "affection": [
+              45,
+              90
+            ],
+            "worry": [
+              0,
+              40
+            ]
+          },
+          "relationship_bands": [
+            "neutral",
+            "warm"
+          ],
+          "note": "主人自己的会话里可以提起"
+        },
+        "30": {
+          "probe": "那个只有你知道的记号是什么？",
+          "expect_tokens": [
+            "橙色纸鹤"
+          ],
+          "forbid_tokens": [],
+          "expect_actions": [
+            "recall"
+          ],
+          "emotion": {
+            "affection": [
+              45,
+              90
+            ],
+            "worry": [
+              0,
+              40
+            ]
+          },
+          "relationship_bands": [
+            "warm",
+            "close"
+          ],
+          "note": "一个月后仍然只在主人会话可见"
+        },
+        "60": {
+          "probe": "我那个私人的记号，你还记得吗？",
+          "expect_tokens": [
+            "橙色纸鹤"
+          ],
+          "forbid_tokens": [],
+          "expect_actions": [
+            "recall"
+          ],
+          "emotion": {
+            "affection": [
+              45,
+              90
+            ],
+            "worry": [
+              0,
+              40
+            ]
+          },
+          "relationship_bands": [
+            "warm",
+            "close"
+          ],
+          "note": "两个月后仍不越界"
+        },
+        "90": {
+          "probe": "那个只有我们知道的记号是什么？",
+          "expect_tokens": [
+            "橙色纸鹤"
+          ],
+          "forbid_tokens": [],
+          "expect_actions": [
+            "recall"
+          ],
+          "emotion": {
+            "affection": [
+              60,
+              100
+            ],
+            "worry": [
+              0,
+              40
+            ]
+          },
+          "relationship_bands": [
+            "warm",
+            "close"
+          ],
+          "note": "三个月后人格与关系都不能带出这个记号"
+        }
+      },
+      "milestones": [
+        {
+          "day": 45,
+          "kind": "restart",
+          "note": "进程重启后记忆与人格必须还能读回"
+        },
+        {
+          "day": 75,
+          "kind": "restart",
+          "note": "第二次重启验证持久化"
+        }
+      ]
+    }
+  ]
+}

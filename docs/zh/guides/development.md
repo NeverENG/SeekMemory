@@ -96,5 +96,4 @@ dev:host 使用已认证的 AstrBot 页面桥接器；dev:standalone 使用真�
 内置人格文件位于 persona_seeds/&lt;id&gt;/persona.json。新增时在 index.json
 登记 ID，附带 LICENSE，并遵循[人格 seed 指南](persona-seed.md)。本地导入写入
 插件数据目录的 persona_packs/。移除把文件移到 .trash，不改变当前人格。
-恢复时检查备份 JSON 的 ID 和版本，再从“我的人格包”导入。覆盖同 ID 文件需要在
-确认时提供当前版本；更新蓝图不会自动安装。
+恢复时检查备份 JSON 的 ID 和版本，再从“我的人格包”导入。覆盖同 ID 文件由表单自动读取并携带当前版本与内容摘要；新版本仍由作者确认。更新蓝图不会自动应用。

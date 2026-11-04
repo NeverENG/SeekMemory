@@ -13,10 +13,12 @@ try:
     from ..app.ports import ArtifactStore, SourceStore, LedgerStore, PersonaPacks, DreamJournal
     from ..core.domain.memory.artifact import Artifact, content_of
     from ..recall.scope import owner_of
+    from ..core.domain.character.persona_application import artwork_digest
 except ImportError:
     from app.ports import ArtifactStore, SourceStore, LedgerStore, PersonaPacks, DreamJournal
     from core.domain.memory.artifact import Artifact, content_of
     from recall.scope import owner_of
+    from core.domain.character.persona_application import artwork_digest
 
 from . import console_projection
 
@@ -63,6 +65,17 @@ def pack_detail(packs: PersonaPacks | None, reference: str) -> dict:
             "licenseText": bundle["licenseText"]}
 
 
+def pack_lookup(packs: PersonaPacks | None, reference: str) -> dict:
+    """Resolve one authoring target independently of catalog pagination / 独立于目录分页定位一个编辑目标。"""
+    if packs is None:
+        raise RuntimeError("人格包目录不可用")
+    try:
+        bundle = packs.bundle(reference)
+    except LookupError:
+        return {"pack": None, "digest": None}
+    return {"pack": bundle, "digest": pack_digest(bundle)}
+
+
 def pack_export(packs: PersonaPacks | None, reference: str) -> dict:
     """Read a complete authored pack bundle / 读取完整的人工编写人格包。"""
     if packs is None:
@@ -70,11 +83,14 @@ def pack_export(packs: PersonaPacks | None, reference: str) -> dict:
     return packs.bundle(reference)
 
 
-def pack_artwork(packs: PersonaPacks | None, reference: str) -> dict:
+def pack_artwork(packs: PersonaPacks | None, reference: str, expected_digest: str | None = None) -> dict:
     """Read validated persona artwork metadata / 读取已验证的人格插画元数据。"""
     if packs is None:
         raise RuntimeError("人格包目录不可用")
-    return packs.artwork(reference)
+    art = packs.artwork(reference)
+    if expected_digest is not None and artwork_digest({"artwork": art}) != expected_digest:
+        raise ValueError("pack_changed")
+    return art
 
 
 def catalog(artifacts: ArtifactStore, sources: SourceStore) -> list[dict]:

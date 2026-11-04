@@ -119,6 +119,16 @@ export function apply(ctx, rawConfig) {
     const rawLogDir =
       rawConfig && typeof rawConfig === 'object' && typeof rawConfig.logDir === 'string' ? rawConfig.logDir : '';
     logger = createFileLogger({ dir: resolveLogDir(rawLogDir), mirror: ctx.logger, tag: 'boot' });
+    // issue #210：桌面版的 ctx.logger 看不见，所以"日志没建起来"必须先自己喊一声
+    if (!logger.file) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[seekmemory] 致命：所有日志目录都不可写（${logger.attempts.map((a) => `${a.dir}${a.ok ? '' : `(${a.err})`}`).join(' | ')}）——后续诊断只能靠 console`,
+      );
+    } else if (logger.fallback) {
+      // eslint-disable-next-line no-console
+      console.warn(`[seekmemory] 主日志目录不可写，已降级到: ${logger.file}`);
+    }
     installExitDiagnostic(logger);
     logger.info(`apply 开始 version=${VERSION} pid=${process.pid} node=${process.version} cwd=${process.cwd() ? 'set' : 'unset'}`);
     logger.info(
@@ -126,9 +136,11 @@ export function apply(ctx, rawConfig) {
     );
     if (logger.file) logger.info(`日志文件: ${logger.file}`);
   } catch (err) {
-    // 连日志都建不起来：只能靠宿主 logger，然后照常往下走
+    // 连日志都建不起来：不再只是"照常往下走"——底下的 console 是最后一道可见性
+    // eslint-disable-next-line no-console
+    console.error(`[seekmemory] 文件日志初始化异常: ${errBrief(err)}`);
     try {
-      ctx.logger?.warn?.(`[seekmemory] 文件日志初始化失败: ${errBrief(err)}`);
+      ctx.logger?.error?.(`[seekmemory] 文件日志初始化异常: ${errBrief(err)}`);
     } catch {
       /* ignore */
     }

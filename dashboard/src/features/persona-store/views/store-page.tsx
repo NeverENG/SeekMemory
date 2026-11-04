@@ -1,22 +1,18 @@
-import { PackPreview } from "./pack-preview"
-import { newPackId } from "../pack-id"
-import { personaBlueprint, packInstallLabel } from "../model"
-import type { ArtifactDetail } from "@/features/control/model"
-import { useCallback, useEffect, useRef, useState } from "react"
-import { ArrowUpRight, Plus, Search } from "lucide-react"
-import { Badge, Button, Input } from "@/ui"
-import { PackArtwork } from "./pack-artwork"
-import { PackImport } from "./pack-import"
-import { parsePackFile, MAX_PACK_BYTES, downloadPack } from "../pack-file"
-import {
-  type PersonaBundle,
-  type PersonaPack,
-  type PersonaSeed,
-  type ConsoleClient,
-} from "@/features/shell/model"
-import type { RuntimeStatus } from "@/features/control/model"
+import { useCallback, useRef, useState } from "react"
+import { Plus } from "lucide-react"
+import { Button } from "@/ui"
+import type { ArtifactDetail, RuntimeStatus } from "@/features/control/model"
+import type { ConsoleClient, PersonaPack } from "@/features/shell/model"
 import { useResource } from "@/features/shell/use-resource"
-import { PageIntro, ResourceState } from "@/features/shell/page-parts"
+import { PageIntro } from "@/features/shell/page-parts"
+import { personaBlueprint } from "../model"
+import { copyPack, newPack, nextVersion, type PackDraft } from "../authoring"
+import { downloadPack, MAX_PACK_BYTES, parsePackFile } from "../pack-file"
+import { newPackId } from "../pack-id"
+import { usePackPreview } from "../use-pack-preview"
+import { PackCatalog } from "./pack-catalog"
+import { PackEditor } from "./pack-editor"
+import { PackPreview } from "./pack-preview"
 
 export function StorePage({
   client,
@@ -26,381 +22,287 @@ export function StorePage({
 }: {
   client: ConsoleClient
   status: RuntimeStatus | null
-  readPersona: (id: string) => Promise<ArtifactDetail>
   onSaved: () => Promise<void>
+  readPersona: (id: string) => Promise<ArtifactDetail>
 }) {
   const [collection, setCollection] = useState<"official" | "mine">("official")
-  const [offset, setOffset] = useState(0),
-    [query, setQuery] = useState("")
-  const [installBase, setInstallBase] = useState<{
-    id: string | null
-    revision: number
-  }>({ id: null, revision: 0 })
-  const [selected, setSelected] = useState<PersonaPack | null>(null)
-  const [licenseText, setLicenseText] = useState("")
-  const [digest, setDigest] = useState("")
-  const [seed, setSeed] = useState<PersonaSeed | null>(null)
-  const [confirmed, setConfirmed] = useState(false),
-    [busy, setBusy] = useState(false)
-  const [error, setError] = useState(""),
-    [notice, setNotice] = useState("")
-  const [chatImport, setChatImport] = useState(false)
-  const [pendingImport, setPendingImport] = useState<PersonaBundle | null>(null)
-  const [importVersion, setImportVersion] = useState(0)
-  const [expectedVersion, setExpectedVersion] = useState("")
-  const [removeConfirmed, setRemoveConfirmed] = useState(false)
-  const [saveName, setSaveName] = useState("")
-  const importRequest = useRef(0)
-  const request = useRef(0),
-    acting = useRef(false)
-  useEffect(
-    () => () => {
-      request.current++
-      importRequest.current++
-    },
-    []
-  )
+  const [offset, setOffset] = useState(0)
+  const [draft, setDraft] = useState<PackDraft | null>(null)
+  const [editorKey, setEditorKey] = useState(0)
+  const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
+  const [busy, setBusy] = useState(false)
+  const acting = useRef(false)
   const read = useCallback(
     () => client.packs(collection, offset),
     [client, collection, offset]
   )
   const vm = useResource(read)
-  const preview = async (pack: PersonaPack) => {
-    const version = ++request.current
-    setInstallBase({
-      id: status?.persona?.id ?? null,
-      revision: status?.persona?.revision ?? 0,
-    })
-    setSelected(pack)
-    setSeed(null)
-    setLicenseText("")
-    setDigest("")
+  const preview = usePackPreview(client, status, readPersona)
+  const blocked = !status?.ready || !!status.activeTask
+  const openEditor = (value: PackDraft) => {
+    preview.close()
+    setDraft(value)
+    setEditorKey((key) => key + 1)
+    setNotice("")
     setError("")
-    setConfirmed(false)
-    setRemoveConfirmed(false)
-    try {
-      const result = await client.pack(pack.reference)
-      if (version === request.current) {
-        setLicenseText(result.licenseText ?? "")
-        setSeed(result.seed)
-        setDigest(result.digest)
-      }
-    } catch (e) {
-      if (version === request.current)
-        setError(e instanceof Error ? e.message : "读取失败")
-    }
   }
-  const mutate = async (operation: () => Promise<unknown>, success: string) => {
-    if (acting.current) return false
+  const saved = async () => {
+    await Promise.all([vm.reload(), onSaved()])
+    setNotice("人格包已保存。可打开预览，核对后应用。")
+  }
+  const action = async (operation: () => Promise<unknown>, message: string) => {
+    if (acting.current) return
     acting.current = true
     setBusy(true)
     setError("")
-    setNotice("")
     try {
       await operation()
-      setNotice(success)
-      setSelected(null)
-      setSeed(null)
-      setConfirmed(false)
+      preview.close()
       await Promise.all([vm.reload(), onSaved()])
-      return true
+      setNotice(message)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "操作失败")
-      return false
+      const message = e instanceof Error ? e.message : "操作失败，请重新核对"
+      setError(message)
+      preview.failed(message)
+      await onSaved()
+    } finally {
+      acting.current = false
+      setBusy(false)
+    }
+  }
+  const edit = async (pack: PersonaPack) => {
+    if (acting.current) return
+    acting.current = true
+    setBusy(true)
+    try {
+      const target = await client.packLookup(pack.reference)
+      if (!target.pack) throw new Error("人格包已移除，请刷新列表")
+      const personal = pack.reference.startsWith("mine/")
+      openEditor({
+        pack: personal
+          ? {
+              ...target.pack,
+              seed: {
+                ...target.pack.seed,
+                version: nextVersion(target.pack.seed.version),
+              },
+            }
+          : copyPack(target.pack),
+        ...(personal ? { target } : {}),
+        title: personal ? "编辑已保存包" : "复制到我的包",
+      })
+      setCollection("mine")
+      setOffset(0)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "读取失败")
     } finally {
       acting.current = false
       setBusy(false)
     }
   }
   const importFile = async (file: File | undefined) => {
-    if (!file) return
-    const version = ++importRequest.current
+    if (!file || acting.current) return
+    acting.current = true
+    setBusy(true)
     setError("")
     try {
       if (file.size > MAX_PACK_BYTES) throw new Error("人格包不能超过 3 MiB")
-      const imported = parsePackFile(await file.text())
-      if (version !== importRequest.current) return
-      setImportVersion(version)
-      setPendingImport(imported)
-      setExpectedVersion(
-        vm.data?.items.find((p) => p.id === imported.seed.id)?.version ?? ""
-      )
+      openEditor({
+        pack: parsePackFile(await file.text()),
+        title: "导入并编辑人格包",
+      })
     } catch (e) {
-      if (version === importRequest.current)
-        setError(e instanceof Error ? e.message : "文件格式无效")
+      setError(
+        e instanceof Error
+          ? e.message
+          : "文件格式无效；请检查不支持的字段及内容"
+      )
+    } finally {
+      acting.current = false
+      setBusy(false)
     }
   }
-  const items =
-    vm.data?.items.filter((pack) =>
-      `${pack.name} ${pack.description}`
-        .toLowerCase()
-        .includes(query.toLowerCase())
-    ) ?? []
   return (
     <div className="console-page console-store">
       <PageIntro title="人格小铺" />
       <div className="store-tabs">
-        <Button
-          variant={collection === "official" ? "default" : "ghost"}
-          onClick={() => {
-            setChatImport(false)
-            setCollection("official")
-            setOffset(0)
-          }}
-        >
-          官方种子
-        </Button>
-        <Button
-          variant={collection === "mine" ? "default" : "ghost"}
-          onClick={() => {
-            setChatImport(false)
-            setCollection("mine")
-            setOffset(0)
-          }}
-        >
-          我的包
-        </Button>
-        <Button
-          variant={chatImport ? "default" : "ghost"}
-          onClick={() => setChatImport(true)}
-        >
-          导入聊天
-        </Button>
+        {(["official", "mine"] as const).map((value) => (
+          <Button
+            key={value}
+            disabled={busy}
+            variant={collection === value ? "default" : "ghost"}
+            onClick={() => {
+              setCollection(value)
+              setOffset(0)
+            }}
+          >
+            {value === "official" ? "官方种子" : "我的包"}
+          </Button>
+        ))}
       </div>
-      {chatImport ? (
-        <div className="console-empty">
-          <h2>从真实相处中塑造人格</h2>
-          <p>聊天导入会保存真实对话，再由记忆整理逐步形成印象和人格。</p>
-          <Button disabled>聊天导入暂未开放</Button>
-        </div>
-      ) : (
-        <>
-          <div className="console-toolbar">
-            <Search size={16} />
-            <Input
-              aria-label="搜索当前页人格包"
-              placeholder="搜索当前页的人格…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="max-w-sm"
-            />
-            <span className="ml-auto text-xs text-muted-foreground">
-              {vm.data?.total ?? 0} 个人格包
-            </span>
-          </div>
-          {collection === "mine" && (
-            <section className="console-panel mb-6 space-y-4 p-5">
-              <div className="flex flex-wrap items-center gap-3">
-                <label className="console-upload">
-                  <Plus size={15} />
-                  导入人格包 / JSON
-                  <input
-                    type="file"
-                    accept=".json,application/json"
-                    disabled={busy}
-                    onChange={(e) => {
-                      void importFile(e.target.files?.[0])
-                      e.target.value = ""
-                    }}
-                  />
-                </label>
-                <p className="text-xs text-muted-foreground">
-                  支持完整人格包及旧版 JSON；不会自动安装。
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <Input
-                  aria-label="保存当前人格的包名称"
-                  placeholder="为当前人格取一个包名"
-                  value={saveName}
-                  onChange={(e) => setSaveName(e.target.value)}
-                  className="max-w-sm"
-                />
-                <Button
-                  variant="outline"
-                  disabled={busy || !status?.persona || !saveName.trim()}
-                  onClick={() => {
-                    if (!status?.persona) return
-                    const id = status.persona.id
-                    void mutate(async () => {
-                      const detail = await readPersona(id)
-                      const current = personaBlueprint(
-                        detail,
-                        saveName.trim(),
-                        newPackId()
-                      )
-                      return client.persona({
-                        operation: "import",
-                        seed: current,
-                        confirmed: true,
-                      })
-                    }, "已保存人格蓝图，不包含聊天来源或证据。")
-                  }}
-                >
-                  保存当前人格为包
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                保存人格文字、风格和边界，不复制聊天、来源或私人证据。分享前请自行检查人格文字。
-              </p>
-            </section>
-          )}
-          {error && (
-            <p role="alert" className="my-4 text-sm text-destructive">
-              {error}
-            </p>
-          )}
-          {notice && (
-            <p role="status" className="my-4 text-sm text-success">
-              {notice}
-            </p>
-          )}
-          <ResourceState
-            loading={vm.loading}
-            error={vm.error}
-            empty={!!vm.data && !items.length}
-            onRetry={vm.reload}
-          />
-          <div className="store-grid">
-            {items.map((pack) => (
-              <button
-                className="console-panel seed-card"
-                key={pack.reference}
-                onClick={() => {
-                  void preview(pack)
+      {collection === "mine" && (
+        <section className="console-panel mb-6 space-y-4 p-5">
+          <div className="flex flex-wrap gap-3">
+            <Button
+              disabled={busy || blocked}
+              onClick={() =>
+                openEditor({ pack: newPack(), title: "创建个人包" })
+              }
+            >
+              <Plus size={15} />
+              创建个人包
+            </Button>
+            <label className="console-upload">
+              导入人格包 / JSON
+              <input
+                type="file"
+                accept=".json,application/json"
+                disabled={busy || blocked}
+                onChange={(e) => {
+                  void importFile(e.target.files?.[0])
+                  e.target.value = ""
                 }}
-              >
-                <div className="seed-art seed-art-neutral">
-                  <PackArtwork pack={pack} client={client} />
-                  <Badge variant="outline">
-                    {pack.contentRating === "general"
-                      ? "全年龄"
-                      : pack.contentRating}
-                  </Badge>
-                </div>
-                <div className="p-5 text-left">
-                  <div className="flex justify-between">
-                    <h2 className="text-lg font-semibold">{pack.name}</h2>
-                    <ArrowUpRight size={17} />
-                  </div>
-                  <p className="my-3 line-clamp-2 text-sm leading-6 text-muted-foreground">
-                    {pack.description}
-                  </p>
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{pack.license || "许可未声明"}</span>
-                    <span>
-                      v{pack.version}
-                      {packInstallLabel(pack, status?.persona)}
-                    </span>
-                  </div>
-                </div>
-              </button>
-            ))}
+              />
+            </label>
+            <Button
+              variant="outline"
+              disabled={busy || blocked || !status?.persona}
+              onClick={() => {
+                const persona = status?.persona
+                if (!persona) return
+                void action(async () => {
+                  const detail = await readPersona(persona.id)
+                  openEditor({
+                    pack: {
+                      ...newPack(),
+                      seed: personaBlueprint(
+                        detail,
+                        typeof detail.artifact.payload["persona_name"] ===
+                          "string"
+                          ? detail.artifact.payload["persona_name"]
+                          : "我的人格",
+                        newPackId()
+                      ),
+                    },
+                    title: "保存当前人格为包",
+                  })
+                }, "请核对包内容后保存。")
+              }}
+            >
+              保存当前人格为包
+            </Button>
           </div>
-          {vm.data && vm.data.total > 24 && (
-            <div className="console-toolbar mt-5">
-              <Button
-                disabled={!offset}
-                onClick={() => setOffset(Math.max(0, offset - 24))}
-              >
-                上一页
-              </Button>
-              <Button
-                disabled={offset + 24 >= vm.data.total}
-                onClick={() => setOffset(offset + 24)}
-              >
-                下一页
-              </Button>
-            </div>
-          )}
-        </>
+          <p className="text-sm text-muted-foreground">
+            支持旧 seed JSON 和完整 v1
+            包。保存蓝图不包含聊天、来源证据或私人记录；分享前请检查人格文字。
+          </p>
+        </section>
       )}
-      {pendingImport && (
-        <PackImport
-          key={importVersion}
-          pack={pendingImport}
-          setPack={setPendingImport}
-          expectedVersion={expectedVersion}
-          setExpectedVersion={setExpectedVersion}
-          busy={busy}
-          onCancel={() => setPendingImport(null)}
-          onSave={() => {
-            void mutate(
-              () =>
-                client.persona({
-                  operation: "importPack",
-                  pack: pendingImport,
-                  confirmed: true,
-                  ...(expectedVersion ? { expectedVersion } : {}),
-                }),
-              "人格包已保存，当前人格未改变。"
-            ).then((saved) => {
-              if (saved) setPendingImport(null)
-            })
-          }}
+      {draft && (
+        <PackEditor
+          key={editorKey}
+          initial={draft}
+          client={client}
+          blocked={blocked}
+          onSaved={saved}
+          onCancel={() => setDraft(null)}
         />
       )}
-      <PackPreview
+      {error && (
+        <p role="alert" className="my-4 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p role="status" className="my-4 text-sm text-success">
+          {notice}
+        </p>
+      )}
+      <PackCatalog
+        key={collection}
         client={client}
-        licenseText={licenseText}
-        onExport={() => {
-          if (!selected || acting.current) return
-          acting.current = true
-          setBusy(true)
-          setError("")
-          void client
-            .packExport(selected.reference)
-            .then((pack) => {
-              downloadPack(pack, `${pack.seed.id}.seekmemory.json`)
-            })
-            .catch((e: unknown) =>
-              setError(e instanceof Error ? e.message : "导出失败")
-            )
-            .finally(() => {
-              acting.current = false
-              setBusy(false)
-            })
-        }}
-        selected={selected}
-        seed={seed}
-        error={error}
-        busy={busy}
+        data={vm.data}
+        loading={vm.loading}
+        error={vm.error}
+        onRetry={vm.reload}
         status={status}
-        confirmed={confirmed}
-        setConfirmed={setConfirmed}
-        removeConfirmed={removeConfirmed}
-        setRemoveConfirmed={setRemoveConfirmed}
-        onClose={() => {
-          request.current++
-          setSelected(null)
-          setSeed(null)
+        busy={busy}
+        offset={offset}
+        onOffset={setOffset}
+        onPreview={(pack) => {
+          void preview.preview(pack)
         }}
-        onInstall={() => {
-          if (selected)
-            void mutate(
-              () =>
-                client.persona({
-                  operation: "install",
-                  reference: selected.reference,
-                  expectedId: installBase.id,
-                  expectedRevision: installBase.revision,
-                  expectedDigest: digest,
-                  confirmed: true,
-                }),
-              "人格已安装，首页已更新。"
+      />
+      <PackPreview
+        key={preview.selected?.reference ?? "none"}
+        client={client}
+        selected={preview.selected}
+        seed={preview.seed}
+        current={preview.current}
+        licenseText={preview.licenseText}
+        error={preview.error}
+        busy={busy}
+        blocked={blocked}
+        confirmed={preview.confirmed}
+        setConfirmed={preview.setConfirmed}
+        reviewRequired={preview.reviewRequired}
+        onClose={preview.close}
+        onReload={() => {
+          if (preview.selected) void preview.preview(preview.selected)
+        }}
+        onEdit={() => {
+          if (preview.selected) void edit(preview.selected)
+        }}
+        onExport={() => {
+          if (preview.selected) {
+            const ref = preview.selected.reference
+            void action(
+              async () =>
+                downloadPack(
+                  await client.packExport(ref),
+                  `${ref.split("/")[1]}.seekmemory.json`
+                ),
+              "完整包已导出。"
             )
+          }
         }}
         onRemove={() => {
-          if (selected)
-            void mutate(
+          if (preview.selected) {
+            const reference = preview.selected.reference
+            void action(
               () =>
                 client.persona({
                   operation: "remove",
-                  reference: selected.reference,
+                  reference,
                   confirmed: true,
                 }),
-              "已移入本地回收目录；当前人格未改变。"
+              "已移入回收目录，当前人格内容保留。"
             )
+          }
+        }}
+        onInstall={() => {
+          if (
+            preview.selected &&
+            preview.seed &&
+            preview.confirmed &&
+            !preview.reviewRequired
+          ) {
+            const reference = preview.selected.reference,
+              header = preview.current?.artifact.header
+            void action(
+              () =>
+                client.persona({
+                  operation: "install",
+                  reference,
+                  expectedId: header?.id ?? null,
+                  expectedRevision: header?.revision ?? 0,
+                  expectedDigest: preview.digest,
+                  confirmed: true,
+                }),
+              "已应用人格包，并保留历史。"
+            )
+          }
         }}
       />
     </div>

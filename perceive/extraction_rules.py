@@ -70,20 +70,45 @@ def _event_at(item: dict, turns: list[DialogueTurn]) -> str:
     return datetime.datetime.now().isoformat(timespec="seconds")
 
 
+def _normalize_user_subject(item: dict, evidence: list[DialogueTurn]) -> dict:
+    """Unwrap an exact user label only when its own Source evidence verifies it / 仅在自身原始消息证据确认身份时去掉精确用户标签。"""
+    kind = str(item.get("subject_kind") or "").strip()
+    if kind not in ("", "owner", "speaker", "third_party"):
+        return item
+    raw = str(item.get("subject_id") or "").strip()
+    match = re.fullmatch(r"user\(([^\s()]+)\)", raw)
+    if match is None:
+        return item
+    subject = match.group(1)
+    if subject in ("owner", "speaker", "self", "world", "relation"):
+        return item
+    if any(turn.source_id and turn.role == "user" and turn.speaker_id == subject
+           for turn in evidence):
+        return {**item, "subject_id": subject}
+    return item
+
+
 def _subject_id(item: dict, owner: str, default: str, owner_id: str = "") -> str:
     """Resolve the interpreted subject without confusing it with the speaker / 确定被解释对象，不将其与说话人混用。"""
     kind = str(item.get("subject_kind") or "").strip()
     raw = str(item.get("subject_id") or "").strip()
-    if raw and raw not in ("owner", "speaker", "self", "world", "relation"):
-        return raw
     if not owner_id and owner:
         owner_id = str(owner).split(":")[-1]
+    if raw and raw not in ("owner", "speaker", "self", "world", "relation"):
+        # 唯一要纠正的已知错法：模型把证据 source id 当成主体回填
+        #（实测会把 s_xxx 塞进 subject_id，导致 owner 记忆被判成陌生人、披露分恒 0.35）。
+        # 其余一律保持上游语义——显式 id 优先，user(...) 交给后续校验解包，
+        # 畸形包装（user(unknown) / User(u1)）原样保留，不能被"洗白"成 owner。
+        evidence = {str(x) for x in (item.get("evidence_source_ids") or []) if str(x)}
+        if kind == "owner" and (raw.startswith("s_") or raw in evidence):
+            return owner_id or default
+        return raw
     if kind == "owner":
         return owner_id or default
-    if kind == "speaker":
-        return default
     if kind in ("world", "relation", "self"):
         return kind
+    if kind == "speaker":
+        return default
     name = str(item.get("subject_name") or "").strip()
     return "third:" + name if name else default
 

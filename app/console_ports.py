@@ -18,8 +18,8 @@ class PersonaPacks(Protocol):
         """Read protected artwork data for the referenced pack / 读取指定人格包受保护的插画数据。"""
         ...
 
-    def save(self, seed: dict, expected_version: str | None = None) -> str:
-        """Save with an optional expected version and return its reference / 可指定预期版本保存，并返回引用。"""
+    def save(self, seed: dict, expected_version: str | None = None, *, expected_digest: str | None = None) -> str:
+        """Save with optional version/content CAS and return its reference / 可指定版本及内容摘要进行并发校验，保存后返回引用。"""
         ...
     def remove(self, reference: str) -> None:
         """Remove the referenced pack / 删除指定人格包。"""

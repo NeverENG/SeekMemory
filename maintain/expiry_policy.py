@@ -71,8 +71,9 @@ def _date(value: str | None) -> datetime.date | None:
 
 def _expired(art: Artifact, today: datetime.date) -> bool:
     """Compare existing expiry/valid-to dates to the supplied day / 将既有过期及有效截止日期与给定日比较。"""
-    deadline = _date(art.header.time.expires) or _date(art.header.time.valid_to)
-    return deadline is not None and deadline < today
+    span = art.header.time
+    return any(deadline is not None and deadline < today
+               for deadline in (_date(span.expires), _date(span.valid_to)))
 
 
 def expiry_plan(pool: list[Artifact], today: str = "") -> RevisionPlan:

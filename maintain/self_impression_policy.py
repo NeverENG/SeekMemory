@@ -56,6 +56,21 @@ def _observations(art: Artifact, sources: dict[str, Source]) -> dict[str, Observ
             for sid, pair in pairs.items()}
 
 
+def evidence_counts(pool: list[Artifact], sources: dict[str, Source]) -> dict[str, int]:
+    """Count distinct raw observations per behavior category without writes.
+
+    按行为类别统计各自独立的原始观察数，不写入；用于解释 no-op，不改变任何门槛。
+    """
+    groups: dict[str, set[str]] = {key: set() for key in BEHAVIORS}
+    for art in pool:
+        kind = art.payload.get("bot_behavior")
+        if not isinstance(kind, str) or kind not in groups:
+            continue
+        for sid in _observations(art, sources):
+            groups[kind].add(sid)
+    return {kind: len(ids) for kind, ids in groups.items() if ids}
+
+
 def _supported(art: Artifact, sources: dict[str, Source]) -> bool:
     """Require trusted self-impression and the existing minimum independent evidence / 要求可信自我印象及既有最少独立证据。"""
     return (trusted_self_impression(art)

@@ -248,6 +248,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/manage/packLookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 按完整引用查找编辑目标，不依赖目录分页 */
+        get: operations["packLookup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/manage/persona": {
         parameters: {
             query?: never;
@@ -475,6 +492,8 @@ export interface components {
             corpusCount?: number;
             seedId?: string;
             seedVersion?: string;
+            name?: string;
+            packApplication?: components["schemas"]["PackApplication"] | null;
         };
         RuntimeStatus: {
             capabilities?: {
@@ -557,7 +576,7 @@ export interface components {
             visible: string[];
             excluded: string[];
         };
-        /** @description reason 去除首尾空白后校验；payload 需通过 family 校验，JSON 序列化长度不得超过 50,000。revision 必须等于当前版本；合并状态转换受业务约束。 */
+        /** @description reason 去除首尾空白后校验；payload 需通过 family 校验；persona 的完整 payload 以紧凑、非 ASCII 转义 JSON 的 UTF-8 计最多 192 KiB，其他 family 的默认 JSON 序列化长度不得超过 50,000。update 请求体最多 1 MiB（包括 ASCII 转义和外层字段）。revision 必须等于当前版本；合并状态转换受业务约束。 */
         UpdateCommand: {
             id: string;
             expectedRevision: number;
@@ -719,6 +738,8 @@ export interface components {
             source: string;
             contentRating: string;
             locale: string;
+            digest?: string;
+            settingsDigest?: string;
             artworkRef?: string | null;
         };
         PacksResponse: {
@@ -751,6 +772,21 @@ export interface components {
             seed: components["schemas"]["PersonaSeed"];
             licenseText?: string;
         };
+        PackLookupResponse: {
+            pack: components["schemas"]["PersonaBundle"];
+            digest: string;
+        } | {
+            pack: null;
+            digest: null;
+        };
+        PackApplication: {
+            reference: string;
+            version: string;
+            packDigest: string;
+            settingsDigest: string;
+            currentSettingsDigest: string;
+            artworkDigest: string | null;
+        };
         PersonaCommand: {
             /** @constant */
             operation: "install";
@@ -767,6 +803,7 @@ export interface components {
             /** @constant */
             confirmed: true;
             expectedVersion?: string;
+            expectedDigest?: string;
         } | {
             /** @constant */
             operation: "remove";
@@ -780,6 +817,7 @@ export interface components {
             /** @constant */
             confirmed: true;
             expectedVersion?: string;
+            expectedDigest?: string;
         };
         PersonaResult: {
             reference: string;
@@ -2103,6 +2141,100 @@ export interface operations {
             };
         };
     };
+    packLookup: {
+        parameters: {
+            query: {
+                reference: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 操作成功，直接返回数据，无额外 envelope。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackLookupResponse"];
+                };
+            };
+            /** @description 输入无效或版本冲突 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 未登录管理员 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 请求来源不允许（独立控制台） */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 记忆或操作不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 请求方法不支持 */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 输入无效或版本冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 未预期的内部错误 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 记忆引擎不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     persona: {
         parameters: {
             query?: never;
@@ -2318,6 +2450,8 @@ export interface operations {
     packArtwork: {
         parameters: {
             query: {
+                /** @description 应用时或目录预览时的封面摘要；不匹配返回 409，不替换图片。 */
+                expectedDigest?: string;
                 reference: string;
             };
             header?: never;

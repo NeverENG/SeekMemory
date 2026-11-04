@@ -76,6 +76,12 @@ if (!uninstall) {
 
 // ---------- 生成回滚脚本（纯 ASCII，双击可用） ----------
 function writeRollback() {
+  // The profile config matters as much as package.json: a plugin can be referenced by
+  // cordis.patch.yml (subjectKey, runtimePath, extractEnabled ...) and removing only the
+  // dependency leaves a half-restored profile behind.
+  const patchFile = path.join(profileDir, 'cordis.patch.yml');
+  const patchBackup = path.join(backupDir, 'cordis.patch.yml');
+  const hadPatch = !uninstall && existsSync(patchBackup);
   const lines = [
     '@echo off',
     'REM Rollback dsh-seekmemory from profile: ' + profileName,
@@ -84,6 +90,10 @@ function writeRollback() {
     'set PKG=' + pkgPath,
     uninstall ? '' : 'set BAK=' + path.join(backupDir, 'package.json'),
     uninstall ? '' : 'if exist "%BAK%" copy /Y "%BAK%" "%PKG%"',
+    hadPatch ? 'set PATCH=' + patchFile : '',
+    hadPatch ? 'set PATCHBAK=' + patchBackup : '',
+    hadPatch ? 'if exist "%PATCHBAK%" copy /Y "%PATCHBAK%" "%PATCH%"' : '',
+    hadPatch ? 'if not exist "%PATCH%" echo WARN: cordis.patch.yml was not restored' : '',
     'if exist "' + linkPath + '" rmdir "' + linkPath + '"',
     'echo.',
     'echo Done. Restart DSH to apply.',

@@ -173,6 +173,167 @@ tracer.done(event, "error")
     assert.ok(client.console)
     await client.console.graph()
     await client.console.pack("official/big_fish")
+    // The complete persona workflow runs through the actual HTTP client, files and SQLite.
+    const packs = client.console
+    const blueprint = (await packs.pack("official/big_fish")).seed
+    const bundle = {
+      format: "seekmemory.persona-pack/v1" as const,
+      seed: {
+        ...blueprint,
+        id: "studio-workflow",
+        name: "Studio fixture",
+        persona: "Initial authored settings",
+        style: { tone: "warm", custom: { retain: [1, true] } },
+        boundaries: ["Respect privacy"],
+      },
+      licenseText: "CC0 original fixture",
+      artwork: {
+        mediaType: "image/png" as const,
+        dataBase64:
+          "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGNwLXgARAwQCgAp7gZVQOqY/QAAAABJRU5ErkJggg==",
+      },
+    }
+    for (let index = 0; index < 25; index++)
+      await packs.persona({
+        operation: "import",
+        seed: { ...blueprint, id: `page-${String(index).padStart(2, "0")}` },
+        confirmed: true,
+      })
+    await packs.persona({
+      operation: "importPack",
+      pack: bundle,
+      confirmed: true,
+    })
+    assert.ok(
+      !(await packs.packs("mine")).items.some(
+        (item) => item.id === "studio-workflow"
+      )
+    )
+    const reference = "mine/studio-workflow"
+    const authored = await packs.packLookup(reference)
+    assert.ok(authored.pack)
+    assert.equal(authored.pack.seed.name, bundle.seed.name)
+    const edited = {
+      ...authored.pack,
+      seed: {
+        ...authored.pack.seed,
+        version: "2",
+        persona: "Edited authored settings",
+      },
+    }
+    await packs.persona({
+      operation: "importPack",
+      pack: edited,
+      expectedVersion: authored.pack.seed.version,
+      expectedDigest: authored.digest,
+      confirmed: true,
+    })
+    assert.equal(
+      (await client.detail(id)).artifact.payload["text"],
+      "Edited through HTTP"
+    )
+    await assert.rejects(
+      packs.persona({
+        operation: "importPack",
+        pack: edited,
+        expectedVersion: authored.pack.seed.version,
+        expectedDigest: authored.digest,
+        confirmed: true,
+      }),
+      /重新加载/
+    )
+    const reviewed = await packs.pack(reference),
+      beforeApply = await client.detail(id)
+    const apply = {
+      operation: "install" as const,
+      reference,
+      expectedId: id,
+      expectedRevision: beforeApply.artifact.header.revision,
+      expectedDigest: reviewed.digest,
+      confirmed: true as const,
+    }
+    await packs.persona(apply)
+    let persona = (await client.status()).persona
+    assert.ok(persona?.packApplication?.artworkDigest)
+    assert.equal(persona.id, id)
+    assert.equal(persona.packApplication.reference, reference)
+    assert.equal(
+      persona.packApplication.settingsDigest,
+      persona.packApplication.currentSettingsDigest
+    )
+    assert.deepEqual(
+      await packs.packArtwork(reference, persona.packApplication.artworkDigest),
+      bundle.artwork
+    )
+    const active = await client.detail(id)
+    await client.update({
+      id,
+      expectedRevision: active.artifact.header.revision,
+      payload: {
+        ...active.artifact.payload,
+        text: "Current persona has grown",
+      },
+      state: "active",
+      scope: active.artifact.header.scope,
+      reason: "Manual evolution",
+      confirmed: true,
+    })
+    persona = (await client.status()).persona
+    assert.ok(persona?.packApplication)
+    assert.notEqual(
+      persona.packApplication.settingsDigest,
+      persona.packApplication.currentSettingsDigest
+    )
+    await assert.rejects(packs.persona(apply), /重新加载/)
+    const savedPack = await packs.packLookup(reference)
+    assert.ok(savedPack.pack)
+    await packs.persona({
+      operation: "importPack",
+      pack: {
+        ...savedPack.pack,
+        seed: {
+          ...savedPack.pack.seed,
+          version: "3",
+          persona: "Updated blueprint",
+        },
+      },
+      expectedVersion: savedPack.pack.seed.version,
+      expectedDigest: savedPack.digest,
+      confirmed: true,
+    })
+    assert.equal(
+      (await client.detail(id)).artifact.payload["text"],
+      "Current persona has grown"
+    )
+    const finalPreview = await packs.pack(reference),
+      currentPersona = await client.detail(id)
+    await packs.persona({
+      operation: "install",
+      reference,
+      expectedId: id,
+      expectedRevision: currentPersona.artifact.header.revision,
+      expectedDigest: finalPreview.digest,
+      confirmed: true,
+    })
+    assert.equal(
+      (await client.detail(id)).artifact.payload["text"],
+      "Updated blueprint"
+    )
+    assert.deepEqual(
+      (await packs.packExport(reference)).seed.style,
+      bundle.seed.style
+    )
+    await packs.persona({ operation: "remove", reference, confirmed: true })
+    assert.equal(
+      (await client.detail(id)).artifact.payload["text"],
+      "Updated blueprint"
+    )
+    assert.equal((await packs.packLookup(reference)).pack, null)
+    assert.ok(
+      !JSON.stringify(await packs.packExport("official/big_fish")).includes(
+        "pack_application"
+      )
+    )
     const traces = await client.traces()
     const run = traces.runs[0]
     assert.ok(run)

@@ -401,7 +401,8 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
 
             def __init__(self):
                 self.extras = {}
-                self.call_llm = True
+                # Match AstrBot's default: False permits the default request.
+                self.call_llm = False
 
             def is_private_chat(self):
                 return False
@@ -421,7 +422,7 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         self.plugin.cfg["relationship_mode"] = "enforce"
         observe_event = Event()
         await self.plugin.buffer_message(observe_event)
-        self.assertTrue(observe_event.call_llm)
+        self.assertFalse(observe_event.call_llm)
         self.assertEqual(observe_event.extras["_seekmemory_runtime_action"], "observe")
         self.assertFalse(any(row.kind == "relationship" for row in self.plugin.trace.rows))
         self.assertEqual(
@@ -434,7 +435,7 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         self.plugin.services.runtime.clear_wait(observe_event.unified_msg_origin)
         gated_event = Event()
         await self.plugin.buffer_message(gated_event)
-        self.assertFalse(gated_event.call_llm)
+        self.assertTrue(gated_event.call_llm)
         self.assertEqual(gated_event.extras["_seekmemory_runtime_action"], "observe")
         self.assertFalse(any(row.kind == "relationship" for row in self.plugin.trace.rows))
 
