@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+import json
+
 try:
     from ..app.contracts import DialogueTurn
     from ..app.ports import SourceStore
@@ -29,7 +31,13 @@ def dialogue_of(
             who += f" reply_to={turn.reply_to}"
         prefix = f"[{turn.at}] " if turn.at else ""
         topic = f"topic={turn.topic_id} " if include_topic and turn.topic_id else ""
-        lines.append(f"{prefix}{topic}{who}: {turn.text}")
+        # Quote untrusted body so embedded newlines cannot impersonate a new Source row.
+        # 正文作为 JSON 字符串，防止内嵌换行伪装成另一条 Source 行。
+        body = (json.dumps(turn.text, ensure_ascii=False)
+                .replace("\u0085", "\\u0085")
+                .replace("\u2028", "\\u2028")
+                .replace("\u2029", "\\u2029"))
+        lines.append(f"{prefix}{topic}{who}: {body}")
     return "\n".join(lines)
 
 
