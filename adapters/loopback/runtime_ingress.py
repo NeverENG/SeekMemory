@@ -31,6 +31,35 @@ def _event_at(value: float) -> str:
         return ""
 
 
+def _valid_input(facts: dict) -> bool:
+    """Validate wire facts before the irreversible Source capture / 写入 Source 前校验入站事实。"""
+    strings = {"session_id", "text", "speaker_id", "scene", "conversation_id", "thread_id",
+               "self_id", "role", "event_id", "kind"}
+    flags = {"private", "mentioned", "question", "addressed", "reply_to_me"}
+    timestamps = {"event_time", "received_at"}
+    cursors = {"unread_count", "unread_seq"}
+    if not isinstance(facts, dict) or not isinstance(facts.get("session_id"), str) \
+            or not facts["session_id"] or not isinstance(facts.get("text"), str) \
+            or not facts["text"].strip() or facts.get("kind", "message") != "message":
+        return False
+    for key, value in facts.items():
+        if key in strings:
+            if not isinstance(value, str):
+                return False
+        elif key in flags:
+            if type(value) is not bool:
+                return False
+        elif key in timestamps:
+            if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+                return False
+        elif key in cursors:
+            if type(value) is not int or value < 0:
+                return False
+        else:
+            return False
+    return True
+
+
 class RuntimeIngress:
     """Accept DSH runtime events without replacing Source/Buffer or disclosure owners.
 
@@ -60,9 +89,10 @@ class RuntimeIngress:
         kind = str(body.get("kind") or "")
         if kind == "accept_user":
             try:
-                event = HostGateway.project(HostRequest(**dict(body.get("input") or {})))
-                if not event.session_id or not event.text.strip():
+                facts = body.get("input")
+                if not _valid_input(facts):
                     return 400, {"error": "invalid_runtime_input"}
+                event = HostGateway.project(HostRequest(**facts))
                 event_id = str(body.get("event_id") or event.event_id or "")
             except (TypeError, ValueError, OverflowError):
                 return 400, {"error": "invalid_runtime_input"}

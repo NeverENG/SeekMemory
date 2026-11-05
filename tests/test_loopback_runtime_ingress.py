@@ -85,6 +85,17 @@ class LiveRuntimeIngressTest(unittest.TestCase):
         self.assertEqual(self.live.runtime_event(request)[0], 400)
         self.assertEqual(self.live.buffer.items, [])
 
+    def test_invalid_runtime_facts_are_rejected_before_capture(self) -> None:
+        # A malformed host event must not leave evidence behind if runtime observation fails.
+        for field, value in (("event_time", "not-a-time"), ("unread_seq", "bad-cursor"),
+                             ("text", 123), ("kind", "tool_call")):
+            with self.subTest(field=field):
+                request = self._user()
+                request["input"][field] = value
+                status, result = self.live.runtime_event(request)
+                self.assertEqual((status, result), (400, {"error": "invalid_runtime_input"}))
+                self.assertEqual(self.live.buffer.items, [])
+
     def test_failed_capture_remains_retryable_without_duplicate_evidence(self) -> None:
         request = self._user()
         with patch.object(self.live.runtime_ingress, "capture", return_value=(503, {"error": "unavailable"})):
