@@ -53,6 +53,10 @@ def make_handler(service: MemoryService, token: str):
                 from urllib.parse import parse_qs
                 query = {k: v[-1] for k, v in parse_qs(self.path.split("?", 1)[1]).items()}
             try:
+                if path == "/runtime/events" and method == "POST":
+                    return self._send(*service.runtime_event(self._read_body()))
+                if path == "/runtime/context" and method == "POST":
+                    return self._send(*service.runtime_context(self._read_body()))
                 if path == "/capture" and method == "POST":
                     return self._send(*service.capture(self._read_body()))
                 if path == "/recall" and method == "POST":

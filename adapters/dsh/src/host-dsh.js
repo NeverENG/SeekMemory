@@ -97,7 +97,9 @@ export function registerHostHooks({ ctx, config, kernel, logger, runtime, dispos
   const logCaptureFailure = (r) => {
     const n = (captureFailures[r.reason] = (captureFailures[r.reason] ?? 0) + 1);
     if (n <= 3 || n % 50 === 0) {
-      logger?.warn?.(`${config.logPrefix} 捕获失败 reason=${r.reason}（第 ${n} 次，这条消息没进记忆）`);
+      const outcome = ['runtime_stopped', 'timeout'].includes(r.reason)
+        ? '写入结果未知，请勿盲目重试' : '未确认写入';
+      logger?.warn?.(`${config.logPrefix} 捕获失败 reason=${r.reason}（第 ${n} 次，${outcome}）`);
     }
   };
 
@@ -188,7 +190,7 @@ export function registerHostHooks({ ctx, config, kernel, logger, runtime, dispos
           const r = await runtime.event(role === 'user' ? 'accept_user' : 'record_reply', payload.subject_key,
             role === 'user' ? { input, event_id: payload.msg_id } : {
               run_id: '', session_id: payload.session, text, speaker_id: 'assistant', turn_id: payload.msg_id,
-              reply_to: replyTo, recall_ids: [],
+              reply_to: replyTo, recall_ids: [], at: payload.at,
             });
           if (stopped) return { ok: false, reason: 'runtime_stopped' };
           // Once a runtime write was attempted, a timeout must not trigger a second capture.
@@ -247,6 +249,7 @@ export function registerHostHooks({ ctx, config, kernel, logger, runtime, dispos
           privateChat: session?.meta?.private === true,
           sourceId: accepted?.ok ? accepted.data?.source_id : '',
           eventTime: turn?.input.event_time, receivedAt: turn?.input.received_at,
+          budgetChars: config.budgetChars, k: config.k,
         });
         if (stopped) return decision;
         const r = context.ok ? { ok: true, data: { block: context.data.text } }

@@ -73,6 +73,8 @@ class LoopbackServerContractTest(unittest.TestCase):
             self.assertEqual(code, 200)
             self.assertNotIn("db", health)
             self.assertEqual(request("/status", authorized=False)[0], 401)
+            self.assertEqual(request("/runtime/events", method="POST", body={}, authorized=False)[0], 401)
+            self.assertEqual(request("/runtime/context", method="POST", body={}, authorized=False)[0], 401)
             self.assertEqual(request("/extract/plan")[0], 204)
             code, captured = request("/capture", method="POST", body={
                 "subject_key": "loopback:default", "role": "user", "text": "hello",

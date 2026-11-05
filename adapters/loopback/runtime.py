@@ -27,6 +27,8 @@ from services.tree_service import TreeService
 from store import open_store
 from store.cache import Cache
 
+from .runtime_ingress import RuntimeIngress
+
 HOST_CONTRACT = 1
 
 
@@ -123,6 +125,17 @@ class MemoryService:
             self.store.artifacts, self.store.sources, self.cache,
             min_interval_s=float(self.config.get("persona_min_interval_s", 30.0)),
         )
+        self.runtime_ingress = RuntimeIngress(
+            owner=self.owner, capture=self.capture, recall=self.recall,
+        )
+
+    def runtime_event(self, body: dict) -> tuple[int, dict]:
+        """Handle runtime events through the existing capture capability / 复用现有捕获能力处理运行时事件。"""
+        return self.runtime_ingress.event(body)
+
+    def runtime_context(self, body: dict) -> tuple[int, dict]:
+        """Build disclosed context through existing recall / 通过现有召回构建已披露上下文。"""
+        return self.runtime_ingress.context(body)
 
     def _same_subject(self, requested: Any) -> bool:
         """One database owns one logical subject; hosts may share its stable key.
@@ -137,6 +150,8 @@ class MemoryService:
             "ok": True,
             "version": "0.1.0",
             "host_contract": HOST_CONTRACT,
+            "runtime_contract": 1,
+            "runtime_gate_enabled": False,
             "uptime_s": round(time.time() - STARTED_AT),
         }
 

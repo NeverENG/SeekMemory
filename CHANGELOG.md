@@ -4,6 +4,8 @@
 
 ### 中文
 
+- #224：真实 DSH 本机服务接入 HostGateway 与进程内 AgentRuntime 决策；用户、助手 Source 继续通过原 Buffer 路径保存，保留消息 ID、时间与回复关系。运行时上下文沿用 RecallService 披露与宿主预算；错误主体先拒绝。保留旧接口和配置，不新增数据库格式、持久运行态或宿主回复 gate。
+
 - #222：抽出临时 HostRequest 与 HostGateway 入站投影；AstrBot 与 DSH 现有 Python HTTP 入口共用 RuntimeInput 构造边界。保持原字段、线协议、运行时行为及用户配置不变；不新增身份认证、限流或持久幂等。
 
 - #215：首页固定展示内置蓝发 Q 版形象，不随人格包封面变化，也不因缺少封面显示占位图。人格工作室继续展示关联封面；无数据、接口或公开配置变更。
@@ -15,6 +17,8 @@
 - #154：新增同 lane 运行控制契约及独立内存 RunControl；显式覆盖后才可替换有效运行，结束句柄拒绝新动作，清理不影响其他控制器或替代运行。实例级单调代次避免保留历史 lane 键，已开始工作仍保留真实结果；尚未接入 Runtime/宿主，不改现有运行行为、数据格式或公开配置。
 
 ### English
+
+- #224: Connect the real DSH loopback service to HostGateway and process-local AgentRuntime decisions while keeping user/assistant Source evidence on the existing Buffer path with unchanged message IDs, timestamps and reply links. Context still uses RecallService disclosure and host budgets; reject wrong subjects first. Legacy routes and configuration remain compatible; no new database format, durable runtime state or host reply gate.
 
 - #222: Extract a transient HostRequest and HostGateway projection so AstrBot and the existing DSH Python HTTP entry share one RuntimeInput construction boundary. Preserve fields, wire protocol, runtime behavior and user configuration; no authentication, rate limiting or persistent idempotency is added.
 

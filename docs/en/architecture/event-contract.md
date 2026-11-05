@@ -14,9 +14,11 @@ AstrBot SDK event ──astrbot.events extraction──▶ HostRequest ─┐
 DSH event ──Node mapping, existing HTTP input──▶ HostRequest ─┴─▶ HostGateway ─▶ RuntimeInput ─▶ AgentRuntime
 ```
 
-DSH still extracts platform fields in Node; Python `runtime_http.py` wraps the existing
-`input` payload as `HostRequest` without changing its HTTP shape. The compatibility
-`to_runtime_input` entry in AstrBot also uses the gateway. `session_id` retains its
+DSH still extracts platform fields in Node; the real `scripts/serve.py` loopback uses
+`adapters/loopback/runtime_ingress.py` to project the existing `input` via HostGateway
+before passing it to AgentRuntime. The separate verification entry
+`scripts/runtime_http.py` also uses this gateway. AstrBot's compatibility
+`to_runtime_input` entry is unchanged. `session_id` retains its
 current session identity; `event_id` supports correlation/existing deduplication, not
 authentication. For now the gateway trusts host-provided facts; it owns no authentication,
 rate limits, concurrent filtering, favorability or disclosure. AgentRuntime schedules;
