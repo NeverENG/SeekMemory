@@ -13,6 +13,20 @@ except ImportError:
     from app.contracts import DialogueTurn
     from app.ports import SourceStore
 
+
+def _quote_prompt_value(value: str) -> str:
+    """Keep a model-facing field on one line without changing the Source / 仅编码模型输入，不修改 Source。"""
+    return (json.dumps(value, ensure_ascii=False)
+            .replace("\u0085", "\\u0085")
+            .replace("\u2028", "\\u2028")
+            .replace("\u2029", "\\u2029"))
+
+
+def _header_field(value: str) -> str:
+    """Escape line breaks and quotes without changing ordinary metadata / 转义控制字符，普通元数据保持原样。"""
+    return _quote_prompt_value(str(value))[1:-1]
+
+
 def _dialog_rows(items: list[DialogueTurn]) -> list[DialogueTurn]:
     """Keep every supplied row; the caller already owns chunk limits / 保留所有给定行，分块限额已由调用方负责。"""
     return list(items)
@@ -24,20 +38,17 @@ def dialogue_of(
     """Render supplied dialogue with Source IDs and optional topic labels / 以原始消息编号及可选话题标记转换给定对话。"""
     lines = []
     for turn in _dialog_rows(items):
-        who = f"{turn.role}({turn.speaker_id})" if turn.speaker_id else turn.role
+        role = _header_field(turn.role)
+        who = f"{role}({_header_field(turn.speaker_id)})" if turn.speaker_id else role
         if turn.source_id:
-            who = f"{who}[{turn.source_id}]"
+            who = f"{who}[{_header_field(turn.source_id)}]"
         if turn.role == "assistant" and turn.reply_to:
-            who += f" reply_to={turn.reply_to}"
-        prefix = f"[{turn.at}] " if turn.at else ""
-        topic = f"topic={turn.topic_id} " if include_topic and turn.topic_id else ""
-        # Quote untrusted body so embedded newlines cannot impersonate a new Source row.
-        # 正文作为 JSON 字符串，防止内嵌换行伪装成另一条 Source 行。
-        body = (json.dumps(turn.text, ensure_ascii=False)
-                .replace("\u0085", "\\u0085")
-                .replace("\u2028", "\\u2028")
-                .replace("\u2029", "\\u2029"))
-        lines.append(f"{prefix}{topic}{who}: {body}")
+            who += f" reply_to={_header_field(turn.reply_to)}"
+        prefix = f"[{_header_field(turn.at)}] " if turn.at else ""
+        topic = f"topic={_header_field(turn.topic_id)} " if include_topic and turn.topic_id else ""
+        # Only the model-facing projection is escaped; immutable Source text stays original.
+        # 仅转义模型输入视图，不修改不可变 Source 正文。
+        lines.append(f"{prefix}{topic}{who}: {_quote_prompt_value(turn.text)}")
     return "\n".join(lines)
 
 
