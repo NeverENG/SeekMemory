@@ -10,8 +10,10 @@ from typing import Any, Callable
 
 try:
     from ...app.runtime.contracts import RuntimeInput
+    from ..host_gateway import HostGateway, HostRequest
 except ImportError:  # Top-level package / 顶层包。
     from app.runtime.contracts import RuntimeInput
+    from adapters.host_gateway import HostGateway, HostRequest
 
 
 def _text(event: Any) -> str:
@@ -92,6 +94,48 @@ def _at(event: Any) -> float:
         return 0.0
 
 
+def to_host_request(
+    event: Any,
+    *,
+    session_id: str = "",
+    owner_id: str = "",
+    names: tuple[str, ...] = (),
+    unread_count: int = 0,
+    unread_seq: int = 0,
+    received_at: float | None = None,
+    clock: Callable[[], float] | None = None,
+) -> HostRequest:
+    """Extract platform facts without constructing a runtime decision / 提取平台事实而不构造运行时决策。"""
+    text = _text(event)
+    scene = _scene(event)
+    called = any(name and name in text for name in names)
+    mentioned = _mentioned(event)
+    return HostRequest(
+        session_id=str(session_id or getattr(event, "unified_msg_origin", "") or ""),
+        text=text,
+        event_time=_at(event),
+        received_at=(
+            float(clock()) if received_at is None and clock is not None else
+            (0.0 if received_at is None else received_at)
+        ),
+        speaker_id=_identity(event, "sender_id", "get_sender_id"),
+        private=scene == "private",
+        mentioned=mentioned,
+        question="?" in text or "？" in text,
+        unread_count=unread_count if type(unread_count) is int and unread_count >= 0 else 0,
+        unread_seq=unread_seq if type(unread_seq) is int and unread_seq >= 0 else 0,
+        scene=scene,
+        conversation_id=_identity(event, "group_id", "get_group_id"),
+        thread_id=str(getattr(event, "thread_id", "") or ""),
+        self_id=_identity(event, "self_id", "get_self_id"),
+        role=_role(event, owner_id),
+        addressed=mentioned or called,
+        reply_to_me=bool(getattr(event, "reply_to_self", False)),
+        event_id=event_id(event),
+        kind="message",
+    )
+
+
 def to_runtime_input(
     event: Any,
     *,
@@ -103,31 +147,9 @@ def to_runtime_input(
     received_at: float | None = None,
     clock: Callable[[], float] | None = None,
 ) -> RuntimeInput:
-    """Reduce a host event to existing runtime fields using supplied clock / 以给定时钟将宿主事件简化为既有运行时字段。"""
-    text = _text(event)
-    scene = _scene(event)
-    called = any(name and name in text for name in names)
-    return RuntimeInput(
-        session_id=str(session_id or getattr(event, "unified_msg_origin", "") or ""),
-        text=text,
-        event_time=_at(event),
-        received_at=(
-            float(clock()) if received_at is None and clock is not None else
-            (0.0 if received_at is None else received_at)
-        ),
-        speaker_id=_identity(event, "sender_id", "get_sender_id"),
-        private=scene == "private",
-        mentioned=_mentioned(event),
-        question="?" in text or "？" in text,
-        unread_count=unread_count if type(unread_count) is int and unread_count >= 0 else 0,
-        unread_seq=unread_seq if type(unread_seq) is int and unread_seq >= 0 else 0,
-        scene=scene,
-        conversation_id=_identity(event, "group_id", "get_group_id"),
-        thread_id=str(getattr(event, "thread_id", "") or ""),
-        self_id=_identity(event, "self_id", "get_self_id"),
-        role=_role(event, owner_id),
-        addressed=_mentioned(event) or called,
-        reply_to_me=bool(getattr(event, "reply_to_self", False)),
-        event_id=event_id(event),
-        kind="message",
-    )
+    """Keep the existing mapper API routed through HostGateway / 保留现有映射入口并统一经过网关。"""
+    return HostGateway.project(to_host_request(
+        event, session_id=session_id, owner_id=owner_id, names=names,
+        unread_count=unread_count, unread_seq=unread_seq,
+        received_at=received_at, clock=clock,
+    ))

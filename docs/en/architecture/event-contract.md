@@ -1,19 +1,28 @@
-# EVENT-CONTRACT.md · Event layering decision
+# EVENT-CONTRACT.md · Inbound event boundary
 
-> Status: **decided (v0.4.2)**. This page records why no HostEvent layer is introduced
-> yet, and what would trigger a revisit. Authoritative implementation:
-> `RuntimeInput` in `app/runtime/contracts/`.
+> Current implementation: `HostRequest` and `HostGateway` in `adapters/host_gateway/`;
+> `RuntimeInput` in `app/runtime/contracts/` is the decision view (#222).
 
 ## Decision
 
-Host events (AstrBot / DSH / future platforms) are mapped **directly to `RuntimeInput`**
-by the adapter layer. No intermediate `HostEvent` / `ContentPart` / `EventCodec` layers.
+Host adapters extract SDK- or wire-specific facts; HostGateway alone constructs the
+`RuntimeInput` view. `HostRequest` is transient and already reduced: neither a persisted
+record nor a lossless host event. No `HostEvent` / `ContentPart` / `EventCodec` stack.
 
 ```text
-host event ──adapter mapping──▶ RuntimeInput ──▶ AttentionPolicy / ProactivePolicy
+AstrBot SDK event ──astrbot.events extraction──▶ HostRequest ─┐
+DSH event ──Node mapping, existing HTTP input──▶ HostRequest ─┴─▶ HostGateway ─▶ RuntimeInput ─▶ AgentRuntime
 ```
 
-`RuntimeInput` was extended in v0.4.2 **backwards compatibly** (every field has a default):
+DSH still extracts platform fields in Node; Python `runtime_http.py` wraps the existing
+`input` payload as `HostRequest` without changing its HTTP shape. The compatibility
+`to_runtime_input` entry in AstrBot also uses the gateway. `session_id` retains its
+current session identity; `event_id` supports correlation/existing deduplication, not
+authentication. For now the gateway trusts host-provided facts; it owns no authentication,
+rate limits, concurrent filtering, favorability or disclosure. AgentRuntime schedules;
+disclosure and action checks remain at their existing boundaries.
+
+`RuntimeInput` retains its existing optional context fields and session semantics:
 
 | Field | Purpose |
 |---|---|
@@ -24,7 +33,7 @@ host event ──adapter mapping──▶ RuntimeInput ──▶ AttentionPolicy
 | `role` | owner / admin / member / bot / system |
 | `addressed` | called by name or wake prefix |
 | `reply_to_me` | quoting or replying to the bot |
-| `event_id` | host idempotency key |
+| `event_id` | host message correlation and existing deduplication key |
 | `kind` | message / edit / recall / reaction (reserved; only message handled today) |
 
 ## Why
@@ -33,8 +42,8 @@ host event ──adapter mapping──▶ RuntimeInput ──▶ AttentionPolicy
 2. Rich content is normalized by the Source layer; decision logic does not need `ContentPart`.
 3. Policies need **signals**, not events: relationship / relevance / heat / time window are
    generic `RuntimeInput` fields and optional host-supplied signals; policies should not depend on platform names.
-4. Parallel development boundary: #114/#116/#117 are changing `contracts.py` and adapters;
-   adding another layer widens the conflict surface.
+4. One owner for inbound projection: transient facts cross this boundary without
+   copying raw events, Sources or domain policy.
 
 ## Sending capability and proactive topics
 
@@ -45,7 +54,7 @@ host event ──adapter mapping──▶ RuntimeInput ──▶ AttentionPolicy
   proposes candidates from memory (unfinished scenes, impression changes, relation gaps);
   whether it is due is decided by `ProactivePolicy` (#117), never random.
 
-## Evolution triggers (introduce HostEvent when any happens)
+## Evolution triggers (revisit lossless HostEvent if any happens)
 
 1. Non-message events must drive decisions (edit, recall, reaction, join/leave, presence).
 2. A third platform whose fields `RuntimeInput` cannot express (threads/comments, anonymous identity).
@@ -53,13 +62,12 @@ host event ──adapter mapping──▶ RuntimeInput ──▶ AttentionPolicy
    directly, instead of being normalized in the Source layer.
 4. One host has multiple event sources to merge (e.g. group message plus private forward).
 
-Migration when introduced: `HostEvent` becomes the host truth,
-`HostEvent.project() -> RuntimeInput` keeps policy code unchanged; `RuntimeInput` becomes
-a decision view.
+If a lossless event is needed later, assess its contract and migration separately;
+`HostRequest` is not the source of truth for raw events.
 
 ## Multi-platform targets
 
 Confirmed targets: Telegram, WeChat, Douyin, Bilibili (plus the existing AstrBot/QQ and DSH
 hosts). Their differences are mainly **conversation shape** (channel/comment/private) and
 **sending capability** (voice/quote/recall), expressed by `scene`/`conversation_id` and the
-send port respectively — no new event structure needed.
+send port respectively — no lossless event structure needed.

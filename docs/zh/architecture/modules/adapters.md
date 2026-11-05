@@ -2,7 +2,7 @@
 
 ## 职责
 
-adapters 把 AstrBot 事件、provider 和消息发送映射到应用端口。宿主对象不进入 core、recall 或 app/runtime 的领域策略中。
+adapters 把 AstrBot 和 DSH 的事件、provider 与消息发送映射到应用端口。宿主对象不进入 core、recall 或 app/runtime 的领域策略中。`adapters/host_gateway/` 持有临时 `HostRequest` 及唯一的 Python `RuntimeInput` 入站投影；不负责身份认证、调度或领域策略。
 
 ## 组合根
 
@@ -16,7 +16,7 @@ main.py 定义插件入口并委托 lifecycle；组合和 wiring 位于 adapters
 
 ## 端口适配
 
-- AstrBotRuntimeAdapter 复用 astrbot.events.to_runtime_input 转换消息，保留 scene、role、addressed、线程与消息 ID 等已有字段，并管理宿主 event extra 中的 user/reply Source ID、turn ID、final recall IDs 和 episode 去重标记。事件发生时间与进程接收时间分别记录。
+- AstrBotRuntimeAdapter 通过 astrbot.events 提取事实，并由 HostGateway 投影为 RuntimeInput，保留 scene、role、addressed、线程与消息 ID 等已有字段，并管理宿主 event extra 中的 user/reply Source ID、turn ID、final recall IDs 和 episode 去重标记。事件发生时间与进程接收时间分别记录。
 - AstrBotModelGateway 提供延迟回复使用的 ModelGateway。
 - AstrBotActionPort 同时提供 ActionPort 和 MessageSender：execute 接收 ActionRequest 并返回 ActionResult，既有 send 接口委托 execute 后返回布尔值。
 - ProviderChatModel 将宿主 extraction/persona provider 包装为 ChatModel。
