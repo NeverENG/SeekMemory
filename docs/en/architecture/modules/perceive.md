@@ -8,6 +8,8 @@ perceive turns pending dialogue into evidence-checked, family-validated Artifact
 
 Buffer is an in-memory view of the Source-backed extraction queue. With a repository, admission persists an immutable Source and extraction_state together; queue state does not duplicate text. Legacy pending.json is kept only for migration and no-repository compatibility.
 
+In repository mode, admitting an already-known Source ID does not publish another in-memory pending row or reset the idle clock when no extraction_state row was inserted. An existing pending row keeps its original topic; replay cannot promote deferred work or revive extracted work. Legacy file-only behavior is unchanged, and different Source IDs are not assumed to represent the same host event.
+
 Topics are built within one session. A user and actual reply are paired through reply_to, and the assistant reply inherits the parent topic. If the parent Source has already been processed, it can be read as pairing context without being queued again. Without a reply relation, a gap over 90 minutes or character-bigram Dice similarity below 0.12 starts a new topic. Topic TTL is an extraction trigger, not a Source-retention deadline.
 
 ## Extraction pipeline

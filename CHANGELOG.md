@@ -4,6 +4,8 @@
 
 ### 中文
 
+- #165：修复重复 Source ID 已抽取完成或延后时仍在内存 Buffer 出现待处理项；重放不重置空闲时钟，原 pending 话题不变。旧文件模式不变；不改已存数据、Source 编号规则或公开配置。
+
 - #226：本机运行时上下文和旧召回入口对显式 `private` 仅接受布尔值；错误类型在披露前返回 400，避免字符串 `"false"` 被误作私聊。字段缺失时各入口原有默认值不变；不改数据库、用户配置或披露策略。
 
 - #224：真实 DSH 本机服务接入 HostGateway 与进程内 AgentRuntime 决策；用户、助手 Source 继续通过原 Buffer 路径保存，保留消息 ID、时间与回复关系。运行时上下文沿用 RecallService 披露与宿主预算；错误主体先拒绝。保留旧接口和配置，不新增数据库格式、持久运行态或宿主回复 gate。
@@ -19,6 +21,8 @@
 - #154：新增同 lane 运行控制契约及独立内存 RunControl；显式覆盖后才可替换有效运行，结束句柄拒绝新动作，清理不影响其他控制器或替代运行。实例级单调代次避免保留历史 lane 键，已开始工作仍保留真实结果；尚未接入 Runtime/宿主，不改现有运行行为、数据格式或公开配置。
 
 ### English
+
+- #165: Keep replayed Source IDs out of the in-memory pending Buffer after extraction or deferral; replay leaves the idle clock and existing pending topic unchanged. Legacy file mode is unchanged; no stored-data, Source identity or public-configuration changes.
 
 - #226: Require a boolean for explicit `private` on loopback runtime context and legacy recall; reject malformed values with 400 before disclosure so the string `"false"` cannot be treated as private. Preserve each route's omitted-field default; no database, user configuration or disclosure-policy changes.
 
