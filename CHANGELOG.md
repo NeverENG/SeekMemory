@@ -4,6 +4,8 @@
 
 ### 中文
 
+- #230：本机记忆回环 HTTP 入口增加有界请求接收：POST 请求体按编码字节限制为 4 MiB（抽取提交 8 MiB），请求头与请求体总接收期限分别为 2 秒和 5 秒；非法、缺失、超限及超时请求返回无正文的明确错误并关闭未读完的连接。令牌校验仍先于请求体处理；超限的合法消息也会被拒绝，宿主需沿既有失败路径处理。记忆操作仍串行，独立的 Runtime 验证服务未改变；无数据格式或公开配置变更。
+
 - #226：本机运行时上下文和旧召回入口对显式 `private` 仅接受布尔值；错误类型在披露前返回 400，避免字符串 `"false"` 被误作私聊。字段缺失时各入口原有默认值不变；不改数据库、用户配置或披露策略。
 
 - #224：真实 DSH 本机服务接入 HostGateway 与进程内 AgentRuntime 决策；用户、助手 Source 继续通过原 Buffer 路径保存，保留消息 ID、时间与回复关系。运行时上下文沿用 RecallService 披露与宿主预算；错误主体先拒绝。保留旧接口和配置，不新增数据库格式、持久运行态或宿主回复 gate。
@@ -19,6 +21,8 @@
 - #154：新增同 lane 运行控制契约及独立内存 RunControl；显式覆盖后才可替换有效运行，结束句柄拒绝新动作，清理不影响其他控制器或替代运行。实例级单调代次避免保留历史 lane 键，已开始工作仍保留真实结果；尚未接入 Runtime/宿主，不改现有运行行为、数据格式或公开配置。
 
 ### English
+
+- #230: Bound the local memory loopback HTTP ingress to 4 MiB of encoded POST body (8 MiB for extraction commits), a 2-second total header deadline and a 5-second total body receive deadline. Invalid, missing, oversized and timed-out requests get content-free errors and close unread connections; bearer validation still precedes body handling. Legitimate requests above the limits are also rejected and must follow the host's existing failure path. Memory operations remain serialized, the separate runtime-verification server is unchanged, and there are no stored-format or public-configuration changes.
 
 - #226: Require a boolean for explicit `private` on loopback runtime context and legacy recall; reject malformed values with 400 before disclosure so the string `"false"` cannot be treated as private. Preserve each route's omitted-field default; no database, user configuration or disclosure-policy changes.
 
