@@ -97,7 +97,9 @@ export function registerHostHooks({ ctx, config, kernel, logger, runtime, dispos
   const logCaptureFailure = (r) => {
     const n = (captureFailures[r.reason] = (captureFailures[r.reason] ?? 0) + 1);
     if (n <= 3 || n % 50 === 0) {
-      logger?.warn?.(`${config.logPrefix} 捕获失败 reason=${r.reason}（第 ${n} 次，这条消息没进记忆）`);
+      const outcome = ['runtime_stopped', 'timeout'].includes(r.reason)
+        ? '写入结果未知，请勿盲目重试' : '未确认写入';
+      logger?.warn?.(`${config.logPrefix} 捕获失败 reason=${r.reason}（第 ${n} 次，${outcome}）`);
     }
   };
 
