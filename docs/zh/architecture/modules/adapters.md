@@ -53,7 +53,7 @@ DSH 的 RuntimeBridge 复用 KernelClient 的本机认证连接。服务在 heal
 
 subject_key 表示稳定记忆归属，session_id 表示本轮运行会话，二者不混用。pre-step 只在消息 ID 匹配时使用对应的 Source 回执与事件时间；服务的 runtime_gate_enabled 明确开启后，才把其 RunDecision 映射为宿主放行或拒绝，不实现第二套注意力策略。
 
-旧服务或不支持此运行时协议的服务沿用 capture/recall。运行时写请求一旦发出，即使失败或超时，也不再补发 legacy capture，避免重复保存。普通 assistant/message 只映射为 record_reply，没有发送完成证明时不调用 record_delivery。桥接器不新增模型循环、调度器、主动发送或工具执行能力；真实 `scripts/serve.py` 现支持 runtime 接收与上下文，但 `runtime_gate_enabled=false`，会话决策仅保存在进程内，重启不承诺恢复。运行时上下文仍复用 RecallService 的披露及预算，DSH 传入显式 `budget_chars` 和 `k`；宿主不能从错误主体读取或写入。`scripts/runtime_http.py` 仅是独立验证用的 AgentRuntime 组合入口。
+旧服务或不支持此运行时协议的服务沿用 capture/recall。运行时写请求一旦发出，即使失败或超时，也不再补发 legacy capture，避免重复保存。普通 assistant/message 只映射为 record_reply，没有发送完成证明时不调用 record_delivery。桥接器不新增模型循环、调度器、主动发送或工具执行能力；真实 `scripts/serve.py` 现支持 runtime 接收与上下文，但 `runtime_gate_enabled=false`，会话决策仅保存在进程内，重启不承诺恢复。运行时上下文仍复用 RecallService 的披露及预算，DSH 传入显式 `budget_chars` 和 `k`；宿主不能从错误主体读取或写入。`/runtime/context` 与旧 `/recall` 只接受布尔型的显式 `private`，错误类型在披露前返回 400；字段缺失仍分别默认非私聊与私聊，不改变原有兼容行为。`scripts/runtime_http.py` 仅是独立验证用的 AgentRuntime 组合入口。
 
 DSH 每个宿主上下文只注册一次；卸载会撤销钩子、取消桥接请求并清空上下文缓存，迟到的响应不再注入。Node 集成测试分别覆盖真实 `scripts/serve.py` 记忆入口及独立的 `scripts/runtime_http.py` 验证入口。
 

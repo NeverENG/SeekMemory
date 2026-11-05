@@ -131,6 +131,27 @@ class LiveRuntimeIngressTest(unittest.TestCase):
         self.assertEqual(context["text"], "")
         self.assertEqual(context["info"]["final_ids"], [])
 
+    def test_private_flag_is_boolean_before_disclosure_on_both_routes(self) -> None:
+        for route, omitted_default in ((self.live.recall, True), (self.live.runtime_context, False)):
+            for value in ("false", "true", 0, None, []):
+                with self.subTest(route=route.__name__, value=value):
+                    with patch.object(self.live.recall_service, "preview") as preview:
+                        self.assertEqual(route({
+                            "subject_key": "owner", "session_id": "conv",
+                            "query": "fixture", "private": value,
+                        }), (400, {"error": "invalid_private_flag"}))
+                        preview.assert_not_called()
+            with patch.object(self.live.recall_service, "preview", side_effect=lambda *_args, **_kw: {
+                "block": "fixture", "info": {"final_ids": []},
+            }) as preview:
+                for private in (False, True):
+                    self.assertEqual(route({"subject_key": "owner", "session_id": "conv",
+                                            "query": "fixture", "private": private})[0], 200)
+                    self.assertIs(preview.call_args.args[2], private)
+                self.assertEqual(route({"subject_key": "owner", "session_id": "conv",
+                                        "query": "fixture"})[0], 200)
+                self.assertIs(preview.call_args.args[2], omitted_default)
+                self.assertEqual(route({"subject_key": "intruder", "private": "false"})[0], 403)
 
 if __name__ == "__main__":
     unittest.main()

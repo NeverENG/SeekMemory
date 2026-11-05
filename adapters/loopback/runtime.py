@@ -177,6 +177,9 @@ class MemoryService:
     def recall(self, body: dict) -> tuple[int, dict]:
         if not self._same_subject(body.get("subject_key")):
             return 403, {"error": "subject_mismatch"}
+        private = body.get("private", True)
+        if type(private) is not bool:
+            return 400, {"error": "invalid_private_flag"}
         subject = str(body.get("subject_key") or self.owner)
         query = str(body.get("query") or "")
         try:
@@ -189,7 +192,7 @@ class MemoryService:
         result = self.recall_service.preview(
             query,
             subject,
-            bool(body.get("private", True)),
+            private,
             str(body.get("speaker") or ""),
             budget_chars_override=budget, recall_k_override=k,
         )

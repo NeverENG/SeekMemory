@@ -75,6 +75,18 @@ class LoopbackServerContractTest(unittest.TestCase):
             self.assertEqual(request("/status", authorized=False)[0], 401)
             self.assertEqual(request("/runtime/events", method="POST", body={}, authorized=False)[0], 401)
             self.assertEqual(request("/runtime/context", method="POST", body={}, authorized=False)[0], 401)
+            for route in ("/recall", "/runtime/context"):
+                self.assertEqual(request(route, method="POST", body={
+                    "subject_key": "loopback:default", "session_id": "conv",
+                    "query": "fixture", "private": "false",
+                }), (400, {"error": "invalid_private_flag"}))
+                self.assertEqual(request(route, method="POST", body={
+                    "subject_key": "other:owner", "query": "fixture", "private": "false",
+                }), (403, {"error": "subject_mismatch"}))
+                self.assertEqual(request(route, method="POST", body={
+                    "subject_key": "loopback:default", "session_id": "conv",
+                    "query": "fixture", "private": False,
+                })[0], 200)
             self.assertEqual(request("/extract/plan")[0], 204)
             code, captured = request("/capture", method="POST", body={
                 "subject_key": "loopback:default", "role": "user", "text": "hello",
