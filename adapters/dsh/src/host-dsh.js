@@ -188,7 +188,7 @@ export function registerHostHooks({ ctx, config, kernel, logger, runtime, dispos
           const r = await runtime.event(role === 'user' ? 'accept_user' : 'record_reply', payload.subject_key,
             role === 'user' ? { input, event_id: payload.msg_id } : {
               run_id: '', session_id: payload.session, text, speaker_id: 'assistant', turn_id: payload.msg_id,
-              reply_to: replyTo, recall_ids: [],
+              reply_to: replyTo, recall_ids: [], at: payload.at,
             });
           if (stopped) return { ok: false, reason: 'runtime_stopped' };
           // Once a runtime write was attempted, a timeout must not trigger a second capture.
@@ -247,6 +247,7 @@ export function registerHostHooks({ ctx, config, kernel, logger, runtime, dispos
           privateChat: session?.meta?.private === true,
           sourceId: accepted?.ok ? accepted.data?.source_id : '',
           eventTime: turn?.input.event_time, receivedAt: turn?.input.received_at,
+          budgetChars: config.budgetChars, k: config.k,
         });
         if (stopped) return decision;
         const r = context.ok ? { ok: true, data: { block: context.data.text } }
