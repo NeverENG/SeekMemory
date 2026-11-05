@@ -5,6 +5,10 @@
 ### 中文
 - 修复关系 V2：已核验事件按显式时间回放熟悉、信任、温度、张力、稳定性与置信度，关联修复降低对应张力；按 subject 提交带 Source 证据与版本历史的 Artifact，读取坏旧行时保持中性。V1 历史只在 Source 可归属且有时区时进入独立复核队列，旧 affinity 不复制。观察期不影响回复或语气；不重置已有数据、不新增表或配置。离线误报率由真实模型评测产生，未运行时不报告数值。每周语义核验兼容 AstrBot 包模式，关系衰减兼容 Python 3.10（#163）。
 
+- #226：本机运行时上下文和旧召回入口对显式 `private` 仅接受布尔值；错误类型在披露前返回 400，避免字符串 `"false"` 被误作私聊。字段缺失时各入口原有默认值不变；不改数据库、用户配置或披露策略。
+
+- #224：真实 DSH 本机服务接入 HostGateway 与进程内 AgentRuntime 决策；用户、助手 Source 继续通过原 Buffer 路径保存，保留消息 ID、时间与回复关系。运行时上下文沿用 RecallService 披露与宿主预算；错误主体先拒绝。保留旧接口和配置，不新增数据库格式、持久运行态或宿主回复 gate。
+
 - #222：抽出临时 HostRequest 与 HostGateway 入站投影；AstrBot 与 DSH 现有 Python HTTP 入口共用 RuntimeInput 构造边界。保持原字段、线协议、运行时行为及用户配置不变；不新增身份认证、限流或持久幂等。
 
 - #215：首页固定展示内置蓝发 Q 版形象，不随人格包封面变化，也不因缺少封面显示占位图。人格工作室继续展示关联封面；无数据、接口或公开配置变更。
@@ -18,6 +22,10 @@
 ### English
 
 - Repair Relationship V2: replay verified events at an explicit clock into familiarity, trust, warmth, tension, stability, and confidence, with linked repair reducing its prior tension; commit per-subject Artifacts with Source evidence and version history, and treat invalid legacy rows as neutral. Queue V1 history for independent verification only when Sources are attributable and timezone-aware, without copying affinity. Observation does not change replies or tone; existing data remains intact with no new tables or config. Offline false-positive rates require a real model evaluation and are not reported otherwise. Weekly semantic verification works in AstrBot package mode, and relationship decay supports Python 3.10 (#163).
+
+- #226: Require a boolean for explicit `private` on loopback runtime context and legacy recall; reject malformed values with 400 before disclosure so the string `"false"` cannot be treated as private. Preserve each route's omitted-field default; no database, user configuration or disclosure-policy changes.
+
+- #224: Connect the real DSH loopback service to HostGateway and process-local AgentRuntime decisions while keeping user/assistant Source evidence on the existing Buffer path with unchanged message IDs, timestamps and reply links. Context still uses RecallService disclosure and host budgets; reject wrong subjects first. Legacy routes and configuration remain compatible; no new database format, durable runtime state or host reply gate.
 
 - #222: Extract a transient HostRequest and HostGateway projection so AstrBot and the existing DSH Python HTTP entry share one RuntimeInput construction boundary. Preserve fields, wire protocol, runtime behavior and user configuration; no authentication, rate limiting or persistent idempotency is added.
 

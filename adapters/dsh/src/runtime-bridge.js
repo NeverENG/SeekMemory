@@ -58,7 +58,7 @@ function receiptValid(receipt) {
 function eventPayload(kind, data) {
   const fields = {
     accept_user: ['input', 'event_id'],
-    record_reply: ['run_id', 'session_id', 'text', 'speaker_id', 'turn_id', 'reply_to', 'recall_ids'],
+    record_reply: ['run_id', 'session_id', 'text', 'speaker_id', 'turn_id', 'reply_to', 'recall_ids', 'at'],
     record_delivery: ['run_id', 'session_id', 'decision', 'reason', 'response_chars', 'tool_calls',
       'user_source_id', 'assistant_source_id', 'read_through_seq'],
     record_error: ['run_id', 'session_id', 'decision', 'reason', 'error', 'user_source_id'],
@@ -80,7 +80,7 @@ function eventPayload(kind, data) {
     }
     payload.input = projected;
   } else if (typeof data.session_id !== 'string' || !data.session_id) return null;
-  for (const field of ['event_id', 'run_id', 'session_id', 'text', 'speaker_id', 'turn_id', 'reply_to',
+  for (const field of ['event_id', 'run_id', 'session_id', 'text', 'speaker_id', 'turn_id', 'reply_to', 'at',
     'decision', 'reason', 'error', 'user_source_id', 'assistant_source_id', 'action_id']) {
     if (payload[field] !== undefined && typeof payload[field] !== 'string') return null;
   }
@@ -145,6 +145,8 @@ export class RuntimeBridge {
       source_id: text(request.sourceId), speaker_id: input.speaker_id, private: input.private,
       event_time: input.event_time, received_at: input.received_at, now: epoch(request.now ?? Date.now() / 1000),
       reason: 'inbound',
+      ...(request.budgetChars === undefined ? {} : { budget_chars: request.budgetChars }),
+      ...(request.k === undefined ? {} : { k: request.k }),
     }, this.#abort.signal);
     if (this.#closed) return { ok: false, reason: 'runtime_stopped' };
     if (result.ok && (typeof result.data?.text !== 'string' || !result.data?.info || typeof result.data.info !== 'object'

@@ -41,7 +41,7 @@ AccessService 基于完整 session UMO、sender ID、owner/trusted 配置和 obs
 
 ## 本机回环记忆适配层
 
-`adapters/loopback/runtime.py` 组装现有 Store、Buffer、RecallService 和 StatusService；`adapters/loopback/server.py` 负责本机 HTTP、令牌验证、请求映射及资源关闭。`scripts/serve.py` 只负责解析命令行并保留原来的启动方式（`python scripts/serve.py --data-dir <dir>`）。这属于宿主传输与组合根，不属于 core 规则或 services 用例；不依赖 AstrBot SDK。`scripts/runtime_http.py` 仍是独立的 AgentRuntime 桥接验证入口，不与记忆服务混为一体。
+`adapters/loopback/runtime.py` 组装现有 Store、Buffer、RecallService 和 StatusService；`adapters/loopback/server.py` 负责本机 HTTP、令牌验证、请求映射及资源关闭。`scripts/serve.py` 只负责解析命令行并保留原来的启动方式（`python scripts/serve.py --data-dir <dir>`）。这属于宿主传输与组合根，不属于 core 规则或 services 用例；不依赖 AstrBot SDK。真实入口另在 `adapters/loopback/runtime_ingress.py` 组合进程内 AgentRuntime：用户消息经 HostGateway 生成 RuntimeInput，Source 仍由现有 `/capture` 的 Buffer 路径唯一保存，助手消息沿用同一捕获与 reply_to 关联。`scripts/runtime_http.py` 仍是独立的桥接验证入口。
 
 此入口的 `/capture` 保存 Source 并排队，`/recall` 读取已有 Artifact；`/extract/plan` 返回就绪话题的可执行 ChatRequest（无任务返回 204），`/extract/commit` 只接受同一进程发出的任务编号和对应来源 ID，以既有验证和 CAS 提交流水线写入；错误模型输出保留排队数据供重试，重复或未知任务返回 409。正在补偿的写入保持任务状态并返回 503，不在 GET 计划请求中偷偷写入；任务仅保存在本机进程内，进程重启后旧编号失效，宿主须重新取计划。契约检查用本地捕获的消息做真正的提交，不会消费无关主题的任务；未抽取的召回仍标为未完成，不宣称已验证。`/recall` 的每次请求预算与命中上限只可在服务默认上限之内收紧，不修改共享服务配置；HTTP 错误不向调用方回显底层异常文本；无认证的健康检查不暴露本地数据库路径。新建数据目录使用仅所有者权限，运行时令牌元数据以仅所有者权限原子替换；调用方仍需保证传入的既有数据目录本身私有。数据格式、公开配置和端点路径不变。
 
@@ -53,9 +53,9 @@ DSH 的 RuntimeBridge 复用 KernelClient 的本机认证连接。服务在 heal
 
 subject_key 表示稳定记忆归属，session_id 表示本轮运行会话，二者不混用。pre-step 只在消息 ID 匹配时使用对应的 Source 回执与事件时间；服务的 runtime_gate_enabled 明确开启后，才把其 RunDecision 映射为宿主放行或拒绝，不实现第二套注意力策略。
 
-旧服务或不支持此运行时协议的服务沿用 capture/recall。运行时写请求一旦发出，即使失败或超时，也不再补发 legacy capture，避免重复保存。普通 assistant/message 只映射为 record_reply，没有发送完成证明时不调用 record_delivery。桥接器不新增模型循环、调度器、主动发送或工具执行能力；`scripts/runtime_http.py` 是只做组合的真实 Python loopback 服务，`runtime-python-smoke.mjs` 启动它并让 DSH RuntimeBridge 驱动真实 AgentRuntime。
+旧服务或不支持此运行时协议的服务沿用 capture/recall。运行时写请求一旦发出，即使失败或超时，也不再补发 legacy capture，避免重复保存。普通 assistant/message 只映射为 record_reply，没有发送完成证明时不调用 record_delivery。桥接器不新增模型循环、调度器、主动发送或工具执行能力；真实 `scripts/serve.py` 现支持 runtime 接收与上下文，但 `runtime_gate_enabled=false`，会话决策仅保存在进程内，重启不承诺恢复。运行时上下文仍复用 RecallService 的披露及预算，DSH 传入显式 `budget_chars` 和 `k`；宿主不能从错误主体读取或写入。`/runtime/context` 与旧 `/recall` 只接受布尔型的显式 `private`，错误类型在披露前返回 400；字段缺失仍分别默认非私聊与私聊，不改变原有兼容行为。`scripts/runtime_http.py` 仅是独立验证用的 AgentRuntime 组合入口。
 
-DSH 每个宿主上下文只注册一次；卸载会撤销钩子、取消桥接请求并清空上下文缓存，迟到的响应不再注入。仓库现在还提供 `scripts/runtime_http.py` 真实 Python 本机服务入口，以及让 DSH RuntimeBridge 驱动它的 Node 集成测试。
+DSH 每个宿主上下文只注册一次；卸载会撤销钩子、取消桥接请求并清空上下文缓存，迟到的响应不再注入。Node 集成测试分别覆盖真实 `scripts/serve.py` 记忆入口及独立的 `scripts/runtime_http.py` 验证入口。
 
 关系模式默认为 observe：`off` 跳过关系维护，`observe` 与历史配置值 `enforce` 当前都只巩固已核验事件，不改变回复可用性或风格。关系 Artifact 不进入 Recall 或管理目录；未来的表达调优需单独评审和显式启用。
 

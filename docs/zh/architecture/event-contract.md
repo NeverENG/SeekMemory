@@ -14,8 +14,10 @@ AstrBot SDK 事件 ──astrbot.events 提取──▶ HostRequest ─┐
 DSH 事件 ──Node 映射、现有 HTTP input──▶ HostRequest ─┴─▶ HostGateway ─▶ RuntimeInput ─▶ AgentRuntime
 ```
 
-DSH 仍在 Node 侧提取平台字段，Python `runtime_http.py` 将既有 `input` 字段装成
-`HostRequest`，不修改 HTTP 请求形状。AstrBot `to_runtime_input` 兼容入口同样经过网关。
+DSH 仍在 Node 侧提取平台字段；真实 `scripts/serve.py` 本机服务在
+`adapters/loopback/runtime_ingress.py` 将现有 `input` 装成 `HostRequest`，由网关投影后
+交给 AgentRuntime。独立验证入口 `scripts/runtime_http.py` 也经过网关。
+AstrBot `to_runtime_input` 兼容入口保持不变。
 `session_id` 仍是现有会话身份；`event_id` 用于消息关联或现有去重，不能作为身份认证。
 目前信任上层适配器提供的事实，网关不做认证、限流、并发过滤、好感度或披露决策；
 AgentRuntime 负责调度，实际披露与动作检查仍在各自边界。

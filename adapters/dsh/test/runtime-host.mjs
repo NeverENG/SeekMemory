@@ -29,7 +29,7 @@ function host() {
 }
 
 async function setup(t, { version = 1, hostContract = 1, runtimeStatus = 200, gate = false,
-  contextWait, injectRecall = true } = {}) {
+  contextWait, eventWait, injectRecall = true } = {}) {
   const calls = [];
   const server = createServer(async (req, res) => {
     const route = new URL(req.url, 'http://127.0.0.1').pathname;
@@ -42,6 +42,7 @@ async function setup(t, { version = 1, hostContract = 1, runtimeStatus = 200, ga
     if (route === '/healthz') data = { host_contract: hostContract, version: 'test',
       ...(version === null ? {} : { runtime_contract: version }), runtime_gate_enabled: gate };
     else if (route === '/runtime/events') {
+      if (eventWait) await eventWait;
       status = runtimeStatus;
       data = body.kind === 'accept_user' ? { ...fixture.receipt,
         decision: gate ? { ...fixture.receipt.decision, action: 'wait', must_reply: false } : fixture.receipt.decision } : fixture.reply;
@@ -143,6 +144,21 @@ test('duplicate apply registers once; unloading prevents late injection and perm
   assert.equal(ctx.handlers.get('session/event').length, 0);
   apply(ctx, config);
   assert.equal(ctx.handlers.get('session/event').length, 1);
+});
+
+test('an in-flight capture at shutdown never claims evidence was not written or retries it', async (t) => {
+  let release;
+  const waiting = new Promise((resolve) => { release = resolve; });
+  const { ctx, calls } = await setup(t, { eventWait: waiting });
+  user(ctx);
+  await until(() => calls.some((call) => call.body?.kind === 'accept_user'));
+  ctx.dispose();
+  release();
+  await until(() => ctx.logs.some((line) => line.includes('捕获失败 reason=runtime_stopped')));
+  const warning = ctx.logs.find((line) => line.includes('捕获失败 reason=runtime_stopped'));
+  assert.match(warning, /写入结果未知/);
+  assert.doesNotMatch(warning, /没进记忆/);
+  assert.equal(calls.some((call) => call.route === '/capture'), false);
 });
 
 test('a repeated old disposer cannot remove the new instances registration marker', async (t) => {
