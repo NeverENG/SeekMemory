@@ -167,11 +167,14 @@ class RuntimeIngress:
             return 400, {"error": "bad_request"}
         if not self._allowed(body):
             return 403, {"error": "subject_mismatch"}
+        private = body.get("private", False)
+        if type(private) is not bool:
+            return 400, {"error": "invalid_private_flag"}
         status, result = self.recall({
             "subject_key": self.owner,
             "query": str(body.get("query") or body.get("value") or ""),
             "speaker": str(body.get("speaker_id") or ""),
-            "private": bool(body.get("private")),
+            "private": private,
             "budget_chars": body.get("budget_chars"),
             "k": body.get("k"),
         })
