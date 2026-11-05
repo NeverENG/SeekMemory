@@ -14,12 +14,47 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
 
+from .bounded_io import DeadlineReader, IngressError
 from .runtime import HOST_CONTRACT, MemoryService
+
+
+# Byte ceilings apply to the encoded JSON on the wire, not decoded characters.
+POST_BYTES = 4 * 1024 * 1024
+COMMIT_BYTES = 8 * 1024 * 1024
+HEADER_SECONDS = 2
+BODY_SECONDS = 5
 
 
 def make_handler(service: MemoryService, token: str):
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.0"
+
+        def setup(self) -> None:
+            super().setup()
+            self.rfile = DeadlineReader(self.connection, self.rfile, HEADER_SECONDS)
+
+        def handle(self) -> None:
+            try:
+                super().handle()
+            except IngressError as exc:
+                # No complete request line: a response cannot be framed reliably.
+                self.close_connection = True
+                if self.request_version != "HTTP/0.9":
+                    try:
+                        self._send(exc.status, {"error": exc.reason})
+                    except OSError:
+                        pass
+            except (BrokenPipeError, ConnectionResetError):
+                self.close_connection = True
+
+        def send_error(self, code: int, message: str | None = None,
+                       explain: str | None = None) -> None:
+            # The standard handler echoes malformed request lines in its HTML error.
+            self.close_connection = True
+            try:
+                self._send(code, {"error": "bad_request"})
+            except OSError:
+                pass
 
         def log_message(self, fmt: str, *args: Any) -> None:  # 静音默认日志
             return
@@ -71,15 +106,34 @@ def make_handler(service: MemoryService, token: str):
                     return self._send(*service.extract_plan(query))
                 if path == "/extract/commit" and method == "POST":
                     return self._send(*service.extract_commit(self._read_body()))
+            except IngressError as exc:
+                self.close_connection = True  # Unread body bytes must not become another request.
+                return self._send(exc.status, {"error": exc.reason})
             except Exception:  # 不泄漏异常文本、正文或本机路径。
                 return self._send(500, {"error": "internal_error"})
             return self._send(404, {"error": "not found"})
 
         def _read_body(self) -> dict:
-            length = int(self.headers.get("content-length") or 0)
-            if length <= 0:
+            lengths = self.headers.get_all("content-length", [])
+            if self.headers.get("transfer-encoding") or len(lengths) > 1:
+                raise IngressError(400, "invalid_content_length")
+            if not lengths:
+                raise IngressError(411, "length_required")
+            value = lengths[0].strip()
+            if not value or any(char < "0" or char > "9" for char in value):
+                raise IngressError(400, "invalid_content_length")
+            limit = COMMIT_BYTES if self.path.split("?", 1)[0] == "/extract/commit" else POST_BYTES
+            significant = value.lstrip("0") or "0"
+            if len(significant) > len(str(limit)) or int(significant) > limit:
+                raise IngressError(413, "body_too_large")
+            length = int(significant)
+            if length == 0:
                 return {}
-            return json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+            raw = self.rfile.read_exact(length, seconds=BODY_SECONDS)
+            try:
+                return json.loads(raw.decode("utf-8"))
+            except (UnicodeError, json.JSONDecodeError) as exc:
+                raise IngressError(400, "invalid_json") from exc
 
         def do_GET(self) -> None:  # noqa: N802
             self._route("GET")
