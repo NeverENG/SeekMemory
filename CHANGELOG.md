@@ -4,7 +4,8 @@
 
 ### 中文
 
-- #165：抽取对话正文改为单行 JSON 字符串，并转义消息头中的换行等控制字符，防止伪造独立消息行；保留原始 Source 和证据校验，模型仍可能受到语义注入。不改已存数据、公开配置或重放规则。
+- #230：本机记忆回环 HTTP 入口增加有界请求接收：POST 请求体按编码字节限制为 4 MiB（抽取提交 8 MiB），请求头与请求体总接收期限分别为 2 秒和 5 秒；非法、缺失、超限及超时请求返回无正文的明确错误并关闭未读完的连接。令牌校验仍先于请求体处理；超限的合法消息也会被拒绝，宿主需沿既有失败路径处理。记忆操作仍串行，独立的 Runtime 验证服务未改变；无数据格式或公开配置变更。
+
 
 - #226：本机运行时上下文和旧召回入口对显式 `private` 仅接受布尔值；错误类型在披露前返回 400，避免字符串 `"false"` 被误作私聊。字段缺失时各入口原有默认值不变；不改数据库、用户配置或披露策略。
 
@@ -18,11 +19,13 @@
 
 - #178 review 修复：人工编辑成长正文保存为可召回的人工基线，保留成长历史、证据和回滚，披露规则不放宽；完整人格按 UTF-8 容量校验，支持长中文设定改名；普通保存错误保留可编辑草稿，仅确认包内容变化后要求重新载入。沿用现有字段与人工设定语义，无数据迁移。
 
+- #165：抽取对话正文改为单行 JSON 字符串，并转义消息头中的换行等控制字符，防止伪造独立消息行；保留原始 Source 和证据校验，模型仍可能受到语义注入。不改已存数据、公开配置或重放规则。
+
 - #154：新增同 lane 运行控制契约及独立内存 RunControl；显式覆盖后才可替换有效运行，结束句柄拒绝新动作，清理不影响其他控制器或替代运行。实例级单调代次避免保留历史 lane 键，已开始工作仍保留真实结果；尚未接入 Runtime/宿主，不改现有运行行为、数据格式或公开配置。
 
 ### English
 
-- #165: Render extraction dialogue bodies as single-line JSON strings and escape control characters in headers so embedded newlines cannot forge separate message rows. Keep original Sources and evidence validation; semantic model injection remains possible. No changes to stored data, public configuration or replay rules.
+- #230: Bound the local memory loopback HTTP ingress to 4 MiB of encoded POST body (8 MiB for extraction commits), a 2-second total header deadline and a 5-second total body receive deadline. Invalid, missing, oversized and timed-out requests get content-free errors and close unread connections; bearer validation still precedes body handling. Legitimate requests above the limits are also rejected and must follow the host's existing failure path. Memory operations remain serialized, the separate runtime-verification server is unchanged, and there are no stored-format or public-configuration changes.
 
 - #226: Require a boolean for explicit `private` on loopback runtime context and legacy recall; reject malformed values with 400 before disclosure so the string `"false"` cannot be treated as private. Preserve each route's omitted-field default; no database, user configuration or disclosure-policy changes.
 
@@ -35,6 +38,8 @@
 - #178: Add dedicated name/text/style/boundary editing and personal-pack create/edit/save-as/copy flows, with automatic lookup beyond catalog pages and version/content conflict checks. Compare settings before application and explain replacement/history; distinguish the applied baseline, growth and saved-pack updates. New applications add optional provenance/digests to the existing persona payload; legacy records remain unknown, without database-schema or pack-format migration. Studio uses the original pack's verified artwork or a neutral placeholder when missing/changed, without automatic image switching or growth merging.
 
 - #178 review fixes: Save manually edited grown text as a recallable authored baseline while retaining growth history, evidence and rollback without relaxing disclosure. Validate complete persona payloads by UTF-8 size so long Chinese settings remain editable. Preserve editable drafts after ordinary save errors and require reload only after observing changed pack content. Existing fields/authored semantics remain compatible without migration.
+
+- #165: Render extraction dialogue bodies as single-line JSON strings and escape control characters in headers so embedded newlines cannot forge separate message rows. Keep original Sources and evidence validation; semantic model injection remains possible. No changes to stored data, public configuration or replay rules.
 
 - #154: add same-lane run-control contracts and a standalone in-memory RunControl. Replacing valid work requires explicit supersession; finished handles reject new actions, and cleanup preserves other controllers/replacement runs. Instance-wide monotonic epochs avoid retaining historical lane keys while started work keeps its actual outcome. Runtime/host integration is not enabled; existing behavior, data formats and public configuration are unchanged.
 
