@@ -63,6 +63,48 @@ class ExtractionProjectionTest(unittest.TestCase):
         self.assertEqual(len({turn.source_id for turn in buffer.items}), 2)
         self.assertEqual(len(self.db.extraction.pending_extractions()), 2)
 
+    def test_replayed_completed_source_does_not_reappear_in_pending_view(self) -> None:
+        buffer = Buffer(extraction=self.db.extraction)
+        first = buffer.add("umo:a", "remember this", "u1", "s1", "2026-10-22T12:00:00")
+        self.assertEqual(buffer.mark_succeeded([first]), 1)
+        idle_since = buffer.last_ts
+
+        replay = buffer.add("umo:a", "remember this", "u1", "s1", "2026-10-22T12:00:00")
+
+        self.assertEqual(replay.source_id, first.source_id)
+        self.assertEqual(buffer.items, [])
+        self.assertEqual(buffer.last_ts, idle_since)
+        self.assertEqual(self.db.extraction.pending_extractions(), [])
+        self.assertEqual(self.db.extraction.queue_counts()["extracted"], 1)
+        self.assertEqual(self.db.metrics.capacity_usage()["source_rows"], 1)
+        self.assertEqual(Buffer(extraction=self.db.extraction).items, [])
+
+    def test_replayed_pending_source_retains_original_topic_and_idle_time(self) -> None:
+        buffer = Buffer(extraction=self.db.extraction)
+        first = buffer.add("umo:a", "remember this", "u1", "s1", "2026-10-22T12:00:00")
+        idle_since = buffer.last_ts
+
+        replay = buffer.add("umo:a", "remember this", "u1", "s1", "2026-10-22T12:00:00")
+
+        self.assertEqual(replay, first)
+        self.assertEqual(buffer.items, [first])
+        self.assertEqual(buffer.last_ts, idle_since)
+        self.assertEqual(len(self.db.extraction.pending_extractions()), 1)
+
+    def test_replayed_deferred_source_does_not_promote_it_to_pending(self) -> None:
+        buffer = Buffer(extraction=self.db.extraction)
+        deferred = buffer.add("umo:a", "remember this", "u1", "s1",
+                              "2026-10-22T12:00:00", deferred=True)
+        idle_since = buffer.last_ts
+
+        replay = buffer.add("umo:a", "remember this", "u1", "s1", "2026-10-22T12:00:00")
+
+        self.assertEqual(replay.source_id, deferred.source_id)
+        self.assertEqual(buffer.items, [])
+        self.assertEqual(buffer.last_ts, idle_since)
+        self.assertEqual(self.db.extraction.queue_counts()["deferred"], 1)
+        self.assertEqual(self.db.extraction.pending_extractions(), [])
+
     def test_success_advances_projection_and_keeps_source_rows(self) -> None:
         buffer = Buffer(extraction=self.db.extraction)
         buffer.add("umo:a", "Travel itinerary", "alice")

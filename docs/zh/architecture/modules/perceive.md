@@ -8,6 +8,8 @@ perceive 把待处理对话转换为经过证据和 family 校验的候选 Artif
 
 Buffer 是 Source-backed extraction queue 的内存视图。启用仓储时，入队同时持久化 immutable Source 与 extraction_state；内容不在队列表中重复保存。历史 pending.json 仅用于兼容迁移/无仓储支持路径。
 
+仓储模式下，同一个 Source ID 的再次入队若未新增 extraction_state 行，Buffer 不再把重放消息发布为新的内存待处理项，也不重置空闲时钟。已有 pending 项沿用原话题；deferred/extracted 状态不因重放晋升或复活。旧文件模式仍维持原行为；不同 Source ID 是否代表同一宿主事件不在此处推断。
+
 话题在单个会话内构建：用户与实际回复通过 reply_to 配对，助手回复继承父消息话题；若父 Source 已处理，可读回作配对上下文，不会再次排队。没有回复关联时，超过 90 分钟的时间间隔或低于 0.12 的字符二元组 Dice 相似度会开始新话题。话题 TTL 是抽取触发信号，不是 Source 删除期限。
 
 ## 抽取管线
