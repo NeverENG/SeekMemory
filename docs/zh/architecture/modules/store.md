@@ -27,6 +27,7 @@ SQL schema 和迁移由 SqliteDatabase 管理；仓储共享连接，不创建�
 - extraction admission 在同一事务内写 Source blob/row 与队列状态。队列正文通过联接 Source 读取；成功/失败只更改队列状态，不删除原始消息。
 - Source ID 采用幂等写入。重复 Source 不会变成新的事实行。
 - 关系候选以事件 ID 和 verifier 版本幂等入队，核验决定只允许 pending 转 verified 或 abstain；只有 verified 能参与关系 Artifact 版本提交。旧 Source 和 V1 版本不覆盖。
+- 模型或 provider 故障时，pending 行保留 `retry_count` 和 UTC `next_attempt_at`；有界查询按实际时间协调新候选与延后重试。打开旧库时，给既有 `relationship_events` 表幂等增列（默认 0、空值）并建到期索引，不改写 Source 或 V1 历史。V2 写入后回退旧代码前须备份，并将 `relationship_mode` 设为 `off`；旧代码不遵守新的退避计划。
 - 运行时动作行在 `runtime_episodes` 中增加可空动作身份和状态元数据。已有 episode 行保留原值；迁移补充默认值、保留每个普通 run 一条 episode 的唯一索引，同时允许动作行共享 run ID。部分唯一索引确保每个 action 至多一个终态；触发器会忽略终态之后到达的尝试。动作行沿用 episode 的清理上限。
 - `runtime_state` 继续以 JSON payload 保存 `SessionState`；后续回复窗口按说话人保存在 `followup_by_speaker`，旧额度字段不再解释为运行时状态。
 

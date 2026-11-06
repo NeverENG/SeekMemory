@@ -192,6 +192,8 @@ CREATE TABLE IF NOT EXISTS relationship_events (
     status TEXT NOT NULL,
     created_at TEXT NOT NULL,
     decided_at TEXT NOT NULL DEFAULT '',
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (event_id, verifier_version)
 );
 CREATE INDEX IF NOT EXISTS idx_relationship_events_subject

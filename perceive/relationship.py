@@ -150,8 +150,10 @@ async def verify_relationship(candidate: RelationshipCandidate, evidence: tuple[
     ):
         return RelationshipVerdict("abstain")
 
-    eligible_priors = tuple(
-        item for item in prior_negative if _negative_prior(item, candidate, actor)
+    eligible_priors = sorted(
+        (item for item in prior_negative if _negative_prior(item, candidate, actor)),
+        key=lambda item: (_instant(item.event_at), item.event_id),
+        reverse=True,
     )[:3]
     response = await model.complete(ChatRequest(
         session_id=candidate.session_id, system_prompt=(

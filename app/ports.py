@@ -296,8 +296,14 @@ class RelationshipEventStore(Protocol):
         """Finalize a verified or abstained candidate."""
         ...
 
-    def pending(self, limit: int) -> tuple[Any, ...]:
-        """Read bounded unverified candidates."""
+    def pending(
+        self, limit: int, verifier_version: str | None = None, *, now: str = "",
+    ) -> tuple[Any, ...]:
+        """Read due unverified candidates, optionally for one verifier version."""
+        ...
+
+    def defer(self, event_id: str, verifier_version: str, *, now: str) -> None:
+        """Persist a future retry for a failed verification without deciding it."""
         ...
 
     def by_subject(self, subject_id: str, verifier_version: str) -> tuple[Any, ...]:

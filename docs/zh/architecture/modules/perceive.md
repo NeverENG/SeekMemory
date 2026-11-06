@@ -19,6 +19,8 @@ Buffer 是 Source-backed extraction queue 的内存视图。启用仓储时，�
 5. 对多话题同会话批次，模型输出必须给每条结论提供当前批次、单一话题内的证据。行为记忆还必须由实际 assistant Source 和其 user parent 组成有效配对。
 6. ExtractionPlan 分开返回普通 Artifact 和十类关系候选；后者需精确 user Source、同一说话人及话题边界，不写普通记忆。IngestService 以 Source 原时间和 subject 将候选幂等入队 `relationship_events`；每周独立调用 ChatModel 复核 `verified/abstain`，模型错误保留 pending，并以引述、第三方和无前因修复为负例评测误报。普通 Artifact 仍通过 CAS commit、Cache 和已有连边流程处理。
 
+核验修复时，仅提供同一主体、早于当前行为的已核验负面事件，按实际 UTC 时刻从近到远最多取三条。模型指向证据窗口外的事件时记为 `abstain`，不推测关联。
+
 主体规范化只作用于新抽取候选：对 `owner`、`speaker`、`third_party` 或未指定种类的精确 `user(id)` 标签，仅当候选自身引用的同会话用户 Source 的 speaker_id 确认为该 id 时，才去掉角色包装；省略引用的兼容事实只使用本次输入的 Source，不借用无关上下文。规范化在去重及构造前执行，payload 与 header 使用同一主体。未验证、嵌套、非用户标签和 self/world/relation 语义不改认 owner；无 Source 的旧输入不获得验证身份。提示词要求输出纯编号。
 
 兼容策略为**只修后续抽取，保留旧数据**：不迁移或重写既有 Artifact、Source、版本或账本，不改 schema、配置键、披露阈值或召回读取逻辑。旧包装主体可能仍被降级披露，修订或重抽取须另行决定。回滚后新记录的纯编号仍可读取，但后续抽取可能再次保存包装标签。

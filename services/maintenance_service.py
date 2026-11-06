@@ -231,23 +231,35 @@ class MaintenanceService:
             RelationshipReason.DISRESPECT, RelationshipReason.INSULT,
             RelationshipReason.THREAT, RelationshipReason.HARASSMENT,
         }
-        for row in self.relationship_events.pending(24):
+        now = self.clock().astimezone(datetime.timezone.utc).isoformat()
+        for row in self.relationship_events.pending(24, VERIFIER_VERSION, now=now):
             try:
                 sources = self.sources.sources_by_ids(list(row.source_ids))
+                if (
+                    not row.source_ids or row.primary_source_id not in row.source_ids
+                    or any(source_id not in sources for source_id in row.source_ids)
+                ):
+                    self.relationship_events.decide(row.event_id, row.verifier_version, "abstain")
+                    continue
                 evidence = tuple(sources[source_id] for source_id in row.source_ids)
+                try:
+                    candidate = RelationshipCandidate(
+                        row.subject_id, RelationshipReason(row.reason), RelationshipStrength(row.strength),
+                        row.primary_source_id, row.source_ids, evidence[0].session_id, ConversationScope(row.scope),
+                    )
+                except ValueError:
+                    self.relationship_events.decide(row.event_id, row.verifier_version, "abstain")
+                    continue
                 provider = ProviderChatModel(await self.provider_for(evidence[0].session_id))
-                candidate = RelationshipCandidate(
-                    row.subject_id, RelationshipReason(row.reason), RelationshipStrength(row.strength),
-                    row.primary_source_id, row.source_ids, evidence[0].session_id, ConversationScope(row.scope),
-                )
                 prior_negative = (
                     tuple(prior for prior in self.relationship_events.by_subject(row.subject_id, VERIFIER_VERSION)
                           if prior.status == "verified" and RelationshipReason(prior.reason) in negative)
                     if candidate.reason is RelationshipReason.REPAIR else ()
                 )
                 verdict = await verify_relationship(candidate, evidence, provider, prior_negative)
-                self.relationship_events.decide(row.event_id, VERIFIER_VERSION, verdict.status, verdict.repair_of)
+                self.relationship_events.decide(row.event_id, row.verifier_version, verdict.status, verdict.repair_of)
             except Exception:
+                self.relationship_events.defer(row.event_id, row.verifier_version, now=now)
                 self.logger.warning("[seekmemory] relationship verdict deferred")
 
 

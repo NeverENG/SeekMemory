@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 try:
     from .sqlite import SqliteRepository, dump_json, load_json_any, now_iso
@@ -27,6 +28,8 @@ class RelationshipEventRow:
     status: str = "pending"
     created_at: str = ""
     decided_at: str = ""
+    retry_count: int = 0
+    next_attempt_at: str = ""
 
 class RelationshipEventRepository(SqliteRepository):
     """Own relationship event decisions without copying Source text."""
@@ -71,12 +74,40 @@ class RelationshipEventRepository(SqliteRepository):
                 "WHERE event_id = ? AND verifier_version = ? AND status = 'pending'",
                 (status, repair_of, now_iso(), event_id, verifier_version),
             )
+    def defer(self, event_id: str, verifier_version: str, *, now: str) -> None:
+        """Keep a failed verdict pending while moving its next attempt behind eligible work."""
+        existing = self._get(event_id, verifier_version)
+        if existing is None or existing.status != "pending":
+            raise ValueError("relationship event is not pending")
+        moment = datetime.fromisoformat(now)
+        if moment.tzinfo is None or moment.utcoffset() is None:
+            raise ValueError("relationship retry clock must be timezone-aware")
+        delay = min(86400, 60 * 2 ** min(existing.retry_count, 11))
+        due = (moment.astimezone(timezone.utc) + timedelta(seconds=delay)).isoformat()
+        with self.conn:
+            self.conn.execute(
+                "UPDATE relationship_events SET retry_count = retry_count + 1, next_attempt_at = ? "
+                "WHERE event_id = ? AND verifier_version = ? AND status = 'pending'",
+                (due, event_id, verifier_version),
+            )
 
-    def pending(self, limit: int) -> tuple[RelationshipEventRow, ...]:
+
+    def pending(
+        self, limit: int, verifier_version: str | None = None, *, now: str = "",
+    ) -> tuple[RelationshipEventRow, ...]:
+        query = "SELECT * FROM relationship_events WHERE status = 'pending'"
+        params: tuple[object, ...] = ()
+        if verifier_version is not None:
+            query += " AND verifier_version = ?"
+            params = (verifier_version,)
+        if now:
+            query += " AND (next_attempt_at = '' OR next_attempt_at <= ?)"
+            params += (now,)
         rows = self.conn.execute(
-            "SELECT * FROM relationship_events WHERE status = 'pending' "
-            "ORDER BY event_at, event_id LIMIT ?",
-            (max(0, int(limit)),),
+            query + " ORDER BY CASE WHEN retry_count = 0 THEN "
+            "COALESCE(julianday(event_at), julianday(created_at)) "
+            "ELSE julianday(next_attempt_at) END, event_id LIMIT ?",
+            (*params, max(0, int(limit))),
         ).fetchall()
         return tuple(self._row(row) for row in rows)
 
@@ -118,5 +149,6 @@ class RelationshipEventRepository(SqliteRepository):
             str(row["primary_source_id"]), tuple(load_json_any(row["source_ids"], [])),
             str(row["repair_of"] or ""), str(row["origin_artifact_id"] or ""),
             int(row["origin_revision"] or 0), str(row["status"]), str(row["created_at"] or ""),
-            str(row["decided_at"] or ""),
+            str(row["decided_at"] or ""), int(row["retry_count"] or 0),
+            str(row["next_attempt_at"] or ""),
         )

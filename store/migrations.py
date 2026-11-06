@@ -1,6 +1,6 @@
-"""Apply existing compatible migrations in their established transaction order.
+"""Apply ordered, compatible SQLite schema migrations on the caller-owned connection.
 
-按既有事务顺序执行现有兼容迁移，不定义新的格式或时间转换；连接由调用方拥有。
+在调用方持有的连接上按顺序执行兼容的 SQLite schema 迁移。
 """
 from __future__ import annotations
 
@@ -19,9 +19,13 @@ def migrate(conn: sqlite3.Connection) -> None:
     episode_cols = {
         row[1] for row in conn.execute("PRAGMA table_info(runtime_episodes)")
     }
+    relationship_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(relationship_events)")
+    }
     with conn:
         _node_columns(conn, cols)
         _extraction_columns(conn, state_cols)
+        _relationship_columns(conn, relationship_cols)
         _legacy_versions(conn, version_cols)
         _episode_columns(conn, episode_cols)
         _indexes(conn)
@@ -47,6 +51,15 @@ def _extraction_columns(conn: sqlite3.Connection, state_cols: set[str]) -> None:
             "ALTER TABLE extraction_state ADD COLUMN "
             "next_attempt_at TEXT NOT NULL DEFAULT ''"
         )
+
+def _relationship_columns(conn: sqlite3.Connection, cols: set[str]) -> None:
+    """Preserve existing candidate rows while adding durable retry metadata."""
+    for name, definition in (
+        ("retry_count", "INTEGER NOT NULL DEFAULT 0"),
+        ("next_attempt_at", "TEXT NOT NULL DEFAULT ''"),
+    ):
+        if cols and name not in cols:
+            conn.execute(f"ALTER TABLE relationship_events ADD COLUMN {name} {definition}")
 
 
 def _legacy_versions(conn: sqlite3.Connection, version_cols: set[str]) -> None:
@@ -81,9 +94,13 @@ def _episode_columns(conn: sqlite3.Connection, episode_cols: set[str]) -> None:
 
 
 def _indexes(conn: sqlite3.Connection) -> None:
-    """Apply the existing node/action indexes and trigger in order / 按顺序执行既有节点及动作索引和触发器。"""
+    """Apply compatible node, relationship queue and action indexes and trigger."""
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_nodes_subject ON nodes(subject_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_relationship_events_due "
+        "ON relationship_events(verifier_version, status, next_attempt_at, event_at, event_id)"
     )
     # Action events share run links; ordinary episodes retain one row per run.
     # 动作事件共享运行关联，普通运行记录仍保持每次运行一行。

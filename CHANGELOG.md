@@ -3,7 +3,8 @@
 ## Unreleased
 
 ### 中文
-- 修复关系 V2：已核验事件按显式时间回放熟悉、信任、温度、张力、稳定性与置信度，关联修复降低对应张力；按 subject 提交带 Source 证据与版本历史的 Artifact，读取坏旧行时保持中性。V1 历史只在 Source 可归属且有时区时进入独立复核队列，旧 affinity 不复制。观察期不影响回复或语气；不重置已有数据、不新增表或配置。离线误报率由真实模型评测产生，未运行时不报告数值。每周语义核验兼容 AstrBot 包模式，关系衰减兼容 Python 3.10（#163）。
+- 修复关系 V2：已核验事件按显式时间回放熟悉、信任、温度、张力、稳定性与置信度；修复只关联时间最近、已核验的至多三条先前负面事件之一。按 subject 提交带 Source 证据与版本历史的 Artifact，读取坏旧行时保持中性。V1 历史仅在 Source 可归属且有时区时进入独立复核队列，旧 affinity 不复制。V2 仅观察、不改变回复或语气；旧 `relationship_mode=enforce` 也变为仅观察，显式启用者的关系门控行为会改变。新增 `relationship_events` 表，不新增公开配置键、不重置已有记录；V2 写入后回退旧代码前需备份并核对数据兼容，不能删除 V1/V2 历史。离线误报率须经真实模型评测，未运行时不报告数值。每周语义核验兼容 AstrBot 包模式，关系衰减兼容 Python 3.10（#163）。
+- #163 评审修复：每周仅取当前核验版本中至多 24 条到期候选；模型故障保留 pending，持久化一分钟至一天的退避，使后续候选在重启后也不会被失败的前 24 条饿死。确认缺失证据或字段错误的候选转为 `abstain`。为已有 `relationship_events` 表兼容增列 `retry_count`、`next_attempt_at` 和到期索引，旧行保持原值、默认立即可处理；回退旧代码前须备份并关闭关系维护，旧版不会遵守退避。
 
 - #226：本机运行时上下文和旧召回入口对显式 `private` 仅接受布尔值；错误类型在披露前返回 400，避免字符串 `"false"` 被误作私聊。字段缺失时各入口原有默认值不变；不改数据库、用户配置或披露策略。
 
@@ -21,7 +22,8 @@
 
 ### English
 
-- Repair Relationship V2: replay verified events at an explicit clock into familiarity, trust, warmth, tension, stability, and confidence, with linked repair reducing its prior tension; commit per-subject Artifacts with Source evidence and version history, and treat invalid legacy rows as neutral. Queue V1 history for independent verification only when Sources are attributable and timezone-aware, without copying affinity. Observation does not change replies or tone; existing data remains intact with no new tables or config. Offline false-positive rates require a real model evaluation and are not reported otherwise. Weekly semantic verification works in AstrBot package mode, and relationship decay supports Python 3.10 (#163).
+- Repair Relationship V2: replay verified events at an explicit clock into familiarity, trust, warmth, tension, stability, and confidence; repair links at most one of the three most recent eligible verified negative events. Commit per-subject Artifacts with Source evidence and version history, and treat invalid legacy rows as neutral. Queue V1 history only when Sources are attributable and timezone-aware, without copying affinity. V2 observes without changing replies or tone; legacy `relationship_mode=enforce` is also observe-only, changing relationship gating for users who explicitly enabled it. Add a `relationship_events` table with no new public configuration keys or reset of existing records; back up and review data compatibility before reverting older code after V2 writes, without deleting V1/V2 history. Offline false-positive rates require a real model evaluation and are not reported otherwise. Weekly semantic verification works in AstrBot package mode, and relationship decay supports Python 3.10 (#163).
+- #163 review: Weekly verification selects up to 24 due candidates for the current verifier version. Model failures stay pending with durable one-minute-to-one-day backoff so the next candidate is not starved by the first 24 failures, even after restart. Confirmed missing evidence or malformed candidates abstain. Existing `relationship_events` tables receive compatible `retry_count` and `next_attempt_at` columns plus a due index; old rows are preserved and immediately eligible by default. Back up and disable relationship maintenance before reverting older code, which does not honor backoff.
 
 - #226: Require a boolean for explicit `private` on loopback runtime context and legacy recall; reject malformed values with 400 before disclosure so the string `"false"` cannot be treated as private. Preserve each route's omitted-field default; no database, user configuration or disclosure-policy changes.
 

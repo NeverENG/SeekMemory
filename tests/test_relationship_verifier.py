@@ -101,6 +101,33 @@ class RelationshipVerifierTest(unittest.IsolatedAsyncioTestCase):
             "abstain",
         )
 
+    async def test_repair_selects_latest_three_by_instant_when_four_priors_exist(self) -> None:
+        apology = source("s_apology", "user", "鱼，刚才辱骂你是我的错，对不起。", 5)
+        proposed = candidate(RelationshipReason.REPAIR, apology.id, apology.id)
+        priors = tuple(
+            SimpleNamespace(
+                event_id=event_id, subject_id="u1", reason="insult",
+                status="verified", event_at=at,
+            )
+            for event_id, at in (
+                ("n1", "2026-10-26T08:00:00+00:00"),
+                ("n2", "2026-10-26T08:01:00+00:00"),
+                ("n3", "2026-10-26T09:02:00+01:00"),
+                ("n4", "2026-10-26T07:03:00-01:00"),
+            )
+        )
+        latest = VerdictModel(
+            decision="verified", reason="repair", source_ids=[apology.id],
+            target="assistant", repair_of="n4",
+        )
+        old = VerdictModel(
+            decision="verified", reason="repair", source_ids=[apology.id],
+            target="assistant", repair_of="n1",
+        )
+        verdict = await verify_relationship(proposed, (apology,), latest, priors)
+        self.assertEqual((verdict.status, verdict.repair_of), ("verified", "n4"))
+        self.assertEqual((await verify_relationship(proposed, (apology,), old, priors)).status, "abstain")
+
     async def test_harassment_requires_assistant_stop_between_user_sources(self) -> None:
         first = source("s_first", "user", "鱼，你真蠢。", 0)
         stop = source("s_stop", "assistant", "请停止辱骂我。", 1, "fish")

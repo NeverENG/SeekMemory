@@ -22,6 +22,8 @@ persona.py selects at most three behavior categories from trusted self-impressio
 
 Weekly maintenance first queues V1 memory versions with attributable, timezone-aware Sources as idempotent pending events while retaining old Artifacts, then independently verifies up to 24 pending candidates. Model failures leave them pending; only verified events enter replay. `relationship.py` rechecks source identity, session, timezone, and scope; unzoned, unattributable, and unknown-scope rows do not score. An explicit clock projects each subject into a stable V2 Artifact committed with expected-revision CAS, revision-scoped Source evidence, and V1 memory provenance. Cache updates only after commit; deactivated relationships stay inactive and identical inputs/clocks do not create duplicate versions. `relationship_mode=off` skips this path; `observe` and the legacy config value `enforce` currently observe only.
 
+Weekly verification selects at most 24 due events for the current verifier version. A model/provider failure keeps the candidate pending and persists a bounded exponential retry time (one minute to one day); deferred entries move behind eligible untouched work even across restarts. Confirmed missing Source references and malformed candidate fields abstain rather than retry indefinitely. A failure to persist the retry is surfaced instead of claiming recovery.
+
 ## Rules not connected to the production flow
 
 reflect.py can compute wrong/right signals from adjacent user messages, but the current repository has no production caller. It is not an automatic reflection, memory-repair, or reinforcement path. Documentation and configuration must not present it as an enabled online feature.

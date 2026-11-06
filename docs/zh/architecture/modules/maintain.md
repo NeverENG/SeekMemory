@@ -22,6 +22,8 @@ persona.py 只从已验证的 self impression 选择最多三个行为类别。�
 
 每周先将具有可归属、带时区 Source 的 V1 记忆版本排入 `relationship_events` 待复核队列（幂等、保留旧 Artifact），再对至多 24 个 pending 候选调用独立语义核验。失败保留 pending，只有 `verified` 事件参与投影。`relationship.py` 重验来源身份、会话、时区和 scope；无时区、无法归属或未知 scope 均不计分。按显式时钟重放并以 expected-revision CAS 提交稳定的按 subject V2 Artifact；版本级 Source 证据与源 V1 记忆 lineage 保留，提交成功后才更新 Cache。已停用的关系不会被重新激活；同输入和时钟不产生重复版本。`relationship_mode=off` 跳过此过程；`observe` 和旧配置值 `enforce` 当前只观察，不控制回复。
 
+每周核验仅从当前 verifier 版本中取至多 24 条已到期事件。模型或 provider 故障时保留 pending，并持久保存一分钟至一天的有上限指数退避；延后项在重启后也排在尚未尝试的合格候选之后。确认缺失的 Source 引用与字段错误候选转为 `abstain`，不无限重试；若退避写入失败则向上报告，不伪称可恢复。
+
 ## 未接入主流程的规则
 
 reflect.py 能从相邻用户消息计算 wrong/right 信号，但仓库当前没有生产调用方；它不是自动反思、记忆修正或强化路径。任何文档或配置不能把它描述成已启用的线上功能。

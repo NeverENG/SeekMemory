@@ -11,6 +11,7 @@ import asyncio
 import json
 import datetime
 import os
+import sqlite3
 import shutil
 import sys
 import tempfile
@@ -395,6 +396,154 @@ class RelationshipV2PersistenceTest(_StoreCase):
         })
         self.db.relationship_events.decide(event_id, VERIFIER_VERSION, "verified")
 
+    def test_pending_current_verifier_skips_old_version_backlog(self) -> None:
+        source = self._source("versioned", "鱼，谢谢你")
+        for index in range(24):
+            self.db.relationship_events.record_pending({
+                "event_id": f"old-{index:02d}", "verifier_version": "relationship-verifier-v1",
+                "subject_id": "u1", "reason": "gratitude", "strength": "strong",
+                "scope": "private", "event_at": source.at,
+                "primary_source_id": source.id, "source_ids": (source.id,),
+            })
+        self.db.relationship_events.record_pending({
+            "event_id": "current", "verifier_version": VERIFIER_VERSION,
+            "subject_id": "u1", "reason": "gratitude", "strength": "strong",
+            "scope": "private", "event_at": source.at,
+            "primary_source_id": source.id, "source_ids": (source.id,),
+        })
+        self.assertEqual(
+            [row.event_id for row in self.db.relationship_events.pending(1, VERIFIER_VERSION)],
+            ["current"],
+        )
+        self.assertEqual(len(self.db.relationship_events.pending(30)), 25)
+
+    def test_failed_first_24_do_not_starve_next_candidate_after_restart(self) -> None:
+        moment = [datetime.datetime(2026, 10, 26, 12, 5, tzinfo=datetime.timezone.utc)]
+        for index in range(25):
+            source_id = f"s{index:02d}"
+            at = (moment[0].replace(minute=0) + datetime.timedelta(seconds=index)).isoformat()
+            source = Source(source_id, source_id, "bot:FriendMessage:u1", "u1", "user", "鱼，谢谢你", at)
+            self.db.sources.append_sources([source])
+            self.db.relationship_events.record_pending({
+                "event_id": f"e{index:02d}", "verifier_version": VERIFIER_VERSION,
+                "subject_id": "u1", "reason": "gratitude", "strength": "strong",
+                "scope": "private", "event_at": at,
+                "primary_source_id": source_id, "source_ids": (source_id,),
+            })
+
+        class Provider:
+            def __init__(self) -> None:
+                self.calls: list[str] = []
+                self.fail = True
+
+            async def text_chat(self, *, prompt: str, **_kwargs):
+                source_id = json.loads(prompt)["candidate"]["primary_source_id"]
+                self.calls.append(source_id)
+                if self.fail and source_id != "s24":
+                    raise RuntimeError("model unavailable")
+                return SimpleNamespace(completion_text=json.dumps({
+                    "reason": "gratitude", "source_ids": [source_id],
+                    "target": "assistant", "decision": "verified",
+                }))
+
+        provider = Provider()
+
+        async def provider_for(_session):
+            return provider
+
+        def service() -> MaintenanceService:
+            journal = SimpleNamespace(span=lambda *_a, **_kw: nullcontext({}), record=lambda *_a, **_kw: None)
+            logger = SimpleNamespace(info=lambda *_a: None, warning=lambda *_a: None)
+            return MaintenanceService(
+                artifacts=self.db.artifacts, sources=self.db.sources, cache=self.cache,
+                journal=journal, task_id=lambda: "weekly", logger=logger,
+                clock=lambda: moment[0], relationship_events=self.db.relationship_events,
+                provider_for=provider_for,
+            )
+
+        asyncio.run(service().weekly())
+        self.assertEqual(provider.calls, [f"s{index:02d}" for index in range(24)])
+        self.assertEqual(
+            next(row for row in self.db.relationship_events.by_subject("u1", VERIFIER_VERSION)
+                 if row.event_id == "e00").retry_count,
+            1,
+        )
+        self.db.close()
+        self.db = open_store(os.path.join(self.tmpdir, "memory.db"))
+        self.cache = Cache(self.db.artifacts)
+        resumed = service()
+        asyncio.run(resumed.weekly())
+        self.assertEqual(provider.calls[-1], "s24")
+        self.assertEqual(len(provider.calls), 25)
+        self.assertEqual(
+            next(row for row in self.db.relationship_events.by_subject("u1", VERIFIER_VERSION)
+                 if row.event_id == "e24").status,
+            "verified",
+        )
+        provider.fail = False
+        moment[0] += datetime.timedelta(minutes=1)
+        asyncio.run(resumed.weekly())
+        self.assertEqual(self.db.relationship_events.pending(30), ())
+
+    def test_old_relationship_event_table_upgrades_without_losing_pending_rows(self) -> None:
+        path = os.path.join(self.tmpdir, "memory.db")
+        self.db.close()
+        with sqlite3.connect(path) as conn:
+            conn.execute("DROP TABLE relationship_events")
+            conn.execute(
+                "CREATE TABLE relationship_events ("
+                "event_id TEXT NOT NULL, verifier_version TEXT NOT NULL, subject_id TEXT NOT NULL, "
+                "reason TEXT NOT NULL, strength TEXT NOT NULL, scope TEXT NOT NULL, "
+                "event_at TEXT NOT NULL, primary_source_id TEXT NOT NULL, source_ids TEXT NOT NULL, "
+                "repair_of TEXT NOT NULL DEFAULT '', origin_artifact_id TEXT NOT NULL DEFAULT '', "
+                "origin_revision INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, "
+                "created_at TEXT NOT NULL, decided_at TEXT NOT NULL DEFAULT '', "
+                "PRIMARY KEY (event_id, verifier_version))"
+            )
+            conn.execute(
+                "INSERT INTO relationship_events (event_id, verifier_version, subject_id, reason, "
+                "strength, scope, event_at, primary_source_id, source_ids, status, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                ("old-event", VERIFIER_VERSION, "u1", "gratitude", "strong", "private",
+                 "2026-10-26T12:00:00+00:00", "source", '["source"]', "pending",
+                 "2026-10-26T12:00:00"),
+            )
+        self.db = open_store(path)
+        upgraded, = self.db.relationship_events.pending(1, VERIFIER_VERSION)
+        self.assertEqual((upgraded.event_id, upgraded.retry_count, upgraded.next_attempt_at),
+                         ("old-event", 0, ""))
+        self.db.close()
+        self.db = open_store(path)
+        self.assertEqual(self.db.relationship_events.pending(1, VERIFIER_VERSION)[0], upgraded)
+
+    def test_missing_source_and_malformed_candidate_abstain_without_retry(self) -> None:
+        source = self._source("valid", "鱼，谢谢你")
+        for event_id, reason, source_id in (
+            ("missing", "gratitude", "not-present"),
+            ("invalid", "not-a-reason", source.id),
+        ):
+            self.db.relationship_events.record_pending({
+                "event_id": event_id, "verifier_version": VERIFIER_VERSION,
+                "subject_id": "u1", "reason": reason, "strength": "strong",
+                "scope": "private", "event_at": source.at,
+                "primary_source_id": source_id, "source_ids": (source_id,),
+            })
+
+        async def provider_for(_session):
+            raise AssertionError("invalid evidence must not call the model")
+
+        service = MaintenanceService(
+            artifacts=self.db.artifacts, sources=self.db.sources, cache=self.cache,
+            journal=SimpleNamespace(span=lambda *_a, **_kw: nullcontext({}), record=lambda *_a, **_kw: None),
+            task_id=lambda: "weekly", logger=SimpleNamespace(info=lambda *_a: None, warning=lambda *_a: None),
+            clock=lambda: datetime.datetime(2026, 10, 26, 12, tzinfo=datetime.timezone.utc),
+            relationship_events=self.db.relationship_events, provider_for=provider_for,
+        )
+        asyncio.run(service.weekly())
+        rows = self.db.relationship_events.by_subject("u1", VERIFIER_VERSION)
+        self.assertEqual({row.event_id: (row.status, row.retry_count) for row in rows},
+                         {"missing": ("abstain", 0), "invalid": ("abstain", 0)})
+
     def test_verified_event_commits_readable_versions_and_evidence(self) -> None:
         source = self._source("positive", "鱼，谢谢你帮我解决了问题")
         self._verified(source, RelationshipReason.GRATITUDE)
@@ -525,16 +674,20 @@ class RelationshipV2PersistenceTest(_StoreCase):
         async def provider_for(_session):
             return provider
 
+        moment = [datetime.datetime(2026, 10, 26, 12, tzinfo=datetime.timezone.utc)]
         service = MaintenanceService(
             artifacts=self.db.artifacts, sources=self.db.sources, cache=self.cache,
             journal=Journal(), task_id=lambda: "weekly", logger=SimpleNamespace(info=lambda *_: None, warning=lambda *_: None),
-            clock=lambda: datetime.datetime(2026, 10, 26, 12, tzinfo=datetime.timezone.utc),
+            clock=lambda: moment[0],
             relationship_events=self.db.relationship_events, provider_for=provider_for,
         )
         self.assertEqual(asyncio.run(service.weekly())["relationships"], 0)
         self.assertEqual(len(self.db.relationship_events.pending(10)), 1)
         self.assertEqual(RelationshipReader(self.cache).get("u1").evidence_count, 0)
+        self.assertEqual(self.db.relationship_events.pending(10)[0].retry_count, 1)
         provider.fail = False
+        self.assertEqual(asyncio.run(service.weekly())["relationships"], 0)
+        moment[0] += datetime.timedelta(minutes=1)
         self.assertEqual(asyncio.run(service.weekly())["relationships"], 1)
         self.assertGreater(RelationshipReader(self.cache).get("u1").warmth, 0)
         self.assertEqual(self.db.relationship_events.pending(10), ())
