@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import datetime
+from dataclasses import dataclass, replace
 from typing import Callable
 
 from .contracts import (
@@ -21,7 +22,10 @@ from .contracts import (
     RunContext,
     AttentionDecision,
     RunDecision,
+    RunPolicy,
     RunResult,
+    RunKind,
+    RunTrigger,
     RuntimeInput,
     SessionState,
     UserRunReceipt,
@@ -30,8 +34,10 @@ from .contracts import (
     WakeAction,
 )
 from .actions import ActionExecutor
+from .admission import RunAdmission
 from .recorder import RecordedReply, RunRecorder
 from .policy.attention import DefaultAttentionPolicy
+from .runs import RunHandle
 from .topics import TopicCandidate
 from .writeback import DeliveryReceipt, DeliveryWritebacks
 from .episode import normalize_tool_calls
@@ -39,6 +45,14 @@ from .episode import normalize_tool_calls
 from . import transitions
 from .transitions import MAX_FOLLOWUP_SPEAKERS
 from .dispatch import Dispatch, StateOperations, build_context, save_state
+
+
+@dataclass(frozen=True)
+class _Observation:
+    """Attention result and its saved state / 注意力结果及其已保存状态。"""
+
+    state: SessionState
+    decision: RunDecision
 
 
 class AgentRuntime:
@@ -60,6 +74,8 @@ class AgentRuntime:
         message_sender: MessageSender | None = None,
         recorder: RunRecorder | None = None,
         *, context_recorder: MemoryContextRecorder | None = None,
+        run_control_enabled: bool = False,
+        run_policy: RunPolicy | None = None,
     ) -> None:
         self.store = store
         self.policy = policy or DefaultAttentionPolicy()
@@ -73,6 +89,32 @@ class AgentRuntime:
         self.recorder = recorder
         self.context_recorder = context_recorder
         self._writebacks = DeliveryWritebacks()
+        if run_control_enabled and recorder is None:
+            raise ValueError("run control requires a recorder for Source identity")
+        self._run_admission = RunAdmission(run_policy, trace) if run_control_enabled else None
+
+    def begin_run(self, lane_id: str, trigger: RunTrigger, *, receipt: UserRunReceipt | None = None) -> RunHandle | None:
+        """Admit execution on an isolated lane; user runs require the original acceptance receipt.
+
+        为隔离的 lane 准入执行；用户运行须提供原始接纳回执。
+        """
+        if self._run_admission is None:
+            return None
+        return self._run_admission.begin(self.store.get(lane_id), trigger, receipt)
+
+    def current_run(self, lane_id: str) -> RunHandle | None:
+        """Read current work without creating a run / 只读当前运行，不创建运行。"""
+        return self._run_admission.current(lane_id) if self._run_admission is not None else None
+
+    def finish_run(self, handle: RunHandle) -> None:
+        """Release only the exact active handle / 仅释放当前同一句柄。"""
+        if self._run_admission is not None:
+            self._run_admission.finish(handle)
+
+    def supersede_run(self, lane_id: str, run_id: str, reason: str = "superseded") -> bool:
+        """Logically supersede matching work without aborting a host task / 逻辑覆盖匹配运行，不终止宿主任务。"""
+        return (self._run_admission.supersede(lane_id, run_id, reason)
+                if self._run_admission is not None else False)
 
     def build_context(self, event: RuntimeInput, *, now: float | None = None,
                       reason: str = "inbound") -> MemoryContext:
@@ -100,6 +142,10 @@ class AgentRuntime:
     def observe(self, event: RuntimeInput, *, now: float | None = None) -> RunDecision:
         """Evaluate a non-stale event and persist the decision / 判断非过期事件并保存决策。"""
         moment = self.clock() if now is None else float(now)
+        return self._observe(event, moment).decision
+
+    def _observe(self, event: RuntimeInput, moment: float) -> _Observation:
+        """Return the saved snapshot without another store read / 返回已保存快照，不再次读取存储。"""
         state = self.store.get(event.session_id)
         event_time = float(event.event_time or 0.0)
         if event_time > 0 and state.last_event_at > event_time:
@@ -107,7 +153,7 @@ class AgentRuntime:
                 self._trace("runtime", "stale_event", {
                     "event_time": event_time, "last_event_at": state.last_event_at,
                 })
-            return RunDecision(WakeAction.IGNORE, "stale_event")
+            return _Observation(state, RunDecision(WakeAction.IGNORE, "stale_event"))
         state = transitions.observe_event(state, event, moment)
         decision = self.policy.evaluate(event, state, moment)
         state = transitions.apply_attention(state, decision, moment, self.wait_seconds)
@@ -118,7 +164,7 @@ class AgentRuntime:
                 "reason": result.reason, "unread": state.unread_count,
                 "ignored_streak": state.ignored_streak,
             })
-        return result
+        return _Observation(state, result)
 
     def accept_user(
         self,
@@ -133,6 +179,14 @@ class AgentRuntime:
 
         记录用户证据及投影后判断注意力，返回接收时的已读确认位置。
         """
+        admission = self._run_admission
+        if admission is not None and not str(event.text or "").strip():
+            return UserRunReceipt(RunDecision(WakeAction.IGNORE, "empty_text"))
+        if admission is not None:
+            if decision is not None:
+                raise ValueError("run admission owns attention evaluation")
+            if not (event_id or event.event_id):
+                raise ValueError("run admission requires a stable event ID")
         recorded = None
         if self.recorder is not None:
             seen_at = event.event_time or event.received_at
@@ -147,21 +201,28 @@ class AgentRuntime:
                 session_id=event.session_id,
                 text=event.text,
                 speaker_id=event.speaker_id,
-                event_id=event_id,
+                event_id=event_id or (event.event_id if admission is not None else ""),
                 at=at,
                 deferred=deferred,
             )
-        if decision is None:
-            decision = self.observe(event, now=now)
-        return UserRunReceipt(
-            decision=decision,
-            source_id=recorded.source_id if recorded is not None else "",
-            turn_id=recorded.turn_id if recorded is not None else "",
-            read_through_seq=(
-                None if decision.reason == "stale_event"
-                else self.store.get(event.session_id).last_unread_seq
-            ),
-        )
+        if admission is None:
+            decision = decision if decision is not None else self.observe(event, now=now)
+            return UserRunReceipt(
+                decision, recorded.source_id if recorded else "", recorded.turn_id if recorded else "",
+                None if decision.reason == "stale_event" else self.store.get(event.session_id).last_unread_seq,
+            )
+        if not admission.prepare(recorded):
+            return UserRunReceipt(
+                RunDecision(WakeAction.IGNORE, "replayed_event"), recorded.source_id, recorded.turn_id,
+            )
+        moment = self.clock() if now is None else float(now)
+        observed = self._observe(event, moment)
+        admission.complete(recorded.source_id)
+        receipt = UserRunReceipt(observed.decision, recorded.source_id, recorded.turn_id)
+        if observed.decision.reason != "stale_event":
+            receipt = replace(receipt, read_through_seq=observed.state.last_unread_seq)
+            admission.accept(observed.state, RunTrigger(RunKind.USER, event, moment), receipt)
+        return receipt
 
     def record_reply(
         self,
