@@ -8,6 +8,8 @@ perceive 把待处理对话转换为经过证据和 family 校验的候选 Artif
 
 Buffer 是 Source-backed extraction queue 的内存视图。启用仓储时，入队同时持久化 immutable Source 与 extraction_state；内容不在队列表中重复保存。历史 pending.json 仅用于兼容迁移/无仓储支持路径。
 
+仓储模式下，同一个 Source ID 的再次入队若未新增 extraction_state 行，Buffer 不再把重放消息发布为新的内存待处理项，也不重置空闲时钟。已有 pending 项沿用原话题；deferred/extracted 状态不因重放晋升或复活。旧文件模式仍维持原行为；不同 Source ID 是否代表同一宿主事件不在此处推断。
+
 话题在单个会话内构建：用户与实际回复通过 reply_to 配对，助手回复继承父消息话题；若父 Source 已处理，可读回作配对上下文，不会再次排队。没有回复关联时，超过 90 分钟的时间间隔或低于 0.12 的字符二元组 Dice 相似度会开始新话题。话题 TTL 是抽取触发信号，不是 Source 删除期限。
 
 ## 抽取管线
@@ -20,6 +22,8 @@ Buffer 是 Source-backed extraction queue 的内存视图。启用仓储时，�
 6. ExtractionPlan 分开返回普通 Artifact 和十类关系候选；后者需精确 user Source、同一说话人及话题边界，不写普通记忆。IngestService 以 Source 原时间和 subject 将候选幂等入队 `relationship_events`；每周独立调用 ChatModel 复核 `verified/abstain`，模型错误保留 pending，并以引述、第三方和无前因修复为负例评测误报。普通 Artifact 仍通过 CAS commit、Cache 和已有连边流程处理。
 
 核验修复时，仅提供同一主体、早于当前行为的已核验负面事件，按实际 UTC 时刻从近到远最多取三条。模型指向证据窗口外的事件时记为 `abstain`，不推测关联。
+
+抽取信任边界：宿主/Source 的实际消息元数据（角色、编号、时间及 `reply_to`）由应用层传给 `dialogue_of()`，这些元数据字段在模型输入中也转义换行等控制字符；原始正文始终是**不可信数据**，以单行 JSON 字符串写在对应消息头之后。元数据或正文中的换行、正文伪造角色/编号与指令不能形成额外消息行。抽取规则位于 system prompt；模型输出仍须经 JSON、证据编号、同会话/同话题及行为配对校验，不能把模型输出直接视为事实。此编码不保证模型一定拒绝语义注入，也不改变原始 Source、记忆格式或重放去重策略；召回正文的信任边界由 recall 模块维护。
 
 主体规范化只作用于新抽取候选：对 `owner`、`speaker`、`third_party` 或未指定种类的精确 `user(id)` 标签，仅当候选自身引用的同会话用户 Source 的 speaker_id 确认为该 id 时，才去掉角色包装；省略引用的兼容事实只使用本次输入的 Source，不借用无关上下文。规范化在去重及构造前执行，payload 与 header 使用同一主体。未验证、嵌套、非用户标签和 self/world/relation 语义不改认 owner；无 Source 的旧输入不获得验证身份。提示词要求输出纯编号。
 

@@ -117,7 +117,11 @@ class Buffer:
         parent = self._paired_parent(turn)
         turn = replace(turn, topic_id=self._topic_for(turn, previous, parent))
         if self._extraction is not None:
-            turn = self._enqueue(turn, source=source, turn_id=turn_id, deferred=deferred)
+            turn, inserted = self._enqueue(turn, source=source, turn_id=turn_id, deferred=deferred)
+            if not inserted:
+                # A replay does not revive extracted/deferred work or reset the idle clock.
+                # 重放不复活已抽取/延后任务，也不重置空闲时钟。
+                return next((row for row in self.items if row.source_id == turn.source_id), turn)
         prepared = list(self.items)
         if not deferred:
             prepared.append(turn)
@@ -140,8 +144,8 @@ class Buffer:
         source: Source | None,
         turn_id: str,
         deferred: bool = False,
-    ) -> DialogueTurn:
-        """Assign missing Source identity and atomically admit Source plus queue state / 补充缺失原始消息身份并原子接纳原始消息及队列状态。"""
+    ) -> tuple[DialogueTurn, bool]:
+        """Assign Source identity and report whether its queue row was newly admitted / 补充原始消息身份并报告是否新增队列行。"""
         at = turn.at or datetime.now().isoformat(timespec="seconds")
         source_id = turn.source_id or make_source_id(
             session_id=turn.session_id,
@@ -162,8 +166,8 @@ class Buffer:
             at,
             turn.reply_to,
         )
-        self._extraction.enqueue_extraction(queued, turn.topic_id, at, deferred=deferred)
-        return replace(turn, turn_id=queued.turn_id, reply_to=queued.reply_to)
+        inserted = self._extraction.enqueue_extraction(queued, turn.topic_id, at, deferred=deferred)
+        return replace(turn, turn_id=queued.turn_id, reply_to=queued.reply_to), inserted
 
     @staticmethod
     def _unique_by_source(items: list[DialogueTurn]) -> list[DialogueTurn]:

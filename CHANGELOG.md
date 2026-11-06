@@ -6,11 +6,17 @@
 - 修复关系 V2：已核验事件按显式时间回放熟悉、信任、温度、张力、稳定性与置信度；修复只关联时间最近、已核验的至多三条先前负面事件之一。按 subject 提交带 Source 证据与版本历史的 Artifact，读取坏旧行时保持中性。V1 历史仅在 Source 可归属且有时区时进入独立复核队列，旧 affinity 不复制。V2 仅观察、不改变回复或语气；旧 `relationship_mode=enforce` 也变为仅观察，显式启用者的关系门控行为会改变。新增 `relationship_events` 表，不新增公开配置键、不重置已有记录；V2 写入后回退旧代码前需备份并核对数据兼容，不能删除 V1/V2 历史。离线误报率须经真实模型评测，未运行时不报告数值。每周语义核验兼容 AstrBot 包模式，关系衰减兼容 Python 3.10（#163）。
 - #163 评审修复：每周仅取当前核验版本中至多 24 条到期候选；模型故障保留 pending，持久化一分钟至一天的退避，使后续候选在重启后也不会被失败的前 24 条饿死。确认缺失证据或字段错误的候选转为 `abstain`。为已有 `relationship_events` 表兼容增列 `retry_count`、`next_attempt_at` 和到期索引，旧行保持原值、默认立即可处理；回退旧代码前须备份并关闭关系维护，旧版不会遵守退避。
 
+- #230：本机记忆回环 HTTP 入口增加有界请求接收：POST 请求体按编码字节限制为 4 MiB（抽取提交 8 MiB），请求头与请求体总接收期限分别为 2 秒和 5 秒；非法、缺失、超限及超时请求返回无正文的明确错误并关闭未读完的连接。令牌校验仍先于请求体处理；超限的合法消息也会被拒绝，宿主需沿既有失败路径处理。记忆操作仍串行，独立的 Runtime 验证服务未改变；无数据格式或公开配置变更。
+
+
+
 - #226：本机运行时上下文和旧召回入口对显式 `private` 仅接受布尔值；错误类型在披露前返回 400，避免字符串 `"false"` 被误作私聊。字段缺失时各入口原有默认值不变；不改数据库、用户配置或披露策略。
 
 - #224：真实 DSH 本机服务接入 HostGateway 与进程内 AgentRuntime 决策；用户、助手 Source 继续通过原 Buffer 路径保存，保留消息 ID、时间与回复关系。运行时上下文沿用 RecallService 披露与宿主预算；错误主体先拒绝。保留旧接口和配置，不新增数据库格式、持久运行态或宿主回复 gate。
 
 - #222：抽出临时 HostRequest 与 HostGateway 入站投影；AstrBot 与 DSH 现有 Python HTTP 入口共用 RuntimeInput 构造边界。保持原字段、线协议、运行时行为及用户配置不变；不新增身份认证、限流或持久幂等。
+
+- #154：可选接入输入准入与默认运行策略，排除重放和过期输入，以原始回执保证最新输入只启动一次，失败后仍可重试接纳。保留未读和后台到期机会，策略异常时回退；默认关闭，模型/发送检查点尚未接入，不改数据格式或公开配置。
 
 - #215：首页固定展示内置蓝发 Q 版形象，不随人格包封面变化，也不因缺少封面显示占位图。人格工作室继续展示关联封面；无数据、接口或公开配置变更。
 
@@ -18,12 +24,17 @@
 
 - #178 review 修复：人工编辑成长正文保存为可召回的人工基线，保留成长历史、证据和回滚，披露规则不放宽；完整人格按 UTF-8 容量校验，支持长中文设定改名；普通保存错误保留可编辑草稿，仅确认包内容变化后要求重新载入。沿用现有字段与人工设定语义，无数据迁移。
 
+- #165：抽取对话正文改为单行 JSON 字符串，并转义消息头中的换行等控制字符，防止伪造独立消息行；保留原始 Source 和证据校验，模型仍可能受到语义注入。不改已存数据、公开配置或重放规则。
+
+- #165：修复重复 Source ID 已抽取完成或延后时仍在内存 Buffer 出现待处理项；重放不重置空闲时钟，原 pending 话题不变。旧文件模式不变；不改已存数据、Source 编号规则或公开配置。
+
 - #154：新增同 lane 运行控制契约及独立内存 RunControl；显式覆盖后才可替换有效运行，结束句柄拒绝新动作，清理不影响其他控制器或替代运行。实例级单调代次避免保留历史 lane 键，已开始工作仍保留真实结果；尚未接入 Runtime/宿主，不改现有运行行为、数据格式或公开配置。
 
 ### English
 
 - Repair Relationship V2: replay verified events at an explicit clock into familiarity, trust, warmth, tension, stability, and confidence; repair links at most one of the three most recent eligible verified negative events. Commit per-subject Artifacts with Source evidence and version history, and treat invalid legacy rows as neutral. Queue V1 history only when Sources are attributable and timezone-aware, without copying affinity. V2 observes without changing replies or tone; legacy `relationship_mode=enforce` is also observe-only, changing relationship gating for users who explicitly enabled it. Add a `relationship_events` table with no new public configuration keys or reset of existing records; back up and review data compatibility before reverting older code after V2 writes, without deleting V1/V2 history. Offline false-positive rates require a real model evaluation and are not reported otherwise. Weekly semantic verification works in AstrBot package mode, and relationship decay supports Python 3.10 (#163).
 - #163 review: Weekly verification selects up to 24 due candidates for the current verifier version. Model failures stay pending with durable one-minute-to-one-day backoff so the next candidate is not starved by the first 24 failures, even after restart. Confirmed missing evidence or malformed candidates abstain. Existing `relationship_events` tables receive compatible `retry_count` and `next_attempt_at` columns plus a due index; old rows are preserved and immediately eligible by default. Back up and disable relationship maintenance before reverting older code, which does not honor backoff.
+- #230: Bound the local memory loopback HTTP ingress to 4 MiB of encoded POST body (8 MiB for extraction commits), a 2-second total header deadline and a 5-second total body receive deadline. Invalid, missing, oversized and timed-out requests get content-free errors and close unread connections; bearer validation still precedes body handling. Legitimate requests above the limits are also rejected and must follow the host's existing failure path. Memory operations remain serialized, the separate runtime-verification server is unchanged, and there are no stored-format or public-configuration changes.
 
 - #226: Require a boolean for explicit `private` on loopback runtime context and legacy recall; reject malformed values with 400 before disclosure so the string `"false"` cannot be treated as private. Preserve each route's omitted-field default; no database, user configuration or disclosure-policy changes.
 
@@ -31,11 +42,17 @@
 
 - #222: Extract a transient HostRequest and HostGateway projection so AstrBot and the existing DSH Python HTTP entry share one RuntimeInput construction boundary. Preserve fields, wire protocol, runtime behavior and user configuration; no authentication, rate limiting or persistent idempotency is added.
 
+- #154: Add optional input admission and a default run policy. Reject replayed/stale input, require the original receipt to start the latest input once, and preserve acceptance retries after failures. Keep unread input and background due opportunities, with fallback on policy errors. Disabled by default; model/send checkpoints remain unconnected, with no data-format or public-configuration changes.
+
 - #215: Always show the bundled blue-haired chibi character on Home, independently of persona-pack artwork and without a missing-cover placeholder. Studio continues to show associated artwork; no data, API or public configuration changes.
 
 - #178: Add dedicated name/text/style/boundary editing and personal-pack create/edit/save-as/copy flows, with automatic lookup beyond catalog pages and version/content conflict checks. Compare settings before application and explain replacement/history; distinguish the applied baseline, growth and saved-pack updates. New applications add optional provenance/digests to the existing persona payload; legacy records remain unknown, without database-schema or pack-format migration. Studio uses the original pack's verified artwork or a neutral placeholder when missing/changed, without automatic image switching or growth merging.
 
 - #178 review fixes: Save manually edited grown text as a recallable authored baseline while retaining growth history, evidence and rollback without relaxing disclosure. Validate complete persona payloads by UTF-8 size so long Chinese settings remain editable. Preserve editable drafts after ordinary save errors and require reload only after observing changed pack content. Existing fields/authored semantics remain compatible without migration.
+
+- #165: Render extraction dialogue bodies as single-line JSON strings and escape control characters in headers so embedded newlines cannot forge separate message rows. Keep original Sources and evidence validation; semantic model injection remains possible. No changes to stored data, public configuration or replay rules.
+
+- #165: Keep replayed Source IDs out of the in-memory pending Buffer after extraction or deferral; replay leaves the idle clock and existing pending topic unchanged. Legacy file mode is unchanged; no stored-data, Source identity or public-configuration changes.
 
 - #154: add same-lane run-control contracts and a standalone in-memory RunControl. Replacing valid work requires explicit supersession; finished handles reject new actions, and cleanup preserves other controllers/replacement runs. Instance-wide monotonic epochs avoid retaining historical lane keys while started work keeps its actual outcome. Runtime/host integration is not enabled; existing behavior, data formats and public configuration are unchanged.
 

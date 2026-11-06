@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import datetime
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Iterable, Protocol
 from uuid import uuid4
 
@@ -57,6 +57,9 @@ class RecordedTurn:
     source_id: str
     turn_id: str
     topic_id: str = ""
+    # Whether record_user already returned this turn in this recorder lifetime.
+    # 本记录器生命期内 record_user 是否已返回过该轮回执。
+    replayed: bool = field(default=False, compare=False)
 
 
 @dataclass(frozen=True)
@@ -145,6 +148,8 @@ class RunRecorder:
         key = source_id
         existing = self._turns.get(key)
         if existing is not None:
+            if not existing.replayed:
+                self._turns[key] = replace(existing, replayed=True)
             return existing
 
         source = Source(
@@ -157,7 +162,11 @@ class RunRecorder:
             moment,
         )
         progress = self._pending_turns.setdefault(key, _SourceWriteback(source, deferred))
-        return self._finish_user(key, progress)
+        result = self._finish_user(key, progress)
+        # Mark only explicit receipt delivery, not background write-back completion.
+        # 仅标记显式回执交付，后台补写完成不等于输入已被接收。
+        self._turns[key] = replace(result, replayed=True)
+        return result
 
     def record_reply(
         self,

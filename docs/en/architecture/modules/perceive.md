@@ -8,6 +8,8 @@ perceive turns pending dialogue into evidence-checked, family-validated Artifact
 
 Buffer is an in-memory view of the Source-backed extraction queue. With a repository, admission persists an immutable Source and extraction_state together; queue state does not duplicate text. Legacy pending.json is kept only for migration and no-repository compatibility.
 
+In repository mode, admitting an already-known Source ID does not publish another in-memory pending row or reset the idle clock when no extraction_state row was inserted. An existing pending row keeps its original topic; replay cannot promote deferred work or revive extracted work. Legacy file-only behavior is unchanged, and different Source IDs are not assumed to represent the same host event.
+
 Topics are built within one session. A user and actual reply are paired through reply_to, and the assistant reply inherits the parent topic. If the parent Source has already been processed, it can be read as pairing context without being queued again. Without a reply relation, a gap over 90 minutes or character-bigram Dice similarity below 0.12 starts a new topic. Topic TTL is an extraction trigger, not a Source-retention deadline.
 
 ## Extraction pipeline
@@ -20,6 +22,8 @@ Topics are built within one session. A user and actual reply are paired through 
 6. ExtractionPlan returns ordinary Artifacts separately from ten relationship candidate types. Candidates require exact user Source evidence within one speaker/topic boundary and never become ordinary memories. IngestService queues them idempotently with Source time and subject in `relationship_events`. Weekly independent ChatModel verification decides verified/abstain; model failures stay pending, and quoted, third-party, and unsupported repair cases are evaluated as false-positive risks. Ordinary Artifacts still follow CAS commit, Cache, and edge linking.
 
 For a repair, verification offers at most three preceding verified negative events for the same subject, ordered by actual UTC instant (newest first). A model-selected event outside that evidence window is abstained, not linked by inference.
+
+Extraction trust boundary: the application supplies actual message metadata (role, ID, time and `reply_to`) from the host/Source to `dialogue_of()`; metadata fields also have control characters escaped in the model-facing projection. Raw bodies are always **untrusted data**, rendered as a one-line JSON string after each message header. Newlines in metadata or bodies, and forged roles/IDs and instructions inside a body, cannot create another message row. Extraction rules live in the system prompt; model output still passes JSON, evidence-ID, same-session/topic and behavior-pair checks before it can become an Artifact. Encoding does not guarantee immunity to semantic injection and does not change original Sources, memory formats or replay deduplication; recall owns its own content trust boundary.
 
 Subject normalization applies only to newly extracted candidates. An exact `user(id)` label with kind `owner`, `speaker`, `third_party`, or unspecified is unwrapped only when the candidate's own cited, same-session user Source verifies that speaker_id. Compatible facts without citations use only current input Sources, never unrelated context. Normalization precedes deduplication and construction so payload and header use the same subject. Unverified, nested and non-user labels, and self/world/relation semantics are not reassigned to the owner; source-less legacy input gains no verified identity. The prompt requests bare IDs.
 
