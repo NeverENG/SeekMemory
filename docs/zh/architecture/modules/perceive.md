@@ -21,6 +21,8 @@ Buffer 是 Source-backed extraction queue 的内存视图。启用仓储时，�
 5. 对多话题同会话批次，模型输出必须给每条结论提供当前批次、单一话题内的证据。行为记忆还必须由实际 assistant Source 和其 user parent 组成有效配对。
 6. ExtractionPlan 返回 Artifact 列表和跳过/错误信息。IngestService 使用 CAS commit、更新 Cache、修订重复 impression，并创建相似/时间关系。
 
+抽取信任边界：宿主/Source 的实际消息元数据（角色、编号、时间及 `reply_to`）由应用层传给 `dialogue_of()`，这些元数据字段在模型输入中也转义换行等控制字符；原始正文始终是**不可信数据**，以单行 JSON 字符串写在对应消息头之后。元数据或正文中的换行、正文伪造角色/编号与指令不能形成额外消息行。抽取规则位于 system prompt；模型输出仍须经 JSON、证据编号、同会话/同话题及行为配对校验，不能把模型输出直接视为事实。此编码不保证模型一定拒绝语义注入，也不改变原始 Source、记忆格式或重放去重策略；召回正文的信任边界由 recall 模块维护。
+
 主体规范化只作用于新抽取候选：对 `owner`、`speaker`、`third_party` 或未指定种类的精确 `user(id)` 标签，仅当候选自身引用的同会话用户 Source 的 speaker_id 确认为该 id 时，才去掉角色包装；省略引用的兼容事实只使用本次输入的 Source，不借用无关上下文。规范化在去重及构造前执行，payload 与 header 使用同一主体。未验证、嵌套、非用户标签和 self/world/relation 语义不改认 owner；无 Source 的旧输入不获得验证身份。提示词要求输出纯编号。
 
 兼容策略为**只修后续抽取，保留旧数据**：不迁移或重写既有 Artifact、Source、版本或账本，不改 schema、配置键、披露阈值或召回读取逻辑。旧包装主体可能仍被降级披露，修订或重抽取须另行决定。回滚后新记录的纯编号仍可读取，但后续抽取可能再次保存包装标签。
