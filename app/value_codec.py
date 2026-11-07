@@ -15,4 +15,3 @@ def json_object(raw: object) -> dict:
         except (TypeError, ValueError):
             return {}
     return value if isinstance(value, dict) else {}
-

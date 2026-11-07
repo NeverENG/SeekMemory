@@ -51,7 +51,7 @@ The dependency direction is enforced by code boundaries: core does not depend on
 - runtime_state is mutable scheduling state; runtime_episodes is append-only runtime audit metadata. Neither is a Source or Artifact.
 - The lifecycle Journal, capacity Trace, and Agent Run Trace serve different diagnostic needs. Run Trace is bounded and field-whitelisted; it is not the business ledger.
 - Memory and diagnostic persistence failures should not block ordinary chat. Incomplete input must not be silently marked as successfully extracted.
-- Relationship state is a versioned derived Artifact consolidated by Maintenance from exact Source-backed categorical observations. It never changes Source capture, Recall, disclosure, or authorization. The AstrBot adapter applies its content-free interaction gate after the existing Runtime decision; app/runtime remains relationship-free.
+- Relationship candidates are separate from ordinary memories. Only attributable, independently verified Source events enter weekly V2 multidimensional replay. The snapshot is a versioned derived Artifact with Source evidence; it does not change Source capture, Recall, disclosure, authorization, or reply tone. AstrBot no longer runs a relationship interaction gate; the independent Runtime gate remains configurable.
 
 ## Current implementation boundaries
 

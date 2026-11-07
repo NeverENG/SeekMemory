@@ -284,6 +284,37 @@ class ExtractionStore(Protocol):
         ...
 
 
+@runtime_checkable
+class RelationshipEventStore(Protocol):
+    """Persist evidence-backed relationship candidates and verification decisions."""
+
+    def record_pending(self, event: Any) -> None:
+        """Idempotently record a pending candidate without Source text."""
+        ...
+
+    def decide(self, event_id: str, verifier_version: str, status: str, repair_of: str = "") -> None:
+        """Finalize a verified or abstained candidate."""
+        ...
+
+    def pending(
+        self, limit: int, verifier_version: str | None = None, *, now: str = "",
+    ) -> tuple[Any, ...]:
+        """Read due unverified candidates, optionally for one verifier version."""
+        ...
+
+    def defer(self, event_id: str, verifier_version: str, *, now: str) -> None:
+        """Persist a future retry for a failed verification without deciding it."""
+        ...
+
+    def by_subject(self, subject_id: str, verifier_version: str) -> tuple[Any, ...]:
+        """Read decisions and pending rows for one subject."""
+        ...
+
+    def subjects(self, verifier_version: str) -> tuple[str, ...]:
+        """Read subjects with verified events for projection."""
+        ...
+
+
 # Console data sources / 控制台所需数据；no HTTP or UI types / 不含传输或界面类型。
 from .console_ports import (
     DreamRunStore, # get/begin/finish/recent: daily run lifecycle / 每日整理生命周期。
@@ -327,7 +358,7 @@ from .dream import (
 
 __all__ = [
     "ChatModel", "Retriever", "SourceStore", "ArtifactStore", "TreeArtifactStore", "TreeCache",
-    "ArtifactCache", "MetricsStore", "LedgerStore", "ExtractionStore", "DreamJournal", "PersonaPacks",
+    "ArtifactCache", "MetricsStore", "LedgerStore", "ExtractionStore", "RelationshipEventStore", "DreamJournal", "PersonaPacks",
     "ActionPort", "ActionSink", "Clock", "MemoryContextRecorder", "MemoryContextPort", "MessageSender", "ModelGateway",
     "ProactivePolicy", "SessionStateStore", "TraceSink", "TopicSource",
     "CheckpointSink", "EpisodeWriter", "PendingSink", "SourceSink", "EpisodeSink", "TraceWriter",

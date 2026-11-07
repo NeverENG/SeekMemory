@@ -18,8 +18,6 @@ class AdapterInterfaceContractTest(unittest.TestCase):
 
         expected = {
             "FilePersonaPacks": "persona_packs", "RelationshipReader": "relationship_policy",
-            "RelationshipInteractionPolicy": "relationship_policy", "settings_from_config": "relationship_policy",
-            "interaction_prompt": "relationship_policy",
         }
         self.assertEqual(set(domain.__all__), set(expected))
         for name, owner in expected.items():

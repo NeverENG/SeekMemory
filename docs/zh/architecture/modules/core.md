@@ -42,7 +42,7 @@ family 与 memory level 是两个不同维度：
 | media | type、title、url，可带 summary/shared_by |
 | secret | 带 ref 与 shadow_text 的受保护数据；召回管线排除该 family |
 | designated | 带 text、trigger 与 given 的指定交付内容 |
-| relationship | 按 subject 版本化保存 affinity、confidence、证据数、迟滞档位和无正文 policy snapshot；不进入 Recall |
+| relationship | 按 subject 版本化保存熟悉、信任、温度、张力、稳定性和置信度；V2 观察期不进入 Recall，也不决定回复 |
 
 family 校验器位于 core/families。make 只构造对象，不自动校验；生产调用方在提交前显式调用 validate。revise 保持 ID 与 family，增加 revision 并更新时间。
 
@@ -54,21 +54,21 @@ family 校验器位于 core/families。make 只构造对象，不自动校验；
 - **graph.py** 通过注入的仓储协议处理关系边，不自行写 SQL。causal 边保留显式接口，没有自动语义推断。
 - **capacity.py** 根据容量快照和可配置阈值，纯函数式地给出状态与调度动作；执行由 services 完成。
 - **trace.py** 清理运行追踪字段并投影运行时间线，限制可保存的数据种类。
-- **relationship.py / relationship_rules.py** 管理稳定关系 ID、快照、迟滞、十类 reason 证据规则、scope 权重、同轮上限和有界 revision plan。模型只分类观察，不能写 affinity、delta、band 或 policy version。
-- **interaction_policy.py** 纯函数地产生稳定回复概率、固定语气、亲昵称呼/follow-up/关心/玩笑权限和未来 proactive kind 权限。采样按不可变 Source ID 稳定；ID 缺失时 fail open。
+- **relationship.py / relationship_rules.py** 定义稳定关系 ID、十类候选和多维快照。只有同 subject、带时区且已复核的 Source 事件参与回放：私聊权重 1.0、群聊 0.5，轻/强事件系数 1/2，学习率 0.25。熟悉度按 180 天、置信度与稳定性按 90 天衰减；温度与信任分别按 45/180 天半衰期，经 `tanh` 限幅；张力在 24 小时冷却后按 14 天半衰，只有绑定更早已核验负向事件的修复才能减轻对应张力，上限 75%，不重复扣减。同 Source 不重复计分；模型只提议候选和语义判断，不写维度或分数。
+- V2 不产生单一“好感度总分”。观察期即使配置 `enforce` 也不按关系状态改变回复或语气；Runtime 自身的门控独立。
 
 ## 常量与策略参数归属
 
-常量随所属规则维护，不设全局常量文件。相同数值不一定表达相同含义，例如关系置信度门槛和亲近档位门槛分别维护。
+常量随所属规则维护；关系 V2 的证据权重、半衰期和冷却参数与记忆披露阈值相互独立。
 
 | 类别 | 唯一归属与使用方式 |
 |---|---|
-| 算法内部参数 | 遗忘的情绪系数、显著度范围及命中系数在 `strength.py`；披露的阈值与因子在 `disclosure.py`；关系进出档位阈值在 `relationship.py`；置信度平滑参数在 `relationship_rules.py`。具名参数放在文件顶部，新增内部名称不从 `core.domain` 导出，也不成为用户配置。 |
-| 已有可配置策略值 | `CapacityThresholds`、`RelationshipScoringPolicy`、`InteractionPolicySettings` 分别保留本领域的参数与默认值。互动固定规则表复用 `InteractionPolicySettings` 的默认概率；其他层的配置解析与默认值整理不属于 core 常量归属范围。 |
-| 数据约定 | 记忆类别、消息角色、操作名称及人格来源继续留在各自领域；关系档位及策略版本由 `relationship.py` 定义，family 校验器直接引用；追踪中的披露合法值由 `DisclosureLevel` 派生。持久化值和顺序不变。 |
+| 内部算法参数 | 情绪因子与显著性边界归 `strength.py`，披露阈值归 `disclosure.py`，关系 V2 的证据影响、衰减及冷却归 `relationship_rules.py`。新增私有名称不会自动由 `domain.py` 导出或暴露为配置。 |
+| 现有可配置策略值 | `CapacityThresholds` 与 `RelationshipScoringPolicy` 保留各自参数，关系配置由服务层规范化。V1 互动规则及关系回复门控已退役。 |
+| 数据契约 | family 名称、Source 角色、操作名及人格来源保留各自领域归属。`relationship.py` 持有 V2 快照及策略标识；family 校验仍接受历史 V1 payload，但不将 affinity 提升为 V2。追踪从 `DisclosureLevel` 导出允许的披露值。 |
 | 校验与诊断限制 | 人格文件长度限制留在 `persona.py`，自我印象信任要求留在 `bot_behavior.py`，追踪数量上限和白名单留在 `trace.py`。 |
 
-已有对外常量保留原导出。整理归属不改变数值、比较边界、运算顺序、配置读取时机或算法结果。
+无关的对外常量保持原导出。V2 移除 V1 档位和互动导出，不保留过时评分行为。
 
 ## 关键不变量
 
@@ -92,7 +92,7 @@ Source 是追加式事实；Artifact 是可修订解释。内容修订通过仓�
 | 图连接 | [test_link_integration.py](../../../../tests/test_link_integration.py) | 显式因果连接、度数及联想流程；集成文件保留 SQLite、缓存和建联流程；[test_graph_unit.py](../../../../tests/test_graph_unit.py) 通过小型存储端口替身验证图规则。 |
 | 容量决策 | [test_capacity_unit.py](../../../../tests/test_capacity_unit.py) | 压力状态、调度动作和配置覆盖；队列、存储及恢复位于 [test_capacity_integration.py](../../../../tests/test_capacity_integration.py)。 |
 | 人格与自我印象可信条件 | [test_persona.py](../../../../tests/test_persona.py)、[test_persona_bootstrap.py](../../../../tests/test_persona_bootstrap.py)、[test_self_impression.py](../../../../tests/test_self_impression.py) | 人格初始化、证据约束及维护后的可信结果；含跨模块流程，不代表真实模型会形成恰当人格。 |
-| 关系与互动规则 | [test_relationship_unit.py](../../../../tests/test_relationship_unit.py)、[test_relationship_runtime.py](../../../../tests/test_relationship_runtime.py)、[test_core_policy_contract.py](../../../../tests/test_core_policy_contract.py) | 证据评分、关系档位进出阈值、稳定采样和互动权限；抽取与维护另见 [test_relationship_integration.py](../../../../tests/test_relationship_integration.py)，运行时场景仍单独验证。 |
+| 关系 V2 回放与核验 | [test_relationship_unit.py](../../../../tests/test_relationship_unit.py)、[test_relationship_integration.py](../../../../tests/test_relationship_integration.py)、[test_relationship_verifier.py](../../../../tests/test_relationship_verifier.py)、[test_store.py](../../../../tests/test_store.py) | 显式时钟回放、候选分离、语义核验和带 Source 证据的版本持久化；样本不代表真实模型误报率或真实 AstrBot 宿主验证。 |
 | 运行追踪 | [test_core_policy_contract.py](../../../../tests/test_core_policy_contract.py)、[test_run_trace.py](../../../../tests/test_run_trace.py) | 披露词表、数量限制及追踪落盘后的正文排除与恢复；后者是追踪集成检查。 |
 
 在仓库根目录定向执行接口及常见领域规则检查：

@@ -123,8 +123,8 @@ def score_checkpoint(record: Mapping[str, Any], checkpoint: Checkpoint) -> Check
     band = record.get("band")
     boundary: float | None
     if band is None:
-        boundary = 0.0
-        notes.append("no_relationship_state")
+        boundary = None
+        notes.append("legacy_relationship_band_unavailable")
     else:
         boundary = 1.0 if band in checkpoint.relationship_bands else 0.0
         if boundary == 0.0:

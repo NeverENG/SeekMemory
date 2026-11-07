@@ -9,6 +9,7 @@ from .extraction import ExtractionRepository
 from .ledger import Ledger, LedgerRepository, chain_hash, chain_payload
 from .runtime_state import RuntimeStateRepository
 from .runtime_episodes import RuntimeEpisodeRepository
+from .relationship_events import RelationshipEventRepository
 from .dreams import DreamRepository
 from .metrics import StoreMetricsRepository
 from .cache import Cache
@@ -17,5 +18,6 @@ from .run_trace import TraceStore
 __all__ = [
     "Store", "open_store", "ArtifactRepository", "SourceRepository", "ExtractionRepository",
     "Ledger", "LedgerRepository", "chain_hash", "chain_payload", "RuntimeStateRepository",
-    "RuntimeEpisodeRepository", "DreamRepository", "StoreMetricsRepository", "Cache", "TraceStore",
+    "RuntimeEpisodeRepository", "DreamRepository", "StoreMetricsRepository", "RelationshipEventRepository",
+    "Cache", "TraceStore",
 ]

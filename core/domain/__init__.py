@@ -80,26 +80,14 @@ from .character.bot_behavior import (
     trusted_self_persona,     # Check seed/Dream/legacy persona provenance / 检查各类人格的可信条件。
 )
 from .social.relationship import (
-    RELATIONSHIP_POLICY_VERSION, HARD_GATE_CONFIDENCE,
-    RelationshipBand, RelationshipSnapshot,
-    relationship_id,       # Stable per-person identity / 生成人物关系的稳定编号。
-    summary_for,           # Fixed band description / 返回关系档位的固定描述。
-    band_for,              # Classify with hysteresis / 按带迟滞的规则划分关系档位。
-    snapshot_from_payload, # Validate and read a snapshot / 校验并读取关系快照。
+    RELATIONSHIP_POLICY_VERSION, RelationshipSnapshot,
+    relationship_id, snapshot_from_payload,
 )
 from .social.relationship_rules import (
     RelationshipSignal, RelationshipReason, RelationshipStrength,
-    ConversationScope, EvidenceRule, EVIDENCE_RULES, RelationshipObservation,
-    RelationshipScoringPolicy, ScoredRelationshipEvidence, RelationshipRevisionPlan,
-    score_observation,          # Score one categorical observation / 为一条分类观察计算分数。
-    plan_relationship_revision, # Return a bounded plan or None; no write / 返回有限修订计划或空，不保存。
-)
-from .social.interaction_policy import (
-    INTERACTION_POLICY_VERSION, LOW_REPLY_CHARS, DISLIKE_REPLY_CHARS,
-    CLOSE_PROACTIVE_KINDS, ReplyStyle, AffectionScope, InteractionRule,
-    InteractionContext, InteractionGate, InteractionPolicySettings,
-    stable_sample,      # Repeatable Source-based sampling / 按原始消息编号稳定采样。
-    decide_interaction, # Return permissions; does not send a reply / 返回互动权限，不发送消息。
+    ConversationScope, EvidenceRule, EVIDENCE_RULES,
+    RelationshipCandidate, VerifiedRelationshipEvent, VERIFIER_VERSION,
+    relationship_event_id, RelationshipScoringPolicy, project_relationship,
 )
 from .operations.trace import (
     EVENTS, FILTERS, STATUSES, ID_LIMIT,
@@ -135,16 +123,11 @@ __all__ = [
     "seed_evolution_matches", "SELF_SUBJECT", "MIN_EVIDENCE", "MIN_CONFIDENCE",
     "BEHAVIOR_TEXT", "BEHAVIORS", "confident", "compose_behaviors",
     "trusted_self_impression", "trusted_self_persona",
-    "RELATIONSHIP_POLICY_VERSION", "HARD_GATE_CONFIDENCE", "RelationshipBand",
-    "RelationshipSnapshot", "relationship_id", "summary_for", "band_for",
+    "RELATIONSHIP_POLICY_VERSION", "RelationshipSnapshot", "relationship_id",
     "snapshot_from_payload", "RelationshipSignal", "RelationshipReason",
     "RelationshipStrength", "ConversationScope", "EvidenceRule", "EVIDENCE_RULES",
-    "RelationshipObservation", "RelationshipScoringPolicy",
-    "ScoredRelationshipEvidence", "RelationshipRevisionPlan",
-    "score_observation", "plan_relationship_revision",
-    "INTERACTION_POLICY_VERSION", "LOW_REPLY_CHARS", "DISLIKE_REPLY_CHARS",
-    "CLOSE_PROACTIVE_KINDS", "ReplyStyle", "AffectionScope", "InteractionRule",
-    "InteractionContext", "InteractionGate", "InteractionPolicySettings",
-    "stable_sample", "decide_interaction", "EVENTS", "FILTERS", "STATUSES",
+    "RelationshipCandidate", "VerifiedRelationshipEvent", "VERIFIER_VERSION",
+    "relationship_event_id", "RelationshipScoringPolicy", "project_relationship",
+    "EVENTS", "FILTERS", "STATUSES",
     "ID_LIMIT", "ids", "count", "choice", "recall_data", "clean_event", "project_runs",
 ]

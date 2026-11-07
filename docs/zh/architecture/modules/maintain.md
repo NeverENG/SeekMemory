@@ -20,7 +20,9 @@ persona.py 只从已验证的 self impression 选择最多三个行为类别。�
 
 ## 关系状态巩固
 
-relationship.py 只消费原始 `relationship-v1` 观察，并先校验 confidence、不可变 Source 是否存在、user Source 是否属于 Artifact subject，以及证据是否只有一种 private/group/unknown scope。private 证据权重为 `1.0`，group/unknown 为 `0.5`。纯规则将 counted ID 与 reviewed ID 分开，按 reason 限制同轮重复，并把单次 affinity revision 限制在 `0.10`。Maintenance 通过 expected-revision CAS 提交稳定的按 subject Relationship Artifact，成功后才更新 Cache。`relationship_mode=off` 跳过巩固；默认的 `observe` 与显式 `enforce` 都会巩固并持久化派生状态。observe 模式可以计算候选交互档案，但拒绝回复仍必须同时满足 `relationship_mode=enforce` 和 `runtime_gate_enabled=true`。
+每周先将具有可归属、带时区 Source 的 V1 记忆版本排入 `relationship_events` 待复核队列（幂等、保留旧 Artifact），再对至多 24 个 pending 候选调用独立语义核验。失败保留 pending，只有 `verified` 事件参与投影。`relationship.py` 重验来源身份、会话、时区和 scope；无时区、无法归属或未知 scope 均不计分。按显式时钟重放并以 expected-revision CAS 提交稳定的按 subject V2 Artifact；版本级 Source 证据与源 V1 记忆 lineage 保留，提交成功后才更新 Cache。已停用的关系不会被重新激活；同输入和时钟不产生重复版本。`relationship_mode=off` 跳过此过程；`observe` 和旧配置值 `enforce` 当前只观察，不控制回复。
+
+每周核验仅从当前 verifier 版本中取至多 24 条已到期事件。模型或 provider 故障时保留 pending，并持久保存一分钟至一天的有上限指数退避；延后项在重启后也排在尚未尝试的合格候选之后。确认缺失的 Source 引用与字段错误候选转为 `abstain`，不无限重试；若退避写入失败则向上报告，不伪称可恢复。
 
 ## 未接入主流程的规则
 
@@ -28,7 +30,7 @@ reflect.py 能从相邻用户消息计算 wrong/right 信号，但仓库当前�
 
 ## 接口与计划归属
 
-`maintain/domain.py` 明确导出受支持的维护用例及不可变 `RevisionWrite`、`RevisionPlan` 数据。`maintain/ports.py` 复用既有记忆、原始消息及缓存协议。旧导入和返回值继续可用。一个 `RevisionPlan` 对应一组事务，不同计划或关系主体之间不是整体原子操作。资源构造及关闭属于组装方。
+`maintain/domain.py` 明确导出受支持的维护用例及不可变 `RevisionWrite`、`RevisionPlan` 数据。`maintain/ports.py` 复用既有记忆、原始消息及缓存协议。其他维护接口和返回值继续可用；已退役的 V1 关系辅助函数不再提供。一个 `RevisionPlan` 对应一组事务，不同计划或关系主体之间不是整体原子操作。资源构造及关闭属于组装方。
 
 | 文件 | 职责及副作用 | 逻辑复杂度和耦合 |
 |---|---|---|
@@ -38,13 +40,11 @@ reflect.py 能从相邻用户消息计算 wrong/right 信号，但仓库当前�
 | `impression.py`、`impression_policy.py` | 读取对手，匹配并准备新旧版本，一个原子合并 | 中：保留主体、范围和证据条件 |
 | `self_impression.py`、`self_impression_policy.py` | 读取原始配对证据及引用事件，对观察分组并准备版本，提交后更新缓存 | 高：精确不可变配对及独立计数归属 |
 | `persona.py`、`persona_policy.py` | 读取已验证自身候选，在一个版本组中准备保留设定的人格并停用重复人格 | 中：不将用户私密措辞晋升为全局人格 |
-| `relationship.py` | 编排按主体的内核计划、校验、预期版本提交和缓存 | 中：主体事务彼此独立 |
-| `relationship_evidence.py` | 读取精确原始证据及当前状态 | 中：只读，拒绝无效身份、范围或置信度 |
-| `relationship_policy.py` | 准备替换内容及来源，并分类给定证据值 | 低至中：无读写，评分规则属于内核 |
+| `relationship.py` | 将可归属的 V1 版本排入独立复核队列；按 Source 回放已核验事件，以 CAS 和缓存补偿提交各主体的 V2 修订 | 中：主体事务彼此独立，不伪造证据 |
 | `link.py` | 可选有限图增强及旧预期版本持久化 | 中：可选连接与记忆事务分开 |
 | `reflect.py`、`promote.py` | 无生产调用方的纯反思信号及已验证自身候选兼容入口 | 低至中：如实说明接线情况 |
 
-不同匹配规则有意分开：印象 Dice、合并及反思 Jaccard、图建联 Dice 不能互换。印象匹配使用 app 的共享字母数字规则，不再导入召回实现帮助函数。此批不改变公式、时间转换、设定内容、提示词或持久化格式。接口及导入契约、既有证据、人格、身份、关系和失败场景验证移动后的阶段。
+不同匹配规则有意分开：印象 Dice、合并及反思 Jaccard、图建联 Dice 不能互换。印象匹配使用 app 的共享字母数字规则；关系 V2 独立进行带时钟的已核验事件投影。本次集成不改变其他记忆匹配或设定规则。
 
 ## 已准备写入的恢复
 

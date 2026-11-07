@@ -72,11 +72,7 @@ from .runtime import AstrBotRuntimeAdapter
 from .time import AstrBotBuffer, AstrBotRunRecorder, AstrBotSourceView
 from .topics import AstrBotTopicSource
 from ..persona_packs import FilePersonaPacks
-from ..relationship_policy import (
-    RelationshipInteractionPolicy,
-    RelationshipReader,
-    settings_from_config,
-)
+from ..relationship_policy import RelationshipReader
 
 class AstrBotPlugin(star.Star):
     """Own resource composition and lifecycle; handlers use explicit host bindings / 管理资源组装及生命周期，处理函数使用明确宿主依赖。"""
@@ -108,7 +104,7 @@ class AstrBotPlugin(star.Star):
         self.tool_policy: ToolPolicy | None = None
         self.jobs: Jobs | None = None
         self.capacity: CapacityGovernor | None = None
-        self.relationship_policy: RelationshipInteractionPolicy | None = None
+        self.relationship_reader: RelationshipReader | None = None
         self._last_runtime_prune_at = 0.0
         self._self_id = ""
         self._started = False
@@ -144,7 +140,7 @@ class AstrBotPlugin(star.Star):
         self.buffer = None
         self.checkpoint = None
         self.dream = None
-        self.relationship_policy = None
+        self.relationship_reader = None
         self.data_path = (
             Path(str(self._c("db_path", ""))).expanduser()
             if self._c("db_path", "")
@@ -236,15 +232,7 @@ class AstrBotPlugin(star.Star):
             action_executor=self.action_executor,
             recorder=recorder,
         )
-        self.relationship_policy = RelationshipInteractionPolicy(
-            RelationshipReader(self.cache),
-            settings_from_config(
-                self._c,
-                lambda key: logger.warning(
-                    f"[seekmemory] normalized relationship config: {key}"
-                ),
-            ),
-        )
+        self.relationship_reader = RelationshipReader(self.cache)
         if self.store is not None:
             try:
                 self.store.runtime_episodes.prune(
@@ -268,6 +256,8 @@ class AstrBotPlugin(star.Star):
             logger=logger,
             config=self._c,
             persona_model=self._persona_model,
+            relationship_events=self.store.relationship_events if self.store is not None else None,
+            provider_for=self.context.get_using_provider_async,
         )
         scheduler = Scheduler(runtime.store)
         capacity = CapacityService(
@@ -285,16 +275,16 @@ class AstrBotPlugin(star.Star):
             cache_repairs=self.cache_repairs,
             buffer=self.buffer,
             artifacts=self.store.artifacts if self.store is not None else None,
-            sources=AstrBotSourceView(self.store.sources) if self.store is not None else None,
+            sources=self.store.sources if self.store is not None else None,
             extraction=self.store.extraction if self.store is not None else None,
             cache=self.cache,
             graph=self.graph,
             journal=self.journal,
             config=self._c,
             provider_for=self.context.get_using_provider_async,
-            owner_id=lambda: (
-                self.owner_umo.split(":")[-1] if self.owner_umo else ""
-            ),
+            owner_id=self._owner_id,
+            relationship_sources=self.store.sources if self.store is not None else None,
+            relationship_events=self.store.relationship_events if self.store is not None else None,
             logger=logger,
         )
         status = StatusService(
@@ -356,6 +346,14 @@ class AstrBotPlugin(star.Star):
         self.web = WebRoutes(self)
         self.web.register()
         self._started = True
+
+    def _owner_id(self) -> str:
+        """Use the attention adapter's configured owner identity / 复用注意力适配器的所有者身份。"""
+        return self.attention._owner_id()
+
+    def _address_names(self) -> tuple[str, ...]:
+        """Use the attention adapter's configured names / 复用注意力适配器的称呼配置。"""
+        return self.attention._address_names()
 
     def _c(self, key: str, default):
         """Read an optional host override; SeekMemory owns the defaults."""
@@ -515,7 +513,7 @@ class AstrBotPlugin(star.Star):
             "services", "store", "cache", "tree", "graph", "hybrid_retriever",
             "buffer", "checkpoint", "cache_repairs", "dream", "jobs", "web", "actions",
             "episode_recorder", "action_ledger", "action_executor",
-            "tool_policy", "capacity", "run_traces", "run_tracer", "trace",
+            "tool_policy", "capacity", "relationship_reader", "run_traces", "run_tracer", "trace",
         ):
             setattr(self, name, None)
         self.hooks.reset()

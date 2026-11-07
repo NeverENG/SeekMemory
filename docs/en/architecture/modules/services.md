@@ -12,7 +12,7 @@ services combines domain objects, app ports, and perceive, recall, and maintain 
 | RecallService | Applies budget and degradation inputs, calls the single recall pipeline, and offers a preview that does not write delivery state |
 | IngestService | Selects pending topics, resolves providers, calls the model, builds Artifacts, and owns production writes, retries, and usage totals |
 | CapacityService | Reads a capacity snapshot, evaluates CapacityGovernor, and applies backpressure, deferred release, batch/recall reduction, or maintenance actions |
-| MaintenanceService | Runs self-impression aggregation, decay, merge, and persona consolidation/synthesis in order |
+| MaintenanceService | Queues attributable V1 observations, independently verifies pending relationship candidates, replays verified V2 events, then runs self-impression aggregation, decay, merge and persona consolidation/synthesis with recoverable writes |
 | ManagementService | Queries catalog, detail, versions, and evidence; validates admin edits and rollback; reuses RecallService for diagnostics |
 | trace_query | Validates run ID, status and time filters over the existing allowlisted snapshot; shared by both management entries without business-table access |
 | StatusService | Supplies persona timeline and ledger-chain health to management UI |

@@ -4,7 +4,7 @@ import json
 import unittest
 from pathlib import Path
 
-from app.config import (ALIASES, CONFIG_VERSION, CONFLICTS, DEPENDENCIES,
+from app.config import (ALIASES, CONFIG_VERSION, CONFLICTS,
                         PROFILES, AttentionSettings,
                         DEFAULTS, FIELDS, GROUPS, POLICIES, inspect_overrides,
                         ProactiveSettings, RuntimeSettings, Settings)
@@ -72,8 +72,6 @@ class ConfigDefaultsTest(unittest.TestCase):
         self.assertEqual(set(POLICIES), set(GROUPS))
         self.assertIn("runtime_gate_enabled", POLICIES["runtime"].advanced_overrides)
         self.assertEqual(CONFLICTS, ())
-        self.assertEqual({d.trigger for d in DEPENDENCIES},
-                         {"proactive_enabled", "relationship_mode"})
         self.assertEqual(FIELDS["weekly_day"].maximum, 6)
         self.assertEqual(FIELDS["relationship_mode"].choices, ("off", "observe", "enforce"))
         self.assertTrue(FIELDS["db_path"].restart_required)
@@ -100,7 +98,6 @@ class ConfigDefaultsTest(unittest.TestCase):
         warnings = inspect_overrides(overrides)
         self.assertEqual(overrides, before)
         self.assertEqual({(w.code, w.key) for w in warnings}, {
-            ("requires_runtime_gate", "relationship_mode"),
             ("requires_runtime_gate", "proactive_enabled"),
             ("inactive_override", "runtime_wait_seconds"),
             ("out_of_range", "runtime_wait_seconds"),
@@ -116,8 +113,7 @@ class ConfigDefaultsTest(unittest.TestCase):
         self.assertEqual(inspect_overrides({"recall_k": 10 ** 1000}), ())
         self.assertEqual(inspect_overrides({"config_profile": "quiet"})[0].code,
                          "profile_not_applied")
-        self.assertEqual(inspect_overrides({"runtime_gate_enabled": True,
-                                            "relationship_mode": "enforce"}), ())
+        self.assertEqual(inspect_overrides({"relationship_mode": "enforce"}), ())
 
     def test_host_schema_projects_shared_defaults(self):
         schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
@@ -149,38 +145,6 @@ class ConfigReadAuditTest(unittest.TestCase):
                     any(name.split(".")[0] in {"astrbot", "yaml"} for name in imports),
                     str(path),
                 )
-
-    def test_helper_forwarded_keys_are_in_contract(self):
-        """Cover literals passed to known wrappers around computed key reads."""
-        import ast
-
-        root = SCHEMA.parent
-        wrappers = {
-            "app/budget.py": {"_num", "_bool"},
-            "recall/pipeline.py": {"_conf_bool"},
-            "adapters/relationship_policy.py": {"probability"},
-            "services/maintenance_service.py": {"_relationship_weight"},
-        }
-        observed: set[str] = set()
-        for name, methods in wrappers.items():
-            tree = ast.parse((root / name).read_text(encoding="utf-8"))
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Call) or not node.args:
-                    continue
-                method = node.func.attr if isinstance(node.func, ast.Attribute) else (
-                    node.func.id if isinstance(node.func, ast.Name) else "")
-                if method in methods and isinstance(node.args[0], ast.Constant):
-                    key = node.args[0].value
-                    if isinstance(key, str):
-                        observed.add(key)
-        self.assertEqual(observed, {
-            "budget_chars", "context_system_chars", "group_context_messages",
-            "history_messages", "source_recall_enabled", "source_recall_hours",
-            "source_recall_max_candidates", "relationship_private_weight",
-            "relationship_group_weight", "relationship_low_private_reply_probability",
-            "relationship_dislike_private_reply_probability",
-        })
-        self.assertTrue(observed <= set(FIELDS))
 
     def test_literal_policy_reads_are_registered_and_have_consistent_fallbacks(self):
         """Audit static keys without claiming to cover computed policy keys."""

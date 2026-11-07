@@ -58,7 +58,6 @@ class HookHost(Protocol):
     run_tracer: RunTracer | None
     tool_policy: ToolPolicy | None
     action_executor: ActionExecutor | None
-    relationship_policy: Any
     clock: Callable[[], float]
     owner_umo: str
     _last_runtime_prune_at: float

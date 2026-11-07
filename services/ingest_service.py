@@ -24,6 +24,7 @@ try:
         select_topic_batches,
     )
     from .ports import ArtifactCache, ArtifactStore, ExtractionStore, SourceStore, PendingBuffer, ServiceJournal, ServiceLogger, ProviderFactory, ChatModel, LegacyTextModel
+    from ..app.ports import RelationshipEventStore
     from ..core.domain.memory.graph import Graph
     from ..core.domain.memory.artifact import content_of, revise
     from ..core.domain.operations.capacity import PROTECTIVE, SATURATED
@@ -31,6 +32,7 @@ try:
     from ..maintain.writer import MaintenanceWriter
     from ..maintain.link import link_new
     from ..perceive.absorb import ExtractionPlan, build_plan, dialogue_of, recover_parents, worth_now
+    from ..core.domain.social.relationship_rules import VERIFIER_VERSION, relationship_event_id
     from ..perceive.extract import build_prompt
     from ..perceive.importance import (
         MIN_IMPORTANCE_SCORE,
@@ -49,6 +51,7 @@ except ImportError:
         select_topic_batches,
     )
     from services.ports import ArtifactCache, ArtifactStore, ExtractionStore, SourceStore, PendingBuffer, ServiceJournal, ServiceLogger, ProviderFactory, ChatModel, LegacyTextModel
+    from app.ports import RelationshipEventStore
     from core.domain.memory.graph import Graph
     from core.domain.memory.artifact import content_of, revise
     from core.domain.operations.capacity import PROTECTIVE, SATURATED
@@ -56,6 +59,7 @@ except ImportError:
     from maintain.writer import MaintenanceWriter
     from maintain.link import link_new
     from perceive.absorb import ExtractionPlan, build_plan, dialogue_of, recover_parents, worth_now
+    from core.domain.social.relationship_rules import VERIFIER_VERSION, relationship_event_id
     from perceive.extract import build_prompt
     from perceive.importance import (
         MIN_IMPORTANCE_SCORE,
@@ -94,6 +98,8 @@ class IngestService:
         provider_for: ProviderFactory,
         owner_id: Callable[[], str],
         logger: ServiceLogger,
+        relationship_sources: SourceStore | None = None,
+        relationship_events: RelationshipEventStore | None = None,
         cache_repairs: CacheRepairs | None = None,
     ) -> None:
         self.buffer = buffer
@@ -107,6 +113,8 @@ class IngestService:
         self.provider_for = provider_for
         self.owner_id = owner_id
         self.logger = logger
+        self.relationship_sources = relationship_sources or sources
+        self.relationship_events = relationship_events
         self.flushing = False
         self.flush_day = ""
         self.flush_count = 0
@@ -548,6 +556,13 @@ class IngestService:
                     errors.append(f"impression: {type(exc).__name__}")
         complete = len(receipt.cached) == len(plan.artifacts)
         retryable = plan.retryable or not complete
+        if plan.relationship_candidates:
+            try:
+                self._record_relationship_candidates(plan.relationship_candidates)
+            except Exception as exc:
+                errors.append(f"relationship: {type(exc).__name__}")
+                complete = False
+                retryable = True
         if complete and receipt.confirm_queue and not plan.retryable:
             try:
                 self.buffer.mark_succeeded(list(receipt.rows))
@@ -655,6 +670,27 @@ class IngestService:
             for receipt in self._prepared.values()
         )
 
+    def _record_relationship_candidates(self, candidates) -> None:
+        if not candidates or self.relationship_events is None or self.relationship_sources is None:
+            return
+        loaded = self.relationship_sources.sources_by_ids([candidate.primary_source_id for candidate in candidates])
+        for candidate in candidates:
+            source = loaded.get(candidate.primary_source_id)
+            try:
+                stamp = datetime.datetime.fromisoformat(source.at) if source is not None else None
+            except (AttributeError, ValueError):
+                stamp = None
+            if source is None or source.speaker_id != candidate.subject_id or stamp is None or stamp.tzinfo is None:
+                raise ValueError("relationship source is not attributable")
+            self.relationship_events.record_pending({
+                "event_id": relationship_event_id(candidate), "verifier_version": VERIFIER_VERSION,
+                "subject_id": candidate.subject_id, "reason": candidate.reason.value,
+                "strength": candidate.strength.value, "scope": candidate.scope.value,
+                "event_at": source.at, "primary_source_id": candidate.primary_source_id,
+                "source_ids": candidate.source_ids, "origin_artifact_id": candidate.origin_artifact_id,
+                "origin_revision": candidate.origin_revision,
+            })
+
     def retry_writebacks(self) -> int:
         """Resume prepared writes without model calls; return completed operations.
 
@@ -677,7 +713,6 @@ class IngestService:
         finally:
             self._retrying = False
         return completed
-
     def _supersede(self, new_art) -> int:
         """Expire matching superseded memories without deleting immutable Source / 终止匹配的旧记忆有效期，不删除不可变原始消息。"""
         payload = new_art.payload if isinstance(new_art.payload, dict) else {}

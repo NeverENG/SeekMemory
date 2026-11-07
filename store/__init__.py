@@ -6,14 +6,14 @@ try:
     from .domain import (
         Store, open_store, ArtifactRepository, SourceRepository, ExtractionRepository,
         LedgerRepository, RuntimeStateRepository, RuntimeEpisodeRepository, DreamRepository,
-        StoreMetricsRepository,
+        StoreMetricsRepository, RelationshipEventRepository,
     )
     from .sqlite import SqliteDatabase
 except ImportError:  # Existing standalone mode / 保留已有的独立导入方式。
     from composition import (
         Store, open_store, ArtifactRepository, SourceRepository, ExtractionRepository,
         LedgerRepository, RuntimeStateRepository, RuntimeEpisodeRepository, DreamRepository,
-        StoreMetricsRepository, SqliteDatabase,
+        StoreMetricsRepository, RelationshipEventRepository, SqliteDatabase,
     )
 
-__all__ = ["Store", "open_store"]
+__all__ = ["Store", "open_store", "RelationshipEventRepository"]

@@ -20,7 +20,6 @@ try:
     )
     from ...app.runtime.recorder import RecordedReply
     from ...core.domain.memory.source import make_source_id
-    from ...core.domain.social.interaction_policy import InteractionGate
     from ...app.runtime.tools import ToolPolicy, trace_tool_call
 except ImportError:
     from adapters.host_gateway import HostGateway
@@ -32,7 +31,6 @@ except ImportError:
     )
     from app.runtime.recorder import RecordedReply
     from core.domain.memory.source import make_source_id
-    from core.domain.social.interaction_policy import InteractionGate
     from app.runtime.tools import ToolPolicy, trace_tool_call
 
 
@@ -152,12 +150,6 @@ class AstrBotRuntimeAdapter:
         return str(cls.get_extra(event, "_seekmemory_runtime_reason", "") or "")
 
     @classmethod
-    def interaction_gate(cls, event) -> InteractionGate:
-        """Read the bound generic interaction gate / 读取已绑定通用交互条件。"""
-        value = cls.get_extra(event, "_seekmemory_interaction_gate", None)
-        return value if isinstance(value, InteractionGate) else InteractionGate()
-
-    @classmethod
     def bind_user(cls, event, receipt: UserRunReceipt) -> None:
         """Bind a saved user receipt and decision to this host event / 将已保存用户回执及决策绑定到宿主事件。"""
         cls.set_extra(event, "_seekmemory_turn_id", receipt.turn_id)
@@ -204,30 +196,18 @@ class AstrBotRuntimeAdapter:
         cls.set_extra(event, "_seekmemory_runtime_reason", decision.reason)
 
     @classmethod
-    def bind_interaction(cls, event, gate: InteractionGate) -> None:
-        """Bind a generic interaction gate without private snapshot content / 绑定通用交互条件，不包含私密快照内容。"""
-        cls.set_extra(event, "_seekmemory_interaction_gate", gate)
-        if gate.enforced and not gate.allow_reply:
-            cls.set_extra(event, "_seekmemory_runtime_reason", gate.reason)
-
-    @classmethod
     def apply_llm_gate(cls, event, decision: RunDecision, enabled: bool) -> None:
         """Map reply permission to AstrBot's prohibition flag only when enabled / 仅启用时将回复许可映射为 AstrBot 的禁止标记。"""
         if not enabled:
             return
-        gate = cls.interaction_gate(event)
-        if gate.enforced and not gate.allow_reply:
-            try:
-                event.should_call_llm(True)
-            except Exception:  # noqa: BLE001 - Optional host gate / 可选宿主条件。
-                pass
-            return
+
         try:
             event.should_call_llm(
                 not (decision.must_reply or decision.action is WakeAction.REPLY)
             )
         except Exception:  # noqa: BLE001 - Optional host gate / 可选宿主条件。
             return
+
 
     @classmethod
     def observe_tool(cls, event, tool, tool_args, policy: ToolPolicy):

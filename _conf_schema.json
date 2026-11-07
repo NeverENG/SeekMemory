@@ -218,7 +218,7 @@
     "default": 5000
   },
   "relationship_mode": {
-    "description": "Relationship policy mode: off, observe, or enforce.",
+    "description": "Relationship V2: off skips maintenance; observe and legacy enforce both record snapshots without changing replies or tone.",
     "type": "string",
     "default": "observe"
   },
@@ -228,17 +228,17 @@
     "default": 1.0
   },
   "relationship_group_weight": {
-    "description": "Weight applied to group and unknown-scope relationship evidence.",
+    "description": "Weight applied to group relationship evidence; unknown-scope events remain neutral.",
     "type": "float",
     "default": 0.5
   },
   "relationship_low_private_reply_probability": {
-    "description": "Deterministic reply probability for ordinary private statements in the low band.",
+    "description": "Legacy V1 private reply probability; retained for config compatibility but unused during V2 observation.",
     "type": "float",
     "default": 0.8
   },
   "relationship_dislike_private_reply_probability": {
-    "description": "Deterministic reply probability for ordinary private statements in the dislike band.",
+    "description": "Legacy V1 private reply probability; retained for config compatibility but unused during V2 observation.",
     "type": "float",
     "default": 0.5
   },

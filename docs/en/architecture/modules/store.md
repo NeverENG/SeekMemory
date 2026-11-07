@@ -16,6 +16,7 @@ store is the only SQL boundary. [store/composition.py](../../../../store/composi
 | RuntimeEpisodeRepository | append-only runtime outcome and content-free action metadata, with shared retention cleanup |
 | DreamRepository | daily Dream status and summary |
 | StoreMetricsRepository | read-only capacity counters |
+| RelationshipEventRepository | content-free candidates, decisions, verifier version, and Source IDs in `relationship_events` |
 | TraceStore | separate bounded JSONL Agent Run Trace, outside the Artifact version chain |
 
 SqliteDatabase owns schema creation and migrations; repositories share its connection and do not open separate database files. Opening the database applies the schema and compatibility migrations.
@@ -25,6 +26,8 @@ SqliteDatabase owns schema creation and migrations; repositories share its conne
 - Artifact commit checks expected_revision and the next revision, then writes the blob, node head, version snapshot, revision-scoped evidence, state events, and ledger entry in one transaction. commit_many wraps a group of writes in one transaction; any failed write rolls back the group.
 - Extraction admission writes the Source blob/row and queue state in the same transaction. Queue text is reconstructed by joining Sources; success and failure change queue state but never delete the original message.
 - Source IDs use idempotent inserts, so retries do not create a second original-message row.
+- Relationship candidates enter an idempotent queue keyed by event ID and verifier version. A pending event can become verified or abstained; only verified events can produce relationship Artifact revisions. Historical Sources and V1 versions are never overwritten.
+- Model/provider failures retain pending rows with `retry_count` and UTC `next_attempt_at`; due selection is bounded and orders fresh candidates against deferred retries by actual time. Existing `relationship_events` tables gain both columns with defaults (0, empty) and a due index on open, without rewriting Source or V1 history. After V2 writes, back up before reverting to older code and set `relationship_mode=off`; older code does not honor the new retry schedule.
 - Runtime action rows extend `runtime_episodes` with nullable action identity and status metadata. Existing episode rows keep their values; migration adds defaults and preserves the one-normal-episode-per-run index while allowing action rows to share a run ID. A partial unique index permits at most one terminal outcome per action, and a trigger ignores attempts arriving after that terminal. Action rows use the existing episode pruning limits.
 - `runtime_state` continues storing `SessionState` as a JSON payload; the follow-up window is stored per speaker in `followup_by_speaker`, and legacy quota fields are no longer interpreted as runtime state.
 

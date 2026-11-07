@@ -20,7 +20,9 @@ persona.py selects at most three behavior categories from trusted self-impressio
 
 ## Relationship consolidation
 
-relationship.py consumes original `relationship-v1` observations only after validating confidence, immutable Source existence, user-Source ownership, and one private/group/unknown scope. Private evidence weight is `1.0`; group and unknown are `0.5`. The pure rulebook separates counted IDs from reviewed IDs, caps repeated reasons per cycle, and limits one affinity revision to `0.10`. Maintenance commits the stable per-subject Relationship Artifact through expected-revision CAS, then updates Cache. `relationship_mode=off` skips consolidation; the default `observe` mode and explicit `enforce` both consolidate and persist the derived state. Observe mode may compute a candidate interaction profile, but reply denial still requires `relationship_mode=enforce` together with `runtime_gate_enabled=true`.
+Weekly maintenance first queues V1 memory versions with attributable, timezone-aware Sources as idempotent pending events while retaining old Artifacts, then independently verifies up to 24 pending candidates. Model failures leave them pending; only verified events enter replay. `relationship.py` rechecks source identity, session, timezone, and scope; unzoned, unattributable, and unknown-scope rows do not score. An explicit clock projects each subject into a stable V2 Artifact committed with expected-revision CAS, revision-scoped Source evidence, and V1 memory provenance. Cache updates only after commit; deactivated relationships stay inactive and identical inputs/clocks do not create duplicate versions. `relationship_mode=off` skips this path; `observe` and the legacy config value `enforce` currently observe only.
+
+Weekly verification selects at most 24 due events for the current verifier version. A model/provider failure keeps the candidate pending and persists a bounded exponential retry time (one minute to one day); deferred entries move behind eligible untouched work even across restarts. Confirmed missing Source references and malformed candidate fields abstain rather than retry indefinitely. A failure to persist the retry is surfaced instead of claiming recovery.
 
 ## Rules not connected to the production flow
 
@@ -28,7 +30,7 @@ reflect.py can compute wrong/right signals from adjacent user messages, but the 
 
 ## Interfaces and plan ownership
 
-`maintain/domain.py` explicitly exports supported maintenance use cases and immutable `RevisionWrite` / `RevisionPlan` data. `maintain/ports.py` reuses existing Artifact/Source/cache protocols. Old imports and return values remain available. A `RevisionPlan` names one group transaction; distinct plans or relationship subjects are not collectively atomic. Resource construction/shutdown belongs to composition.
+`maintain/domain.py` explicitly exports supported maintenance use cases and immutable `RevisionWrite` / `RevisionPlan` data. `maintain/ports.py` reuses existing Artifact/Source/cache protocols. Unrelated maintenance imports and return values remain available; retired V1 relationship helpers are removed. A `RevisionPlan` names one group transaction; distinct plans or relationship subjects are not collectively atomic. Resource construction/shutdown belongs to composition.
 
 | Files | Responsibility and effects | Logical complexity and coupling |
 |---|---|---|
@@ -38,13 +40,11 @@ reflect.py can compute wrong/right signals from adjacent user messages, but the 
 | `impression.py`, `impression_policy.py` | Read rivals, match and prepare old/new revisions; one atomic merge | Medium: subject/scope and evidence guards retained |
 | `self_impression.py`, `self_impression_policy.py` | Read original paired evidence and referenced episodes; group observations and prepare revisions; commit then cache | High: exact immutable pairing and independent count ownership |
 | `persona.py`, `persona_policy.py` | Read verified self-candidates, prepare seed-preserving persona and retire duplicates in one group | Medium: no user-private wording promoted to global persona |
-| `relationship.py` | Orchestrate per-subject core plan, validation, CAS commit and cache | Medium: independent subject transactions |
-| `relationship_evidence.py` | Read exact Source evidence and current state | Medium: reads only, rejects invalid identity/scope/confidence |
-| `relationship_policy.py` | Prepare replacement payload/lineage and classify supplied evidence values | Low/medium: no I/O; core owns scoring policy |
+| `relationship.py` | Queue attributable V1 versions for independent verification; replay verified Source events into per-subject V2 revisions through CAS and cache repair | Medium: independent subject transactions and no fabricated evidence |
 | `link.py` | Optional bounded graph enhancement and legacy CAS persistence | Medium: optional edges separate from memory transactions |
 | `reflect.py`, `promote.py` | Pure reflection signals (no production caller) and verified self-candidate compatibility entry | Low/medium: documented actual wiring |
 
-The matching variants deliberately remain separate: impression Dice, merge/reflect Jaccard and graph-link Dice are not interchangeable. Impression matching uses the shared alphanumeric rule in app; it no longer imports recall implementation helpers. No formulas, time conversion, seed contents, prompts or persisted formats change in this pass. Interface/import contracts and existing evidence, persona, identity, relationship and failure scenarios verify the moved stages.
+The matching variants deliberately remain separate: impression Dice, merge/reflect Jaccard and graph-link Dice are not interchangeable. Impression matching uses the shared alphanumeric rule in app; relationship V2 uses its own verified, time-aware projection. Existing non-relationship matching and seed rules are unchanged by this integration.
 
 ## Prepared-write recovery
 

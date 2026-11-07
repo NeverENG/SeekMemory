@@ -60,6 +60,7 @@ class FullRunTest(unittest.TestCase):
             for run in results:
                 self.assertEqual([item["day"] for item in run["checkpoints"]], list(HORIZONS))
                 self.assertTrue(run["checkpoints"])
+                self.assertIsNone(run["dimensions"]["relationship_boundary"])
 
     def test_seekmemory_beats_floor_baseline_on_continuity(self) -> None:
         with long_horizon_run() as report:
@@ -71,10 +72,6 @@ class FullRunTest(unittest.TestCase):
             self.assertGreater(
                 dashboard["seekmemory"]["dimensions"]["role_action_coherence"],
                 dashboard["no-memory"]["dimensions"]["role_action_coherence"],
-            )
-            self.assertGreater(
-                dashboard["seekmemory"]["dimensions"]["relationship_boundary"],
-                dashboard["seekmemory-nomaint"]["dimensions"]["relationship_boundary"],
             )
 
     def test_persona_revision_and_rollback_are_exercised(self) -> None:

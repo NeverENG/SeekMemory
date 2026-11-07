@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import datetime
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 
 try:
     from ..app.persona_synthesis import (
@@ -15,6 +15,7 @@ try:
         parse_persona_draft,
     )
     from .ports import ArtifactCache, ArtifactStore, SourceStore, PersonaModelFactory, ServiceJournal, ServiceLogger
+    from ..app.ports import RelationshipEventStore
     from ..core.domain.character.bot_behavior import SELF_SUBJECT
     from ..core.domain.character.persona import PERSONA_SYNTHESIS_VERSION
 except ImportError:  # Standalone root / 独立测试以仓库为导入根。
@@ -24,6 +25,7 @@ except ImportError:  # Standalone root / 独立测试以仓库为导入根。
         parse_persona_draft,
     )
     from services.ports import ArtifactCache, ArtifactStore, SourceStore, PersonaModelFactory, ServiceJournal, ServiceLogger
+    from app.ports import RelationshipEventStore
     from core.domain.character.bot_behavior import SELF_SUBJECT
     from core.domain.character.persona import PERSONA_SYNTHESIS_VERSION
 
@@ -57,6 +59,8 @@ class MaintenanceService:
         config: Callable[[str, Any], Any] | None = None,
         persona_model: PersonaModelFactory | None = None,
         clock: Callable[[], datetime.datetime] | None = None,
+        relationship_events: RelationshipEventStore | None = None,
+        provider_for: Callable[[str], Awaitable[Any]] | None = None,
         cache_repairs: CacheRepairs | None = None,
     ) -> None:
         self.artifacts = artifacts
@@ -67,7 +71,9 @@ class MaintenanceService:
         self.logger = logger
         self._c = config or (lambda _key, default: default)
         self.persona_model = persona_model
-        self.clock = clock or datetime.datetime.now
+        self.clock = clock or (lambda: datetime.datetime.now(datetime.timezone.utc))
+        self.relationship_events = relationship_events
+        self.provider_for = provider_for
         self._writer = MaintenanceWriter(artifacts, cache, defer_cache_errors=True, cache_repairs=cache_repairs)
 
     @property
@@ -127,13 +133,13 @@ class MaintenanceService:
             from ..maintain.merge import merge_similar
             from ..maintain.persona import distill_self_persona
             from ..maintain.self_impression import build_self_impressions
-            from ..maintain.relationship import consolidate_relationships
+            from ..maintain.relationship import consolidate_relationships, migrate_v1_candidates
         except ImportError:
             from maintain.decay import decay_all
             from maintain.merge import merge_similar
             from maintain.persona import distill_self_persona
             from maintain.self_impression import build_self_impressions
-            from maintain.relationship import consolidate_relationships
+            from maintain.relationship import consolidate_relationships, migrate_v1_candidates
 
         if self.artifacts is None or self.sources is None or self.cache is None:
             return {}
@@ -141,12 +147,13 @@ class MaintenanceService:
         today = datetime.date.today().isoformat()
         relationships = 0
         if self._relationship_mode() != "off":
+            if self.relationship_events is not None:
+                migrate_v1_candidates(self.artifacts, self.sources, self.relationship_events)
+            await self._verify_relationships()
             with self.journal.span("weekly", "relationship") as metrics:
                 relationships = consolidate_relationships(
-                    self.artifacts,
-                    self.sources,
-                    self.cache,
-                    self._relationship_policy(), writer=self._writes,
+                    self.artifacts, self.sources, self.relationship_events, self.cache,
+                    self._relationship_policy(), as_of=self.clock(), writer=self._writes,
                 )
                 metrics["updated"] = relationships
         with self.journal.span("weekly", "self_impression") as metrics:
@@ -203,6 +210,58 @@ class MaintenanceService:
             "relationships": relationships,
             "writeback_pending": self._writes.pending(),
         }
+    async def _verify_relationships(self) -> None:
+        if self.relationship_events is None or self.provider_for is None or self.sources is None:
+            return
+        try:
+            from ..perceive.model import ProviderChatModel
+            from ..perceive.relationship import verify_relationship
+            from ..core.domain.social.relationship_rules import (
+                ConversationScope, RelationshipCandidate, RelationshipReason,
+                RelationshipStrength, VERIFIER_VERSION,
+            )
+        except ImportError:  # Standalone tests use the repository as the import root.
+            from perceive.model import ProviderChatModel
+            from perceive.relationship import verify_relationship
+            from core.domain.social.relationship_rules import (
+                ConversationScope, RelationshipCandidate, RelationshipReason,
+                RelationshipStrength, VERIFIER_VERSION,
+            )
+        negative = {
+            RelationshipReason.DISRESPECT, RelationshipReason.INSULT,
+            RelationshipReason.THREAT, RelationshipReason.HARASSMENT,
+        }
+        now = self.clock().astimezone(datetime.timezone.utc).isoformat()
+        for row in self.relationship_events.pending(24, VERIFIER_VERSION, now=now):
+            try:
+                sources = self.sources.sources_by_ids(list(row.source_ids))
+                if (
+                    not row.source_ids or row.primary_source_id not in row.source_ids
+                    or any(source_id not in sources for source_id in row.source_ids)
+                ):
+                    self.relationship_events.decide(row.event_id, row.verifier_version, "abstain")
+                    continue
+                evidence = tuple(sources[source_id] for source_id in row.source_ids)
+                try:
+                    candidate = RelationshipCandidate(
+                        row.subject_id, RelationshipReason(row.reason), RelationshipStrength(row.strength),
+                        row.primary_source_id, row.source_ids, evidence[0].session_id, ConversationScope(row.scope),
+                    )
+                except ValueError:
+                    self.relationship_events.decide(row.event_id, row.verifier_version, "abstain")
+                    continue
+                provider = ProviderChatModel(await self.provider_for(evidence[0].session_id))
+                prior_negative = (
+                    tuple(prior for prior in self.relationship_events.by_subject(row.subject_id, VERIFIER_VERSION)
+                          if prior.status == "verified" and RelationshipReason(prior.reason) in negative)
+                    if candidate.reason is RelationshipReason.REPAIR else ()
+                )
+                verdict = await verify_relationship(candidate, evidence, provider, prior_negative)
+                self.relationship_events.decide(row.event_id, row.verifier_version, verdict.status, verdict.repair_of)
+            except Exception:
+                self.relationship_events.defer(row.event_id, row.verifier_version, now=now)
+                self.logger.warning("[seekmemory] relationship verdict deferred")
+
 
     async def _synthesize_persona_async(self) -> dict:
         """Select evidence, request a draft and commit before updating cache / 选择证据并请求草案，提交后再更新缓存。"""

@@ -13,7 +13,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from adapters.astrbot.runtime import AstrBotRuntimeAdapter
 from app.runtime import RunDecision, WakeAction
-from core.interaction_policy import InteractionGate
 
 try:
     from astrbot.core.platform.astr_message_event import AstrMessageEvent
@@ -36,7 +35,7 @@ class ModelBoundary:
 @unittest.skipIf(ProcessStage is None, "AstrBot host is not installed")
 class RuntimeGateHostTest(unittest.IsolatedAsyncioTestCase):
     async def dispatched(
-        self, decision: RunDecision, *, enabled: bool = True, denied: bool = False,
+        self, decision: RunDecision, *, enabled: bool = True,
         initial_stop: bool = False, awake: bool = True,
     ) -> bool:
         extras = {"activated_handlers": []}
@@ -47,10 +46,6 @@ class RuntimeGateHostTest(unittest.IsolatedAsyncioTestCase):
             set_extra=lambda key, value: extras.__setitem__(key, value),
         )
         event.should_call_llm = lambda value: AstrMessageEvent.should_call_llm(event, value)
-        if denied:
-            AstrBotRuntimeAdapter.bind_interaction(
-                event, InteractionGate(enforced=True, allow_reply=False),
-            )
         AstrBotRuntimeAdapter.apply_llm_gate(event, decision, enabled)
         stage = ProcessStage()
         stage.ctx = SimpleNamespace(astrbot_config={"provider_settings": {"enable": True}})
@@ -74,16 +69,13 @@ class RuntimeGateHostTest(unittest.IsolatedAsyncioTestCase):
             with self.subTest(action=action):
                 self.assertFalse(await self.dispatched(RunDecision(action, "ambient")))
 
-    async def test_relationship_denial_overrides_required_reply(self) -> None:
-        decision = RunDecision(WakeAction.REPLY, "direct", must_reply=True)
-        self.assertFalse(await self.dispatched(decision, denied=True))
 
     async def test_disabled_gate_preserves_both_host_flags(self) -> None:
         decision = RunDecision(WakeAction.REPLY, "direct", must_reply=True)
         for initial_stop in (False, True):
             with self.subTest(initial_stop=initial_stop):
                 self.assertEqual(
-                    await self.dispatched(decision, enabled=False, denied=True,
+                    await self.dispatched(decision, enabled=False,
                                           initial_stop=initial_stop),
                     not initial_stop,
                 )

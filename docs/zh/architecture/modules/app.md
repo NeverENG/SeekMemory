@@ -29,7 +29,7 @@ Runtime 调度选项由 `app/config/runtime.py` 提供只读类型化快照；�
 
 `config_version=1` 仅标识本版契约，未作为 AstrBot 公共配置键写盘。`config_profile` 可选但 v1 **不应用**；quiet（召回 4 条/400 字）、balanced（当前默认）、engaged（10 条/800 字）及 developer（仅增加无正文注入字数日志）的覆盖建议定义在 `PROFILES`，均不启用 runtime gate、主动调度或关系执行。后续启用 profile 须明确覆盖优先级、迁移与用户确认；本次没有配置重写、默认行为变更或新策略引擎。没有弃用/重命名的旧键，因此 v1 的迁移别名为空。
 
-`inspect_overrides()` 只返回不含配置值的提示，不自动修正或阻断运行：数值范围/模式非法、未知键、未生效的覆盖，以及 `proactive_enabled` / `relationship_mode=enforce` 需要 `runtime_gate_enabled` 的依赖。禁用 attention 时调整 follow-up 同样只得到提示。`DEPENDENCIES` 明示上述前置条件；当前没有互斥到不能同时配置的键，`CONFLICTS` 为空，依赖不满足也只是行为不生效，不会拒绝启动。配置被组装时快照的键以 `restart_required` 标记；其他动态读取保留原有时机。真正的宿主输入兼容读取仍走 `Settings`，不得将诊断函数当作新的执行门禁。
+`inspect_overrides()` 只返回不含配置值的提示，不自动修正或阻断运行：数值范围/模式非法、未知键、未生效的覆盖，以及 `proactive_enabled` 需要 `runtime_gate_enabled` 的依赖。历史配置值 `relationship_mode=enforce` 当前仅观察，不依赖 runtime gate。禁用 attention 时调整 follow-up 同样只得到提示。`DEPENDENCIES` 明示当前前置条件；当前没有互斥到不能同时配置的键，`CONFLICTS` 为空，依赖不满足也只是行为不生效，不会拒绝启动。配置被组装时快照的键以 `restart_required` 标记；其他动态读取保留原有时机。真正的宿主输入兼容读取仍走 `Settings`，不得将诊断函数当作新的执行门禁。
 
 `app/budget.py` 的 `CHARS_PER_TOKEN`、`MESSAGE_OVERHEAD`，`recall/spread.py` 的扩散衰减/上限及 `core/domain/memory/disclosure.py` 的披露阈值是算法内部常量，不因配置盘点自动变成用户配置。此处也不引入 YAML 运行时依赖；YAML 仅用于文档与 OpenAPI 测试工具。
 

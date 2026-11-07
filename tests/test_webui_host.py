@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-HOST = ROOT.parents[2]
+HOST = ROOT.parents[2] if len(ROOT.parents) > 2 else ROOT.parent
 if (HOST / "astrbot/api/web.py").is_file():
     sys.path.insert(0, str(HOST))
 sys.path.insert(0, str(ROOT.parent))
@@ -246,7 +246,7 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         tasks = list(self.plugin.services.background_service.tasks)
         await asyncio.gather(self.plugin.terminate(), self.plugin.terminate())
         self.assertTrue(all(task.done() for task in tasks))
-        for name in ("services", "store", "buffer", "cache", "jobs", "web", "actions", "run_tracer"):
+        for name in ("services", "store", "buffer", "cache", "jobs", "web", "actions", "run_tracer", "relationship_reader"):
             self.assertIsNone(getattr(self.plugin, name), name)
         self.assertFalse(self.plugin.ready)
         await asyncio.gather(self.plugin.initialize(), self.plugin.initialize())
@@ -419,10 +419,12 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
             def should_call_llm(self, value):
                 self.call_llm = value
 
+        self.plugin.cfg["relationship_mode"] = "enforce"
         observe_event = Event()
         await self.plugin.buffer_message(observe_event)
         self.assertFalse(observe_event.call_llm)
         self.assertEqual(observe_event.extras["_seekmemory_runtime_action"], "observe")
+        self.assertFalse(any(row.kind == "relationship" for row in self.plugin.trace.rows))
         self.assertEqual(
             self.plugin.services.runtime.store.get(observe_event.unified_msg_origin).wait_until,
             0.0,
@@ -435,6 +437,7 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         await self.plugin.buffer_message(gated_event)
         self.assertTrue(gated_event.call_llm)
         self.assertEqual(gated_event.extras["_seekmemory_runtime_action"], "observe")
+        self.assertFalse(any(row.kind == "relationship" for row in self.plugin.trace.rows))
 
     async def test_persona_status_exposes_revision_timeline(self) -> None:
         artifact = importlib.import_module(f"{ROOT.name}.core.artifact")
@@ -531,7 +534,7 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.plugin.store.artifacts.history(art.header.id)), 2)
 
     async def test_inject_memory_preserves_context_contract(self) -> None:
-        await self.restart_plugin(open_to="everyone")
+        await self.restart_plugin(open_to="everyone", relationship_mode="enforce")
         artifact = importlib.import_module(f"{ROOT.name}.core.artifact")
         source_module = importlib.import_module(f"{ROOT.name}.core.source")
         text = "周末去青川公园散步"

@@ -51,7 +51,7 @@ SeekMemory 将原始对话和对话结论分开保存：
 - runtime_state 是可变的会话调度状态；runtime_episodes 是追加式运行审计。两者都不是 Source 或 Artifact。
 - lifecycle Journal、容量 Trace 与 Agent Run Trace 分别服务不同诊断场景。Run Trace 是有界、字段白名单约束的诊断记录，不是业务账本。
 - 记忆异常和诊断存储失败不应阻断普通聊天；不完整输入不会被静默标记为抽取成功。
-- 关系状态是由 Maintenance 根据有精确 Source 证据的分类观察巩固出的版本化派生 Artifact；它不改变 Source 保存、Recall、披露或授权。AstrBot adapter 在既有 Runtime decision 后执行无正文 interaction gate，app/runtime 不包含关系语义。
+- 关系候选与普通记忆分离，只有 Source 可归属且独立核验通过的事件参与每周 V2 多维回放。关系快照是带 Source 证据的版本化派生 Artifact，不改变 Source 保存、Recall、披露、授权或回复语气。AstrBot 不再执行关系交互门控；独立 Runtime gate 仍按配置运行。
 
 ## 当前实现边界
 

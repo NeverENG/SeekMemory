@@ -17,7 +17,7 @@ EXPORTS = {
     "LedgerRepository": "ledger", "chain_hash": "ledger", "chain_payload": "ledger",
     "RuntimeStateRepository": "runtime_state", "RuntimeEpisodeRepository": "runtime_episodes",
     "DreamRepository": "dreams", "StoreMetricsRepository": "metrics", "Cache": "cache",
-    "TraceStore": "run_trace",
+    "TraceStore": "run_trace", "RelationshipEventRepository": "relationship_events",
 }
 
 
@@ -37,7 +37,7 @@ class StoreInterfaceContractTest(unittest.TestCase):
         store = open_store(":memory:")
         self.addCleanup(store.close)
         for name in ("artifacts", "sources", "extraction", "ledger", "runtime_state",
-                     "runtime_episodes", "dreams", "metrics"):
+                     "runtime_episodes", "dreams", "metrics", "relationship_events"):
             self.assertIs(getattr(store, name).conn, store.conn)
 
     def test_old_codec_helper_imports_remain_compatible(self):

@@ -175,3 +175,26 @@ CREATE TABLE IF NOT EXISTS runtime_episodes (
 );
 CREATE INDEX IF NOT EXISTS idx_runtime_episodes_session
 ON runtime_episodes(session_id, at, id);
+
+CREATE TABLE IF NOT EXISTS relationship_events (
+    event_id TEXT NOT NULL,
+    verifier_version TEXT NOT NULL,
+    subject_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    strength TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    event_at TEXT NOT NULL,
+    primary_source_id TEXT NOT NULL,
+    source_ids TEXT NOT NULL,
+    repair_of TEXT NOT NULL DEFAULT '',
+    origin_artifact_id TEXT NOT NULL DEFAULT '',
+    origin_revision INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    decided_at TEXT NOT NULL DEFAULT '',
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (event_id, verifier_version)
+);
+CREATE INDEX IF NOT EXISTS idx_relationship_events_subject
+ON relationship_events(subject_id, event_at, event_id);

@@ -85,10 +85,10 @@ class CheckpointScoreTest(unittest.TestCase):
         self.assertLess(score.correction_recovery, 1.0)
         self.assertIn("stale_fact_in_context", score.notes)
 
-    def test_absent_relationship_state_scores_zero(self) -> None:
+    def test_absent_legacy_relationship_band_is_unscored(self) -> None:
         score = score_checkpoint(_record(band=None), _checkpoint())
-        self.assertEqual(score.relationship_boundary, 0.0)
-        self.assertIn("no_relationship_state", score.notes)
+        self.assertIsNone(score.relationship_boundary)
+        self.assertIn("legacy_relationship_band_unavailable", score.notes)
 
     def test_missing_action_lowers_coherence(self) -> None:
         score = score_checkpoint(_record(actions=["ask"]), _checkpoint())

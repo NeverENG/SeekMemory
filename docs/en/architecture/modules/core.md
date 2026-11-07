@@ -42,7 +42,7 @@ Family and memory level are separate dimensions:
 | media | type, title, url, with optional summary/shared_by |
 | secret | protected ref and shadow_text; excluded by the recall candidate filter |
 | designated | explicit delivery text, trigger, and given state |
-| relationship | versioned per-subject affinity, confidence, evidence count, hysteretic band, and a content-free policy snapshot; excluded from Recall |
+| relationship | versioned per-subject familiarity, trust, warmth, tension, stability, and confidence; excluded from Recall and reply gating during V2 observation |
 
 Family validators live in core/families. make constructs an object but does not validate it; production callers explicitly invoke validate before commit. revise retains ID and family, increments revision, and refreshes updated time.
 
@@ -54,21 +54,21 @@ Family validators live in core/families. make constructs an object but does not 
 - **graph.py** uses an injected repository protocol for relation edges and does not issue SQL. Causal edges have an explicit API but no automatic semantic inference.
 - **capacity.py** converts a capacity snapshot and configurable thresholds into a state and scheduler actions as a pure decision; services perform the actions.
 - **trace.py** sanitizes run-trace fields and projects event timelines while restricting stored data.
-- **relationship.py / relationship_rules.py** own stable relationship IDs, snapshots, hysteresis, the ten-reason evidence rulebook, scope weights, per-cycle caps, and bounded revision plans. Models classify observations but never write affinity, delta, band, or policy version.
-- **interaction_policy.py** produces deterministic reply probability, fixed style, affection/follow-up/care/teasing permissions, and future proactive-kind permissions. Sampling is stable by immutable Source ID and fails open when the ID is absent.
+- **relationship.py / relationship_rules.py** own stable IDs, ten candidate reasons, and multidimensional snapshots. Replay consumes only same-subject, timezone-aware, independently verified Source events: private weight 1.0, group weight 0.5, mild/strong factors 1/2, learning rate 0.25. Familiarity decays over 180 days, confidence and repeated-evidence stability over 90; warmth and trust use 45/180-day half-lives and `tanh` bounds. Tension cools with a 14-day half-life after 24 hours; only a repair linked to an earlier verified negative can reduce its tension, capped at 75% without repeated subtraction. Sources are counted once; models propose candidates and semantic verdicts, not dimensions or scores.
+- V2 has no single favorability score. Even with legacy `enforce` config, relationship observation cannot change replies or tone; the Runtime gate stays independent.
 
 ## Constant and policy-parameter ownership
 
-Constants stay with the rules they belong to; there is no global constants file. Equal numbers do not imply equal meaning: relationship confidence and close-band admission thresholds remain independent.
+Constants stay with their owning rules; relationship V2 evidence weights, half-lives and cooldown are independent of memory disclosure thresholds.
 
 | Category | Canonical owner and use |
 |---|---|
-| Internal algorithm parameters | Emotion factors, salience bounds and the hit factor belong to `strength.py`; disclosure thresholds and factors to `disclosure.py`; relationship entry/exit thresholds to `relationship.py`; confidence smoothing to `relationship_rules.py`. Named parameters live near the top of each file. New private names are neither exported from `domain.py` nor exposed as user configuration. |
-| Existing configurable policy values | `CapacityThresholds`, `RelationshipScoringPolicy` and `InteractionPolicySettings` retain their respective parameters and defaults. The fixed interaction rule table reuses the default probabilities from `InteractionPolicySettings`; configuration parsing and default consolidation in other layers are outside core constant ownership. |
-| Data contracts | Family names, Source roles, operation names and persona origins retain their domain owners. `relationship.py` owns relationship bands and its policy-version identifier, imported by the family validator. Trace derives allowed disclosure values from `DisclosureLevel`. Persisted values and their order are unchanged. |
+| Internal algorithm parameters | Emotion factors and salience bounds belong to `strength.py`; disclosure thresholds to `disclosure.py`; relationship V2 evidence impact, decay and cooldown to `relationship_rules.py`. New private names are not automatically exported from `domain.py` or exposed as configuration. |
+| Existing configurable policy values | `CapacityThresholds` and `RelationshipScoringPolicy` retain their respective parameters; relationship configuration is normalized by the service layer. V1 interaction rules and relationship reply gates are retired. |
+| Data contracts | Family names, Source roles, operation names and persona origins retain their domain owners. `relationship.py` owns the V2 snapshot and policy identifier; family validation still accepts historical V1 payloads without promoting their affinity to V2. Trace derives allowed disclosure values from `DisclosureLevel`. |
 | Validation and diagnostic limits | Persona file size limits remain in `persona.py`, self-impression trust requirements in `bot_behavior.py`, and trace count limits/allowlists in `trace.py`. |
 
-Existing public constants keep their exports. Ownership cleanup does not change values, comparison boundaries, evaluation order, configuration-read timing or algorithm results.
+Unrelated public constants retain their exports. V2 replaces V1 band and interaction exports rather than preserving obsolete scoring behavior.
 
 ## Core invariants
 
@@ -92,7 +92,7 @@ These are entry points into existing tests, not proof of complete coverage for e
 | Graph links | [test_link_integration.py](../../../../tests/test_link_integration.py) | The integration file retains SQLite, cache and associative linking; [test_graph_unit.py](../../../../tests/test_graph_unit.py) checks causal links, degree, filtering and weights through a small storage-port fake. |
 | Capacity decisions | [test_capacity_unit.py](../../../../tests/test_capacity_unit.py) | Pressure states, scheduler actions and configuration overrides; queue, persistence and recovery flows live in [test_capacity_integration.py](../../../../tests/test_capacity_integration.py). |
 | Persona and self-impression trust | [test_persona.py](../../../../tests/test_persona.py), [test_persona_bootstrap.py](../../../../tests/test_persona_bootstrap.py), [test_self_impression.py](../../../../tests/test_self_impression.py) | Persona initialization, evidence constraints and trusted results after maintenance; includes cross-module flows, not proof that a real model forms an appropriate persona. |
-| Relationship and interaction rules | [test_relationship_unit.py](../../../../tests/test_relationship_unit.py), [test_relationship_runtime.py](../../../../tests/test_relationship_runtime.py), [test_core_policy_contract.py](../../../../tests/test_core_policy_contract.py) | Evidence scoring, relationship entry/exit thresholds, stable sampling and interaction permissions; extraction and maintenance live in [test_relationship_integration.py](../../../../tests/test_relationship_integration.py), with runtime scenarios verified separately. |
+| Relationship V2 replay and verification | [test_relationship_unit.py](../../../../tests/test_relationship_unit.py), [test_relationship_integration.py](../../../../tests/test_relationship_integration.py), [test_relationship_verifier.py](../../../../tests/test_relationship_verifier.py), [test_store.py](../../../../tests/test_store.py) | Deterministic clock replay, candidate separation, semantic verification and versioned Source-backed persistence; these fixtures do not measure real-model false-positive rates or real AstrBot behavior. |
 | Run tracing | [test_core_policy_contract.py](../../../../tests/test_core_policy_contract.py), [test_run_trace.py](../../../../tests/test_run_trace.py) | Disclosure vocabulary, count limits, and content exclusion/recovery after trace persistence; the latter is a trace integration check. |
 
 Run focused interface and common domain-rule checks from the repository root:

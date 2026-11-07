@@ -294,6 +294,8 @@ class ScenarioRunner:
             for item in turn.extract:
                 payload = {key: value for key, value in item.items() if key != "evidence"}
                 payload["evidence_source_ids"] = [ids[position] for position in item["evidence"]]
+                if item.get("relationship_reason") and turn.role == "user":
+                    payload["relationship_actor_source_id"] = source.id
                 payload.setdefault("confidence", 0.95)
                 payload.setdefault("event_at", source.at)
                 payload["owner_umo"] = session

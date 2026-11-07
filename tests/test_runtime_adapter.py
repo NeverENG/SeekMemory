@@ -13,7 +13,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from adapters.astrbot.model import AstrBotModelGateway  # noqa: E402
 from adapters.astrbot.runtime import AstrBotRuntimeAdapter  # noqa: E402
 from app.runtime import WakeAction, RunDecision, UserRunReceipt  # noqa: E402
-from core.interaction_policy import InteractionGate, ReplyStyle  # noqa: E402
 from core.source import make_source_id  # noqa: E402
 
 
@@ -176,15 +175,11 @@ class AdapterTest(unittest.TestCase):
 
     def test_decision_is_exposed_as_event_metadata(self) -> None:
         event = Event(False)
-        gate = InteractionGate(style=ReplyStyle.WARM, reason="relationship_warm")
         AstrBotRuntimeAdapter.apply_decision(
-            event,
-            RunDecision(WakeAction.OBSERVE, "ambient_message"),
+            event, RunDecision(WakeAction.OBSERVE, "ambient_message"),
         )
-        AstrBotRuntimeAdapter.bind_interaction(event, gate)
         self.assertEqual(event.extras["_seekmemory_runtime_action"], "observe")
         self.assertEqual(event.extras["_seekmemory_runtime_reason"], "ambient_message")
-        self.assertIs(AstrBotRuntimeAdapter.interaction_gate(event), gate)
 
     def test_accepted_cursor_survives_reply_metadata_binding(self) -> None:
         event = Event(False)

@@ -10,8 +10,8 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from core.domain import (
-    DisclosureLevel, RecallScene, RelationshipBand, Strength,
-    band_for, decide, make, recall_data, retention, validate,
+    DisclosureLevel, RecallScene, Strength,
+    decide, make, recall_data, retention,
 )
 
 
@@ -35,37 +35,6 @@ class CorePolicyContractTest(unittest.TestCase):
                 self.assertEqual(at.level, level)
                 self.assertEqual(below.level, lower)
 
-    def test_relationship_entry_and_exit_thresholds_preserve_hysteresis(self) -> None:
-        for affinity, previous, positive, expected in (
-            (-0.50, "neutral", False, "dislike"),
-            (-0.50 + 1e-9, "neutral", False, "low"),
-            (-0.25, "dislike", True, "dislike"),
-            (-0.25 + 1e-9, "dislike", True, "low"),
-            (0.90, "dislike", False, "dislike"),
-            (-0.20, "neutral", False, "low"),
-            (-0.20 + 1e-9, "neutral", False, "neutral"),
-            (-0.10 - 1e-9, "low", False, "low"),
-            (-0.10, "low", False, "neutral"),
-            (0.60, "neutral", False, "close"),
-            (0.60 - 1e-9, "neutral", False, "warm"),
-            (0.50, "close", False, "close"),
-            (0.50 - 1e-9, "close", False, "warm"),
-            (0.20, "neutral", False, "warm"),
-            (0.20 - 1e-9, "neutral", False, "neutral"),
-            (0.10, "warm", False, "warm"),
-            (0.10 - 1e-9, "warm", False, "neutral"),
-        ):
-            with self.subTest(affinity=affinity, previous=previous, positive=positive):
-                self.assertEqual(
-                    band_for(
-                        affinity, 0.60, previous=RelationshipBand(previous),
-                        positive_evidence=positive,
-                    ).value,
-                    expected,
-                )
-        for affinity, expected in ((-0.50, "low"), (0.60, "warm")):
-            with self.subTest(affinity=affinity, confidence="below gate"):
-                self.assertEqual(band_for(affinity, 0.60 - 1e-9).value, expected)
 
     def test_emotion_thresholds_preserve_strict_comparisons(self) -> None:
         # Neutral arousal uses the unmodified 30-day retention.
@@ -89,24 +58,6 @@ class CorePolicyContractTest(unittest.TestCase):
             retention(Strength(arousal=0.10, valence=-0.30), "point", 30),
         )
 
-    def test_relationship_payload_keeps_existing_bands_and_version(self) -> None:
-        payload = {
-            "summary": "relationship state", "affinity": 0.0, "confidence": 0.0,
-            "evidence_count": 0, "relation_band": "neutral",
-            "policy": {
-                "version": "relationship-v1", "private_weight": 1.0,
-                "group_weight": 0.5, "learning_rate": 0.25, "max_revision_delta": 0.1,
-            },
-        }
-        for band in ("close", "warm", "neutral", "low", "dislike"):
-            with self.subTest(band=band):
-                validate(make("relationship", {**payload, "relation_band": band}))
-        for updates in (
-            {"relation_band": "hostile"},
-            {"policy": {**payload["policy"], "version": "relationship-v2"}},
-        ):
-            with self.subTest(updates=updates), self.assertRaises(ValueError):
-                validate(make("relationship", {**payload, **updates}))
 
     def test_trace_accepts_only_existing_disclosure_values_and_bounded_counts(self) -> None:
         result = recall_data({

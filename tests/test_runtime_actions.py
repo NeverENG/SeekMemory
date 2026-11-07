@@ -25,7 +25,6 @@ from app.runtime import (  # noqa: E402
     WakeAction,
     RunDecision,
 )
-from core.interaction_policy import InteractionGate  # noqa: E402
 from store import open_store  # noqa: E402
 
 
@@ -96,30 +95,7 @@ class ActionTest(unittest.TestCase):
         AstrBotRuntimeAdapter.apply_llm_gate(event, decision, True)
         self.assertFalse(event.call_llm)
 
-    def test_llm_gate_honors_relationship_denial(self) -> None:
-        event = Event()
-        decision = RunDecision(
-            WakeAction.REPLY,
-            "direct",
-            must_reply=True,
-        )
-        AstrBotRuntimeAdapter.bind_interaction(
-            event, InteractionGate(enforced=True, allow_reply=False)
-        )
-        AstrBotRuntimeAdapter.apply_llm_gate(event, decision, True)
-        self.assertTrue(event.call_llm)
 
-    def test_relationship_denial_respects_disabled_base_gate(self) -> None:
-        event = Event()
-        decision = RunDecision(
-            WakeAction.REPLY,
-            "relationship_low_group_ambient",
-        )
-        AstrBotRuntimeAdapter.bind_interaction(
-            event, InteractionGate(enforced=True, allow_reply=False)
-        )
-        AstrBotRuntimeAdapter.apply_llm_gate(event, decision, False)
-        self.assertFalse(event.call_llm)
 
     def test_tool_policy_and_trace(self) -> None:
         event = Event()

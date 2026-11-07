@@ -14,7 +14,9 @@ from typing import Any
 try:  # Plugin namespace / 插件命名空间。
     from ..app.contracts import DialogueTurn, WriteOutcome
     from ..core.domain.memory.artifact import Artifact, Lineage, Strength, TimeSpan, content_of, make, validate
-    from ..core.domain.social.relationship import RELATIONSHIP_POLICY_VERSION
+    from ..core.domain.social.relationship_rules import (
+        ConversationScope, RelationshipCandidate, RelationshipReason, RelationshipStrength,
+    )
     from ..perceive.behavior import (
         DEFAULT_BEHAVIOR_CONFIDENCE,
         behavior_boundary,
@@ -41,7 +43,9 @@ try:  # Plugin namespace / 插件命名空间。
 except ImportError:  # Top-level package / 顶层包。
     from app.contracts import DialogueTurn, WriteOutcome
     from core.domain.memory.artifact import Artifact, Lineage, Strength, TimeSpan, content_of, make, validate
-    from core.domain.social.relationship import RELATIONSHIP_POLICY_VERSION
+    from core.domain.social.relationship_rules import (
+        ConversationScope, RelationshipCandidate, RelationshipReason, RelationshipStrength,
+    )
     from app.ports import ArtifactCache, SourceStore
 
     from perceive.behavior import (
@@ -130,6 +134,7 @@ class ExtractionPlan:
     errors: tuple[str, ...] = ()
     retryable: bool = False
     outcome: WriteOutcome | None = None
+    relationship_candidates: tuple[RelationshipCandidate, ...] = ()
 
 
 def build_plan(
@@ -173,8 +178,6 @@ def build_plan(
         base = _boundary(scope, _subject_id(item, owner, default_subject, owner_id))
         if is_behavior(item):
             return behavior_boundary(base, behavior_of(item), evidence_ids(item))
-        if is_relationship_observation(item):
-            return observation_boundary(base, item, evidence_ids(item))
         return base
 
     try:
@@ -188,14 +191,35 @@ def build_plan(
         ))
 
     checked: list[tuple[dict, tuple[str, ...]]] = []
+    positions = {source_id: index for index, source_id in enumerate(available)}
     for item in parsed[:MAX_ITEMS]:
         candidate = {**item, "owner_umo": owner} if owner else dict(item)
         try:
             check_payload(candidate)
             validate_observation(candidate)
             evidence = validate_evidence(candidate, available, session_id=owner)
-            if is_relationship_observation(candidate) and not evidence:
-                raise ValueError("relationship observation requires evidence_source_ids")
+            if is_relationship_observation(candidate):
+                primary_id = str(candidate.get("relationship_actor_source_id") or "").strip()
+                if not primary_id or primary_id not in evidence:
+                    raise ValueError("relationship_actor_source_id must identify cited evidence")
+                actor = available[primary_id]
+                if actor.role != "user" or not actor.speaker_id or not actor.session_id:
+                    raise ValueError("relationship actor requires an identified user Source")
+                user_ids = [sid for sid in evidence if available[sid].role == "user"]
+                if not user_ids or any(available[sid].speaker_id != actor.speaker_id for sid in user_ids):
+                    raise ValueError("relationship evidence crosses speakers")
+                reason = RelationshipReason(candidate["relationship_reason"])
+                if reason != RelationshipReason.HARASSMENT and user_ids != [primary_id]:
+                    raise ValueError("relationship requires one user actor Source")
+                if reason == RelationshipReason.HARASSMENT:
+                    if len(user_ids) < 2:
+                        raise ValueError("harassment requires multiple user Sources")
+                    latest = max(user_ids, key=lambda sid: (str(available[sid].at or ""), positions[sid]))
+                    if primary_id != latest:
+                        raise ValueError("harassment actor must be latest user Source")
+                topics = {available[sid].topic_id for sid in evidence if available[sid].topic_id}
+                if len(topics) > 1:
+                    raise ValueError("relationship evidence crosses topics")
             if require_evidence:
                 if not evidence:
                     raise ValueError(
@@ -224,7 +248,27 @@ def build_plan(
         ])
         checked.append((candidate, evidence))
     evidence_of = {id(item): evidence for item, evidence in checked}
-    parsed = [item for item, _ in checked]
+    relationships: list[RelationshipCandidate] = []
+    unique_relationships: set[tuple[object, ...]] = set()
+    memories: list[dict] = []
+    for item, evidence in checked:
+        if not is_relationship_observation(item):
+            memories.append(item)
+            continue
+        primary = available[str(item["relationship_actor_source_id"]).strip()]
+        reason = RelationshipReason(item["relationship_reason"])
+        strength = RelationshipStrength(item["relationship_strength"])
+        key = (primary.speaker_id, reason, strength, tuple(sorted(evidence)))
+        if key in unique_relationships:
+            continue
+        unique_relationships.add(key)
+        relationships.append(RelationshipCandidate(
+            subject_id=primary.speaker_id, reason=reason, strength=strength,
+            primary_source_id=primary.source_id, source_ids=evidence,
+            session_id=primary.session_id,
+            scope=ConversationScope.GROUP if ":GroupMessage:" in primary.session_id else ConversationScope.PRIVATE,
+        ))
+    parsed = memories
 
     with stage("memory.deduplicate"):
         existing = existing_texts_by_subject(cache)
@@ -238,7 +282,7 @@ def build_plan(
             subject_of=boundary_of,
         )
     if not parsed:
-        return ExtractionPlan(outcome=WriteOutcome(skipped=len(items)))
+        return ExtractionPlan(relationship_candidates=tuple(relationships), outcome=WriteOutcome(skipped=len(items) if not relationships else 0))
 
     artifacts: list[Artifact] = []
     skipped = 0
@@ -248,8 +292,6 @@ def build_plan(
         evidence = evidence_of.get(id(item), ())
         try:
             payload = payload_of(item)
-            if is_relationship_observation(item):
-                payload["relationship_policy_version"] = RELATIONSHIP_POLICY_VERSION
             if group and len(senders) > 1:
                 payload["speakers"] = sorted(senders)
             strength = strength_of(item)
@@ -280,4 +322,5 @@ def build_plan(
             retryable = True
             errors.append(f"construct: {exc}")
             log(f"artifact validation failed: {type(exc).__name__}")
-    return ExtractionPlan(tuple(artifacts), skipped, tuple(errors), retryable)
+    return ExtractionPlan(tuple(artifacts), skipped, tuple(errors), retryable,
+                          relationship_candidates=tuple(relationships))

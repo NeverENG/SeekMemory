@@ -51,7 +51,7 @@ POLICIES: Mapping[str, PolicyGroup] = MappingProxyType({
     "maintenance": PolicyGroup("maintenance", "Maintenance / 维护", "Checkpoint and persona synthesis / 检查点与人格综合"),
     "dream": PolicyGroup("dream", "Dream / 夜间整理", "Nightly schedule and model budget / 夜间调度与模型预算"),
     "observability": PolicyGroup("observability", "Observability / 可观测性", "Diagnostics retention without message content / 无正文诊断保留"),
-    "relationship": PolicyGroup("relationship", "Relationship / 关系", "Relationship observation and optional enforcement / 关系观察与可选执行", "relationship_mode"),
+    "relationship": PolicyGroup("relationship", "Relationship / 关系", "Relationship observation; legacy enforce is observe-only / 关系观察；旧 enforce 值仅观察", "relationship_mode"),
     "attention": PolicyGroup("attention", "Attention / 注意力", "Reply eligibility and follow-up / 回复资格与跟进"),
     "proactive": PolicyGroup("proactive", "Proactive / 主动调度", "Idle conversation scheduling / 空闲会话调度"),
     "runtime": PolicyGroup("runtime", "Runtime / 运行时", "Deferred dispatch and retries / 延迟执行与重试"),

@@ -152,6 +152,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         "> 合成场景 + 假模型适配器的确定性运行，**不是**真实模型质量或线上指标。"
         "分维成绩只作为回归代理，硬失败（隐私/证据）不能由其他维度抵消。"
     )
+    lines.append("> Relationship V2 仅观察且不再产生 V1 关系档位；旧关系边界列显示“—”（未评分），V2 证据回放应使用独立关系评测。")
     lines.append("")
     lines.append("| 项目 | 值 |")
     lines.append("|---|---|")

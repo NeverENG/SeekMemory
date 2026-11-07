@@ -1,25 +1,16 @@
-"""Prepare versioned relationship evidence plans without reading or writing resources.
-
-准备带版本的关系证据计划，不读写资源。
-"""
+"""Replay independently verified Source events into pure relationship snapshots."""
 
 from __future__ import annotations
-
+import hashlib
 import math
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
-from typing import Iterable, Mapping
+from typing import Iterable
 
-from .relationship import (
-    RELATIONSHIP_POLICY_VERSION,
-    RelationshipBand,
-    RelationshipSnapshot,
-    band_for,
-)
+from .relationship import RELATIONSHIP_POLICY_VERSION, RelationshipSnapshot
 
-# Internal smoothing prior for confidence; not an evidence-admission threshold.
-_CONFIDENCE_PRIOR_COUNT = 2.0
-
+VERIFIER_VERSION = "relationship-verifier-v2"
 
 class RelationshipSignal(str, Enum):
     """Define derived relationship signal categories.
@@ -70,62 +61,211 @@ class ConversationScope(str, Enum):
 
 @dataclass(frozen=True)
 class EvidenceRule:
-    """Describe target affinity and per-cycle caps for an evidence category.
-
-    描述证据类别的目标亲近度及每轮上限。
-    """
+    """Classify a proposed event; never provide a score or interaction permission."""
     signal: RelationshipSignal
-    mild_target: float
-    strong_target: float
-    max_per_cycle: int
 
 
+# Extraction derives a categorical signal from a reason; no V1 targets or caps.
 EVIDENCE_RULES: dict[RelationshipReason, EvidenceRule] = {
-    RelationshipReason.FRIENDLY_GREETING: EvidenceRule(
-        RelationshipSignal.POSITIVE, 0.35, 0.50, 1
-    ),
-    RelationshipReason.GRATITUDE: EvidenceRule(
-        RelationshipSignal.POSITIVE, 0.35, 0.70, 2
-    ),
-    RelationshipReason.CARE: EvidenceRule(
-        RelationshipSignal.POSITIVE, 0.40, 0.75, 1
-    ),
-    RelationshipReason.RESPECT: EvidenceRule(
-        RelationshipSignal.POSITIVE, 0.45, 0.80, 1
-    ),
-    RelationshipReason.SUPPORT: EvidenceRule(
-        RelationshipSignal.POSITIVE, 0.50, 0.85, 1
-    ),
-    RelationshipReason.REPAIR: EvidenceRule(
-        RelationshipSignal.REPAIR, 0.70, 1.00, 1
-    ),
-    RelationshipReason.DISRESPECT: EvidenceRule(
-        RelationshipSignal.NEGATIVE, -0.35, -0.60, 2
-    ),
-    RelationshipReason.INSULT: EvidenceRule(
-        RelationshipSignal.NEGATIVE, -0.50, -0.80, 2
-    ),
-    RelationshipReason.THREAT: EvidenceRule(
-        RelationshipSignal.BOUNDARY_VIOLATION, -0.75, -1.00, 1
-    ),
-    RelationshipReason.HARASSMENT: EvidenceRule(
-        RelationshipSignal.BOUNDARY_VIOLATION, -0.75, -1.00, 1
-    ),
+    RelationshipReason.FRIENDLY_GREETING: EvidenceRule(RelationshipSignal.POSITIVE),
+    RelationshipReason.GRATITUDE: EvidenceRule(RelationshipSignal.POSITIVE),
+    RelationshipReason.CARE: EvidenceRule(RelationshipSignal.POSITIVE),
+    RelationshipReason.RESPECT: EvidenceRule(RelationshipSignal.POSITIVE),
+    RelationshipReason.SUPPORT: EvidenceRule(RelationshipSignal.POSITIVE),
+    RelationshipReason.REPAIR: EvidenceRule(RelationshipSignal.REPAIR),
+    RelationshipReason.DISRESPECT: EvidenceRule(RelationshipSignal.NEGATIVE),
+    RelationshipReason.INSULT: EvidenceRule(RelationshipSignal.NEGATIVE),
+    RelationshipReason.THREAT: EvidenceRule(RelationshipSignal.BOUNDARY_VIOLATION),
+    RelationshipReason.HARASSMENT: EvidenceRule(RelationshipSignal.BOUNDARY_VIOLATION),
 }
 
 @dataclass(frozen=True)
-class RelationshipObservation:
-    """Carry one categorical observation with explicit Artifact and Source evidence.
-
-    携带一条有明确 Artifact 和 Source 证据的分类观察。
-    """
-    artifact_id: str
+class RelationshipCandidate:
+    """Carry categorical Source-backed evidence pending independent verification."""
     subject_id: str
     reason: RelationshipReason
     strength: RelationshipStrength
-    confidence: float
+    primary_source_id: str
     source_ids: tuple[str, ...]
+    session_id: str
     scope: ConversationScope
+    origin_artifact_id: str = ""
+    origin_revision: int = 0
+
+
+
+
+
+def relationship_event_id(candidate: RelationshipCandidate) -> str:
+    raw = "\x1f".join((
+        "relationship-v2", candidate.subject_id, candidate.reason.value,
+        candidate.strength.value, *sorted(candidate.source_ids),
+    ))
+    return "re_" + hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class VerifiedRelationshipEvent:
+    event_id: str
+    subject_id: str
+    reason: RelationshipReason
+    strength: RelationshipStrength
+    scope: ConversationScope
+    event_at: datetime
+    primary_source_id: str
+    source_ids: tuple[str, ...]
+    repair_of: str = ""
+
+
+_NEGATIVE_IMPACT = {
+    RelationshipReason.DISRESPECT: 0.7,
+    RelationshipReason.INSULT: 1.0,
+    RelationshipReason.THREAT: 1.25,
+    RelationshipReason.HARASSMENT: 1.25,
+}
+_WARMTH_IMPACT = {
+    RelationshipReason.FRIENDLY_GREETING: 0.5,
+    RelationshipReason.GRATITUDE: 0.8,
+    RelationshipReason.CARE: 1.0,
+    RelationshipReason.RESPECT: 0.3,
+    RelationshipReason.SUPPORT: 0.8,
+}
+_TRUST_IMPACT = {
+    RelationshipReason.CARE: 0.5,
+    RelationshipReason.RESPECT: 1.0,
+    RelationshipReason.SUPPORT: 0.8,
+}
+
+
+def _retention(age_days: float, half_life_days: float) -> float:
+    if half_life_days == 0:
+        return 1.0 if age_days == 0 else 0.0
+    return 2.0 ** (-age_days / half_life_days)
+
+
+def _event_key(event: VerifiedRelationshipEvent) -> tuple:
+    """Break even timestamp/ID ties without depending on input order."""
+    return (
+        event.event_at, event.event_id, event.event_at.isoformat(),
+        event.subject_id, event.primary_source_id, event.source_ids,
+        event.reason.value, event.strength.value, event.scope.value, event.repair_of,
+    )
+
+
+def project_relationship(events: Iterable[VerifiedRelationshipEvent], as_of: datetime, policy: RelationshipScoringPolicy) -> RelationshipSnapshot:
+    """Replay verified, attributable events at an explicit timezone-aware clock."""
+    if as_of.tzinfo is None or as_of.utcoffset() is None:
+        raise ValueError("relationship projection requires a timezone")
+    chosen = []
+    for event in events:
+        if event.event_at.tzinfo is None or event.event_at.utcoffset() is None:
+            raise ValueError("relationship evidence requires a timezone")
+        if (event.event_at <= as_of and event.subject_id and event.primary_source_id
+                and event.primary_source_id in event.source_ids and event.event_id
+                and event.scope in (ConversationScope.PRIVATE, ConversationScope.GROUP)):
+            chosen.append(event)
+    chosen.sort(key=_event_key)
+    if len({event.subject_id for event in chosen}) > 1:
+        raise ValueError("relationship projection requires one subject")
+    evaluated_at = as_of.isoformat()
+    if not chosen:
+        return RelationshipSnapshot(evaluated_at=evaluated_at)
+
+    # One source backs at most one scored event, except a linked repair may
+    # reuse its prior negative's sources as context with a fresh primary source.
+    reasons_by_primary: dict[str, set[RelationshipReason]] = {}
+    ids: dict[str, set[tuple]] = {}
+    for event in chosen:
+        reasons_by_primary.setdefault(event.primary_source_id, set()).add(event.reason)
+        ids.setdefault(event.event_id, set()).add(_event_key(event))
+    accepted = []
+    used_sources: set[str] = set()
+    negatives: dict[str, VerifiedRelationshipEvent] = {}
+    for event in chosen:
+        sources = set(event.source_ids)
+        if (len(reasons_by_primary[event.primary_source_id]) != 1
+                or len(ids[event.event_id]) != 1 or not all(sources)):
+            continue
+        prior = negatives.get(event.repair_of) if event.reason is RelationshipReason.REPAIR else None
+        if event.reason is RelationshipReason.REPAIR and (
+            prior is None or prior.subject_id != event.subject_id or prior.event_at >= event.event_at
+            or event.primary_source_id in used_sources
+        ):
+            continue
+        overlap = sources & used_sources
+        if overlap and (prior is None or not overlap <= set(prior.source_ids)):
+            continue
+        accepted.append(event)
+        used_sources.update(sources)
+        if event.reason in _NEGATIVE_IMPACT:
+            negatives[event.event_id] = event
+    linked = {
+        event.event_id: negatives[event.repair_of]
+        for event in accepted if event.reason is RelationshipReason.REPAIR
+    }
+    if not accepted:
+        return RelationshipSnapshot(evaluated_at=evaluated_at)
+
+    scope_weights = {
+        ConversationScope.PRIVATE: policy.private_weight,
+        ConversationScope.GROUP: policy.group_weight,
+    }
+    familiarity_total = confidence_total = warmth_total = trust_total = 0.0
+    tension_by_negative: dict[str, float] = {}
+    repair_by_negative: dict[str, float] = {}
+    stability_total = stability_max = 0.0
+    positive_stability = negative_stability = 0.0
+    for event in accepted:
+        age = (as_of - event.event_at).total_seconds() / 86400
+        base = (1 if event.strength == RelationshipStrength.MILD else 2) * scope_weights[event.scope]
+        familiarity_total += base * _retention(age, policy.familiarity_half_life_days)
+        confidence_total += base * _retention(age, policy.confidence_half_life_days)
+        stable = base * _retention(age, policy.stability_half_life_days)
+        stability_total += stable
+        stability_max = max(stability_max, stable)
+        if event.reason in _NEGATIVE_IMPACT:
+            negative_stability += stable
+            impact = base * _NEGATIVE_IMPACT[event.reason]
+            trust_total -= impact * _retention(age, policy.trust_half_life_days)
+            warmth_total -= impact * 0.5 * _retention(age, policy.warmth_half_life_days)
+            cooled_age = max(0.0, age - policy.negative_cooldown_hours / 24)
+            tension_by_negative[event.event_id] = impact * _retention(cooled_age, policy.tension_half_life_days)
+        else:
+            positive_stability += stable
+            if event.reason == RelationshipReason.REPAIR:
+                prior = linked[event.event_id]
+                prior_impact = ((1 if prior.strength == RelationshipStrength.MILD else 2)
+                                * scope_weights[prior.scope] * _NEGATIVE_IMPACT[prior.reason])
+                if prior_impact:
+                    trust_total += 0.3 * base * _retention(age, policy.trust_half_life_days)
+                    warmth_total += 0.3 * base * _retention(age, policy.warmth_half_life_days)
+                    # Repair removes at most 75% of this negative's remaining
+                    # tension; subsequent repairs cannot subtract it again.
+                    fraction = 0.75 * min(base / prior_impact, 1.0)
+                    repair_by_negative[prior.event_id] = max(repair_by_negative.get(prior.event_id, 0.0), fraction)
+            else:
+                trust_total += base * _TRUST_IMPACT.get(event.reason, 0.0) * _retention(age, policy.trust_half_life_days)
+                warmth_total += base * _WARMTH_IMPACT[event.reason] * _retention(age, policy.warmth_half_life_days)
+
+    tension_total = sum(negative * (1 - repair_by_negative.get(event_id, 0.0))
+                        for event_id, negative in tension_by_negative.items())
+    repeated = stability_total - stability_max
+    consistency = max(positive_stability, negative_stability) / stability_total if stability_total else 0.0
+    rate = policy.learning_rate
+    return RelationshipSnapshot(
+        subject_id=accepted[-1].subject_id,
+        familiarity=round(-math.expm1(-rate * familiarity_total), 6),
+        trust=round(math.tanh(rate * trust_total), 6),
+        warmth=round(math.tanh(rate * warmth_total), 6),
+        tension=round(-math.expm1(-rate * tension_total), 6),
+        stability=round(-math.expm1(-rate * repeated * consistency), 6),
+        confidence=round(-math.expm1(-rate * confidence_total), 6),
+        evidence_count=len(accepted),
+        last_evidence_at=accepted[-1].event_at.isoformat(),
+        evaluated_at=evaluated_at,
+    )
+
+
 
 
 @dataclass(frozen=True)
@@ -136,201 +276,31 @@ class RelationshipScoringPolicy:
     """
 
     version: str = RELATIONSHIP_POLICY_VERSION
+    verifier_version: str = VERIFIER_VERSION
     learning_rate: float = 0.25
-    max_revision_delta: float = 0.10
-    minimum_evidence_confidence: float = 0.60
     private_weight: float = 1.0
     group_weight: float = 0.5
     unknown_weight: float = 0.5
+    familiarity_half_life_days: float = 180
+    trust_half_life_days: float = 180
+    warmth_half_life_days: float = 45
+    tension_half_life_days: float = 14
+    stability_half_life_days: float = 90
+    confidence_half_life_days: float = 90
+    negative_cooldown_hours: float = 24
 
     def __post_init__(self) -> None:
-        if not isinstance(self.version, str) or not self.version.strip():
-            raise ValueError("relationship policy version is required")
+        if self.version != RELATIONSHIP_POLICY_VERSION or self.verifier_version != VERIFIER_VERSION:
+            raise ValueError("unsupported relationship policy version")
         for name in (
-            "learning_rate",
-            "max_revision_delta",
-            "minimum_evidence_confidence",
-            "private_weight",
-            "group_weight",
-            "unknown_weight",
+            "learning_rate", "private_weight", "group_weight", "unknown_weight",
+            "familiarity_half_life_days", "trust_half_life_days", "warmth_half_life_days",
+            "tension_half_life_days", "stability_half_life_days", "confidence_half_life_days",
+            "negative_cooldown_hours",
         ):
             value = getattr(self, name)
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise ValueError(f"{name} must be numeric")
-            if not math.isfinite(float(value)) or not 0.0 <= float(value) <= 1.0:
-                raise ValueError(f"{name} must be within [0, 1]")
-
-
-@dataclass(frozen=True)
-class ScoredRelationshipEvidence:
-    """Carry the derived signal, weighted target and evidence references.
-
-    携带派生信号、加权目标及证据引用。
-    """
-    observation: RelationshipObservation
-    signal: RelationshipSignal
-    effective_target: float
-
-
-@dataclass(frozen=True)
-class RelationshipRevisionPlan:
-    """Describe one bounded relationship revision and reviewed evidence; no persistence.
-
-    描述一次有界关系修订及已审证据，不执行保存。
-    """
-    target: float
-    delta: float
-    affinity: float
-    confidence: float
-    evidence_count: int
-    band: RelationshipBand
-    counted_artifact_ids: tuple[str, ...]
-    reviewed_artifact_ids: tuple[str, ...]
-    counted_source_ids: tuple[str, ...]
-
-
-def score_observation(
-    observation: RelationshipObservation,
-    policy: RelationshipScoringPolicy = RelationshipScoringPolicy(),
-) -> ScoredRelationshipEvidence:
-    """Derive a signal and scope-weighted target from one categorical observation.
-
-    根据一条分类观察推导信号及范围加权目标。
-    """
-    try:
-        reason = RelationshipReason(observation.reason)
-        strength = RelationshipStrength(observation.strength)
-        scope = ConversationScope(observation.scope)
-    except ValueError as exc:
-        raise ValueError("invalid relationship observation vocabulary") from exc
-    confidence = _bounded_confidence(observation.confidence)
-    if not str(observation.artifact_id or "").strip():
-        raise ValueError("relationship observation artifact_id is required")
-    if not str(observation.subject_id or "").strip():
-        raise ValueError("relationship observation subject_id is required")
-    if not observation.source_ids or any(
-        not str(source_id or "").strip() for source_id in observation.source_ids
-    ):
-        raise ValueError("relationship observation source_ids are required")
-    rule = EVIDENCE_RULES[reason]
-    target = (
-        rule.mild_target
-        if strength is RelationshipStrength.MILD
-        else rule.strong_target
-    )
-    weight = {
-        ConversationScope.PRIVATE: policy.private_weight,
-        ConversationScope.GROUP: policy.group_weight,
-        ConversationScope.UNKNOWN: policy.unknown_weight,
-    }[scope]
-    normalized = RelationshipObservation(
-        artifact_id=str(observation.artifact_id),
-        subject_id=str(observation.subject_id),
-        reason=reason,
-        strength=strength,
-        confidence=confidence,
-        source_ids=tuple(dict.fromkeys(str(value) for value in observation.source_ids)),
-        scope=scope,
-    )
-    return ScoredRelationshipEvidence(normalized, rule.signal, target * weight)
-
-
-def plan_relationship_revision(
-    current: RelationshipSnapshot,
-    observations: Iterable[RelationshipObservation],
-    policy: RelationshipScoringPolicy = RelationshipScoringPolicy(),
-    *,
-    previously_reviewed_artifact_ids: Iterable[str] = (),
-    created_by_artifact_id: Mapping[str, str] | None = None,
-) -> RelationshipRevisionPlan | None:
-    """Plan one bounded revision from fresh valid evidence, accounting for capped reviewed rows.
-
-    根据新鲜有效证据计划一次有界修订，并计入达到上限的已审行。
-    """
-    previously_reviewed = {
-        str(value) for value in previously_reviewed_artifact_ids if str(value)
-    }
-    scored: list[ScoredRelationshipEvidence] = []
-    for observation in observations:
-        if str(observation.artifact_id or "") in previously_reviewed:
-            continue
-        try:
-            evidence = score_observation(observation, policy)
-        except (TypeError, ValueError):
-            continue
-        if evidence.observation.subject_id != current.subject_id:
-            continue
-        if evidence.observation.confidence < policy.minimum_evidence_confidence:
-            continue
-        scored.append(evidence)
-    created = created_by_artifact_id or {}
-    scored.sort(
-        key=lambda evidence: (
-            str(created.get(evidence.observation.artifact_id, "")),
-            evidence.observation.artifact_id,
-        )
-    )
-    if not scored:
-        return None
-
-    reviewed_ids = tuple(item.observation.artifact_id for item in scored)
-    per_reason: dict[RelationshipReason, int] = {}
-    counted: list[ScoredRelationshipEvidence] = []
-    for evidence in scored:
-        reason = evidence.observation.reason
-        seen = per_reason.get(reason, 0)
-        if seen >= EVIDENCE_RULES[reason].max_per_cycle:
-            continue
-        per_reason[reason] = seen + 1
-        counted.append(evidence)
-    if not counted:
-        return None
-
-    total_confidence = sum(item.observation.confidence for item in counted)
-    target = sum(
-        item.effective_target * item.observation.confidence for item in counted
-    ) / total_confidence
-    raw_delta = policy.learning_rate * (target - current.affinity)
-    delta = max(-policy.max_revision_delta, min(policy.max_revision_delta, raw_delta))
-    affinity = max(-1.0, min(1.0, current.affinity + delta))
-    evidence_count = current.evidence_count + len(counted)
-    confidence = evidence_count / (evidence_count + _CONFIDENCE_PRIOR_COUNT)
-    positive = any(
-        item.signal in (RelationshipSignal.POSITIVE, RelationshipSignal.REPAIR)
-        for item in counted
-    )
-    band = band_for(
-        affinity,
-        confidence,
-        previous=current.band,
-        positive_evidence=positive,
-    )
-    counted_ids = tuple(item.observation.artifact_id for item in counted)
-    counted_sources = tuple(dict.fromkeys(
-        source_id
-        for item in counted
-        for source_id in item.observation.source_ids
-    ))
-    return RelationshipRevisionPlan(
-        target=target,
-        delta=delta,
-        affinity=affinity,
-        confidence=confidence,
-        evidence_count=evidence_count,
-        band=band,
-        counted_artifact_ids=counted_ids,
-        reviewed_artifact_ids=reviewed_ids,
-        counted_source_ids=counted_sources,
-    )
-
-
-def _bounded_confidence(value: object) -> float:
-    if isinstance(value, bool):
-        raise ValueError("relationship evidence confidence must be numeric")
-    try:
-        confidence = float(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("relationship evidence confidence must be numeric") from exc
-    if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
-        raise ValueError("relationship evidence confidence must be within [0, 1]")
-    return confidence
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)) or float(value) < 0:
+                raise ValueError(f"{name} must be a non-negative number")
+            if name.endswith("weight") or name == "learning_rate":
+                if not 0.0 <= float(value) <= 1.0:
+                    raise ValueError(f"{name} must be within [0, 1]")

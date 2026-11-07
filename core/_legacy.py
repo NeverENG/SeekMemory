@@ -8,7 +8,7 @@ from sys import modules
 _owners = {
     "memory": ("artifact", "source", "versioning", "retrieval", "strength", "disclosure", "graph"),
     "character": ("persona", "persona_artwork", "persona_pack", "bot_behavior"),
-    "social": ("relationship", "relationship_rules", "interaction_policy"),
+    "social": ("relationship", "relationship_rules"),
     "operations": ("capacity", "trace"),
 }
 for _group, _names in _owners.items():

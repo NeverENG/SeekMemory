@@ -71,18 +71,13 @@ EXPORTS = {
         'trusted_self_persona',
     ),
     "relationship": (
-        'RELATIONSHIP_POLICY_VERSION', 'HARD_GATE_CONFIDENCE', 'RelationshipBand', 'RelationshipSnapshot',
-        'relationship_id', 'summary_for', 'band_for', 'snapshot_from_payload',
+        'RELATIONSHIP_POLICY_VERSION', 'RelationshipSnapshot',
+        'relationship_id', 'snapshot_from_payload',
     ),
     "relationship_rules": (
         'RelationshipSignal', 'RelationshipReason', 'RelationshipStrength', 'ConversationScope',
-        'EvidenceRule', 'EVIDENCE_RULES', 'RelationshipObservation', 'RelationshipScoringPolicy',
-        'ScoredRelationshipEvidence', 'RelationshipRevisionPlan', 'score_observation', 'plan_relationship_revision',
-    ),
-    "interaction_policy": (
-        'INTERACTION_POLICY_VERSION', 'LOW_REPLY_CHARS', 'DISLIKE_REPLY_CHARS', 'CLOSE_PROACTIVE_KINDS',
-        'ReplyStyle', 'AffectionScope', 'InteractionRule', 'InteractionContext',
-        'InteractionGate', 'InteractionPolicySettings', 'stable_sample', 'decide_interaction',
+        'EvidenceRule', 'EVIDENCE_RULES', 'RelationshipCandidate', 'VerifiedRelationshipEvent',
+        'VERIFIER_VERSION', 'relationship_event_id', 'RelationshipScoringPolicy', 'project_relationship',
     ),
     "trace": (
         'EVENTS', 'FILTERS', 'STATUSES', 'ID_LIMIT',
@@ -94,7 +89,7 @@ EXPORTS = {
 DOMAIN_OWNERS = {
     **dict.fromkeys(("artifact", "source", "versioning", "retrieval", "strength", "disclosure", "graph"), "memory"),
     **dict.fromkeys(("persona", "persona_artwork", "persona_pack", "bot_behavior"), "character"),
-    **dict.fromkeys(("relationship", "relationship_rules", "interaction_policy"), "social"),
+    **dict.fromkeys(("relationship", "relationship_rules"), "social"),
     **dict.fromkeys(("capacity", "trace"), "operations"),
 }
 

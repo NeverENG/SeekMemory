@@ -12,7 +12,7 @@ services 将领域对象、app 端口以及 perceive、recall、maintain 组合�
 | RecallService | 计算预算与降级输入，调用唯一 recall pipeline；提供不写交付状态的预览 |
 | IngestService | 选择待处理话题、解析 provider、调用模型、构造 Artifact 并负责生产写入、重试和 usage 汇总 |
 | CapacityService | 读容量快照、运行 CapacityGovernor，并执行限流、释放 deferred、缩小批次/召回或维护动作 |
-| MaintenanceService | 按顺序调用自我印象汇总、遗忘、相似合并和人格沉淀/综合 |
+| MaintenanceService | 先排队可归属的 V1 观察、独立核验待定关系候选并回放已核验 V2 事件，再通过可恢复写入依序汇总自我印象、遗忘、合并和人格沉淀/综合 |
 | ManagementService | 查询目录、详情、版本与证据；验证管理编辑和回滚；复用 RecallService 做诊断 |
 | trace_query | 校验运行编号、状态与时间条件，筛选既有白名单快照；两个管理入口共享，不访问业务表 |
 | StatusService | 为管理页提供人格时间线和账本哈希链检查 |

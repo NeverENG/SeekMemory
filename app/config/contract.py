@@ -51,7 +51,6 @@ class PolicyDependency:
 
 DEPENDENCIES: tuple[PolicyDependency, ...] = (
     PolicyDependency("proactive_enabled", True, "runtime_gate_enabled", True),
-    PolicyDependency("relationship_mode", "enforce", "runtime_gate_enabled", True),
 )
 # No pair of existing keys is intrinsically forbidden; the above combinations
 # are allowed but ineffective without their dependency.

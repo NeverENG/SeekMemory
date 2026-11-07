@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
@@ -65,7 +66,7 @@ async function setup(t, { version = 1, hostContract = 1, runtimeStatus = 200, ga
     ctx.dispose();
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
-    rmSync(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
   return { ctx, config, calls };
 }

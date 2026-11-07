@@ -14,6 +14,7 @@ try:
     from .ledger import LedgerRepository
     from .metrics import StoreMetricsRepository
     from .runtime_episodes import RuntimeEpisodeRepository
+    from .relationship_events import RelationshipEventRepository
     from .runtime_state import RuntimeStateRepository
     from .sources import SourceRepository
     from .sqlite import SqliteDatabase
@@ -23,6 +24,7 @@ except ImportError:  # Existing standalone mode / 保留已有的独立导入方
     from extraction import ExtractionRepository
     from ledger import LedgerRepository
     from metrics import StoreMetricsRepository
+    from relationship_events import RelationshipEventRepository
     from runtime_episodes import RuntimeEpisodeRepository
     from runtime_state import RuntimeStateRepository
     from sources import SourceRepository
@@ -43,6 +45,7 @@ class Store:
             self.runtime_state = RuntimeStateRepository(self.database)
             self.runtime_episodes = RuntimeEpisodeRepository(self.database)
             self.dreams = DreamRepository(self.database)
+            self.relationship_events = RelationshipEventRepository(self.database)
             self.metrics = StoreMetricsRepository(self.database, self.extraction)
         except BaseException:
             self.database.close()

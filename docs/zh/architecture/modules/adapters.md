@@ -21,7 +21,7 @@ main.py 定义插件入口并委托 lifecycle；组合和 wiring 位于 adapters
 - AstrBotActionPort 同时提供 ActionPort 和 MessageSender：execute 接收 ActionRequest 并返回 ActionResult，既有 send 接口委托 execute 后返回布尔值。
 - ProviderChatModel 将宿主 extraction/persona provider 包装为 ChatModel。
 - SeekMemoryContextAdapter 将 Runtime 的 MemoryContextPort 接到现有 RecallService。
-- RelationshipInteractionPolicy 从 Cache 读取按 subject 唯一且已验证的 Relationship 快照，把既有 Runtime decision 与已记录 Source ID 转成无正文 InteractionGate。AstrBot hook 执行拒绝和固定语气 directive，不把关系语义放进 app/runtime。
+- RelationshipReader 从 Cache 按主体读取唯一且已验证的无正文 V2 快照。AstrBot 不根据关系状态拒绝回复或注入语气指令；独立配置的 Runtime gate 保持隔离。
 
 动作请求中的正文仅用于执行，不属于 ActionRecord 审计字段。不支持的动作返回 unsupported_action；空正文、缺少会话、宿主不可用、发送拒绝和执行异常分别返回固定原因码。宿主异常正文不会返回给调用方；取消继续向上传递，由运行时安排恢复。适配器只报告执行结果，不负责重试、动作审计去重或终态判定。
 
@@ -35,7 +35,7 @@ AccessService 基于完整 session UMO、sender ID、owner/trusted 配置和 obs
 
 ## 当前边界
 
-显式启用 `runtime_gate_enabled` 时，AstrBotRuntimeAdapter 将 `REPLY` / `must_reply` 映射为 `should_call_llm(False)`，因为宿主参数表示**禁止默认模型请求**；其他动作和强制关系拒绝映射为 `True`。关闭 gate 时不修改已有宿主标记。此映射保留宿主自身的唤醒、已发送及 provider 检查，不启用插件内独立模型请求。
+显式启用 `runtime_gate_enabled` 时，AstrBotRuntimeAdapter 将 `REPLY` / `must_reply` 映射为 `should_call_llm(False)`，因为宿主参数表示**禁止默认模型请求**；其他动作映射为 `True`。关闭 gate 时不修改已有宿主标记；关系观察不会改变该 gate。此映射保留宿主自身的唤醒、已发送及 provider 检查，不启用插件内独立模型请求。
 
 宿主 hook 注册必须绑定真实插件模块路径，避免热重载后回调无法识别。Runtime 的工具过滤在模型请求前运行；工具调用完成后的观测 hook 不能作为强制拦截。插件初始化/宿主 API 不可用时，由上层状态和 fail-open 处理，不应把 AstrBot 依赖泄漏到业务模块。
 
@@ -59,7 +59,7 @@ subject_key 表示稳定记忆归属，session_id 表示本轮运行会话，二
 
 DSH 每个宿主上下文只注册一次；卸载会撤销钩子、取消桥接请求并清空上下文缓存，迟到的响应不再注入。Node 集成测试分别覆盖真实 `scripts/serve.py` 记忆入口及独立的 `scripts/runtime_http.py` 验证入口。
 
-关系模式默认为 observe：RelationshipInteractionPolicy 可以计算无正文的候选交互档案，但默认不会注入 directive 或拒绝回复。拒绝回复必须同时满足显式 `relationship_mode=enforce` 和现有 `runtime_gate_enabled=true`；allowed/neutral 关系不会启用该 gate。仅在显式启用 enforcement 时，low/dislike 的普通私聊陈述才按 Source ID 做稳定 `0.8`/`0.5` 采样；真实问题和宿主 direct signal 仍是 required reply。相同的显式 enforcement 控制下，low/dislike 群聊 ambient 被拒绝。Relationship Artifact 不进入 Recall 或管理目录。
+关系模式默认为 observe：`off` 跳过关系维护，`observe` 与历史配置值 `enforce` 当前都只巩固已核验事件，不改变回复可用性或风格。关系 Artifact 不进入 Recall 或管理目录；未来的表达调优需单独评审和显式启用。
 
 ## 明确接口及宿主依赖
 
