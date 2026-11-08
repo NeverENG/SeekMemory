@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import bootstrap_persona, runtime_http, snapshot_db
+from scripts import bootstrap_persona, snapshot_db
 from store import open_store
 
 
@@ -77,22 +77,6 @@ class ScriptResourcesTest(unittest.TestCase):
             self.assertEqual(status, int(failed))
             with self.assertRaises(sqlite3.ProgrammingError):
                 db.conn.execute("SELECT 1")
-
-    def test_endpoint_metadata_failure_closes_the_http_listener(self):
-        servers = []
-        server_type = runtime_http.ThreadingHTTPServer
-
-        def create(*args, **kwargs):
-            server = server_type(*args, **kwargs)
-            servers.append(server)
-            return server
-
-        with patch.object(sys, "argv", ["runtime_http", "--data-dir", str(self.root)]), patch.object(
-            runtime_http, "ThreadingHTTPServer", side_effect=create,
-        ), patch.object(runtime_http.Path, "write_text", side_effect=OSError("disk unavailable")):
-            with self.assertRaises(OSError):
-                runtime_http.main()
-        self.assertEqual(servers[0].socket.fileno(), -1)
 
 
 if __name__ == "__main__":

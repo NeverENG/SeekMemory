@@ -16,8 +16,7 @@ DSH event ──Node mapping, existing HTTP input──▶ HostRequest ─┴─
 
 DSH still extracts platform fields in Node; the real `scripts/serve.py` loopback uses
 `adapters/loopback/runtime_ingress.py` to project the existing `input` via HostGateway
-before passing it to AgentRuntime. The separate verification entry
-`scripts/runtime_http.py` also uses this gateway. AstrBot's compatibility
+before passing it to AgentRuntime. AstrBot's compatibility
 `to_runtime_input` entry is unchanged. `session_id` retains its
 current session identity; `event_id` supports correlation/existing deduplication, not
 authentication. For now the gateway trusts host-provided facts; it owns no authentication,

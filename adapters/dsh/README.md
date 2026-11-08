@@ -24,9 +24,9 @@
 | M4 注入打通 | ✅ 2026-10-27 在隔离实例（独立 `DSH_HOME` + headless/web）真机验证：加载、apply、3 个钩子、卸载回收全部走通 |
 | M5 抽取归宿主 | ✅ 已实现，**默认关闭**：`extractEnabled: false`，且必须显式配 `llmProvider` / `llmModel` 才会拉活 |
 | 契约文档 / conformance 层 | #107 已通过 #113 合入，见中英文模块文档及 `--layer conformance` |
-| 运行时协议桥 | 已实现客户端、模拟服务与真实 `scripts/runtime_http.py` 的 Python AgentRuntime 集成测试 |
+| 运行时协议桥 | 已实现客户端、模拟服务，以及对真实 `scripts/serve.py` 的 AgentRuntime／记忆链路集成测试 |
 
-说明：M4 的"真机"指真实 DSH 宿主进程；`test/runtime-python-smoke.mjs` 会启动 `scripts/runtime_http.py`，让 RuntimeBridge 驱动真实 Python `AgentRuntime`，不再只依赖 mock 内核。
+说明：M4 的"真机"指真实 DSH 宿主进程；`test/loopback-contract.mjs` 启动正式 `scripts/serve.py`，验证 RuntimeBridge 接入真实 Python AgentRuntime 与 Source 保存，不再依赖独立的测试专用 HTTP 服务。
 
 ---
 
@@ -72,7 +72,7 @@ node test/safe-mode.mjs
 node test/extract-bridge.mjs
 node test/postinstall-check.mjs
 node test/install-profile.mjs
-node test/runtime-python-smoke.mjs
+node test/loopback-contract.mjs
 
 # 3. 打包白名单自检
 node scripts/build-check.mjs

@@ -41,13 +41,13 @@ AccessService 基于完整 session UMO、sender ID、owner/trusted 配置和 obs
 
 ## 本机回环记忆适配层
 
-`adapters/loopback/runtime.py` 组装现有 Store、Buffer、RecallService 和 StatusService；`adapters/loopback/server.py` 负责本机 HTTP、令牌验证、请求映射及资源关闭。`scripts/serve.py` 只负责解析命令行并保留原来的启动方式（`python scripts/serve.py --data-dir <dir>`）。这属于宿主传输与组合根，不属于 core 规则或 services 用例；不依赖 AstrBot SDK。真实入口另在 `adapters/loopback/runtime_ingress.py` 组合进程内 AgentRuntime：用户消息经 HostGateway 生成 RuntimeInput，Source 仍由现有 `/capture` 的 Buffer 路径唯一保存，助手消息沿用同一捕获与 reply_to 关联。`scripts/runtime_http.py` 仍是独立的桥接验证入口。
+`adapters/loopback/runtime.py` 组装现有 Store、Buffer、RecallService 和 StatusService；`adapters/loopback/server.py` 负责本机 HTTP、令牌验证、请求映射及资源关闭。`scripts/serve.py` 只负责解析命令行并保留原来的启动方式（`python scripts/serve.py --data-dir <dir>`）。这属于宿主传输与组合根，不属于 core 规则或 services 用例；不依赖 AstrBot SDK。真实入口另在 `adapters/loopback/runtime_ingress.py` 组合进程内 AgentRuntime：用户消息经 HostGateway 生成 RuntimeInput，Source 仍由现有 `/capture` 的 Buffer 路径唯一保存，助手消息沿用同一捕获与 reply_to 关联。
 
 此入口的 `/capture` 保存 Source 并排队，`/recall` 读取已有 Artifact；`/extract/plan` 返回就绪话题的可执行 ChatRequest（无任务返回 204），`/extract/commit` 只接受同一进程发出的任务编号和对应来源 ID，以既有验证和 CAS 提交流水线写入；错误模型输出保留排队数据供重试，重复或未知任务返回 409。正在补偿的写入保持任务状态并返回 503，不在 GET 计划请求中偷偷写入；任务仅保存在本机进程内，进程重启后旧编号失效，宿主须重新取计划。契约检查用本地捕获的消息做真正的提交，不会消费无关主题的任务；未抽取的召回仍标为未完成，不宣称已验证。`/recall` 的每次请求预算与命中上限只可在服务默认上限之内收紧，不修改共享服务配置；HTTP 错误不向调用方回显底层异常文本；无认证的健康检查不暴露本地数据库路径。新建数据目录使用仅所有者权限，运行时令牌元数据以仅所有者权限原子替换；调用方仍需保证传入的既有数据目录本身私有。数据格式、公开配置和端点路径不变。
 
-回环 HTTP 入站由 `adapters/loopback/server.py` 和 `bounded_io.py` 处理，保留本机绑定与 Bearer 校验；request/event ID 只用于关联或去重，不是鉴权凭据。对已认证的 POST，要求单个有效 `Content-Length`，不接受分块传输；按编码后的 JSON 请求体字节数限制 `/extract/commit` 为 8 MiB，其他 POST 为 4 MiB。接收请求头总期限为 2 秒、请求体总读取期限为 5 秒：缺少长度返回 411，非法长度/JSON 或提前断流返回 400，超限返回 413，读取超时返回 408；错误不回显正文或令牌，未读完的连接关闭。未认证请求仍先返回 401；无数据格式或公开配置变更。合法请求超过上限会被拒绝，宿主必须按既有失败路径处理而不是静默当作已保存。服务仍串行执行记忆操作，限时防止永久阻塞，不保证半截请求期间后续请求立即得到服务；`scripts/runtime_http.py` 是独立验证入口，不继承此传输保证。
+回环 HTTP 入站由 `adapters/loopback/server.py` 和 `bounded_io.py` 处理，保留本机绑定与 Bearer 校验；request/event ID 只用于关联或去重，不是鉴权凭据。对已认证的 POST，要求单个有效 `Content-Length`，不接受分块传输；按编码后的 JSON 请求体字节数限制 `/extract/commit` 为 8 MiB，其他 POST 为 4 MiB。接收请求头总期限为 2 秒、请求体总读取期限为 5 秒：缺少长度返回 411，非法长度/JSON 或提前断流返回 400，超限返回 413，读取超时返回 408；错误不回显正文或令牌，未读完的连接关闭。未认证请求仍先返回 401；无数据格式或公开配置变更。合法请求超过上限会被拒绝，宿主必须按既有失败路径处理而不是静默当作已保存。服务仍串行执行记忆操作，限时防止永久阻塞，不保证半截请求期间后续请求立即得到服务。
 
-入站信任边界比 HostGateway 窄：回环监听器只核实本次启动的 Bearer 令牌，不证明远程身份；宿主适配器（进程内 AstrBot 与独立的 DSH 客户端）负责把已核实的平台身份映射为宿主事实。`HostGateway.project()` 仅把宿主事实映射为 RuntimeInput；会话 ID、`subject_key`、消息 ID 或事件 ID 都不能替代令牌，也不能证明调用方身份。体积与接收时限归回环 HTTP 适配器；提示词信任归 #165，披露归 RecallService，调度归 AgentRuntime。已认证的异常本机调用方仍可能占用单线程服务直至有界的接收期限；该期限不约束业务执行。`scripts/runtime_http.py` 属于独立验证服务，不享有记忆监听器的限额保证；如将它用于生产，需要另行确认负责人、威胁模型并评审。
+入站信任边界比 HostGateway 窄：回环监听器只核实本次启动的 Bearer 令牌，不证明远程身份；宿主适配器（进程内 AstrBot 与独立的 DSH 客户端）负责把已核实的平台身份映射为宿主事实。`HostGateway.project()` 仅把宿主事实映射为 RuntimeInput；会话 ID、`subject_key`、消息 ID 或事件 ID 都不能替代令牌，也不能证明调用方身份。体积与接收时限归回环 HTTP 适配器；提示词信任归 #165，披露归 RecallService，调度归 AgentRuntime。已认证的异常本机调用方仍可能占用单线程服务直至有界的接收期限；该期限不约束业务执行。
 
 4／8 MiB 是试行传输限额，不是实测生产流量分位数。按实际 DSH `KernelClient` 的 JSON 序列化计算的字节样例（合成内容，**不是生产流量**）：2.5 万汉字 `/capture` 为 75,077 字节，140 万汉字为 4,200,103 字节，超过 4 MiB 限额；20 万空格 `/extract/commit` 为 200,050 字节，1900 汉字 `/persona` 为 5,744 字节。宣称试行限额适用于生产前，还需以仅含路由级字节数和耗时、**不含正文／令牌／身份编号**的方式测量真实宿主请求分布及慢请求频率。真实监听器的 DSH 契约测试确认：被拒绝的捕获不被当成已保存、不进入抽取队列，后续正常消息仍成功；未读取的上传被提前关闭时，DSH 客户端可能收到 HTTP 413，也可能收到连接重置（`kernel_down`），宿主不能假定一定能看到 413；这不证明生产兼容，也不覆盖独立验证服务。
 
@@ -59,9 +59,9 @@ DSH 的 RuntimeBridge 复用 KernelClient 的本机认证连接。服务在 heal
 
 subject_key 表示稳定记忆归属，session_id 表示本轮运行会话，二者不混用。pre-step 只在消息 ID 匹配时使用对应的 Source 回执与事件时间；服务的 runtime_gate_enabled 明确开启后，才把其 RunDecision 映射为宿主放行或拒绝，不实现第二套注意力策略。
 
-旧服务或不支持此运行时协议的服务沿用 capture/recall。运行时写请求一旦发出，即使失败或超时，也不再补发 legacy capture，避免重复保存。普通 assistant/message 只映射为 record_reply，没有发送完成证明时不调用 record_delivery。桥接器不新增模型循环、调度器、主动发送或工具执行能力；真实 `scripts/serve.py` 现支持 runtime 接收与上下文，但 `runtime_gate_enabled=false`，会话决策仅保存在进程内，重启不承诺恢复。运行时上下文仍复用 RecallService 的披露及预算，DSH 传入显式 `budget_chars` 和 `k`；宿主不能从错误主体读取或写入。`/runtime/context` 与旧 `/recall` 只接受布尔型的显式 `private`，错误类型在披露前返回 400；字段缺失仍分别默认非私聊与私聊，不改变原有兼容行为。`scripts/runtime_http.py` 仅是独立验证用的 AgentRuntime 组合入口。
+旧服务或不支持此运行时协议的服务沿用 capture/recall。运行时写请求一旦发出，即使失败或超时，也不再补发 legacy capture，避免重复保存。普通 assistant/message 只映射为 record_reply，没有发送完成证明时不调用 record_delivery。桥接器不新增模型循环、调度器、主动发送或工具执行能力；真实 `scripts/serve.py` 现支持 runtime 接收与上下文，但 `runtime_gate_enabled=false`，会话决策仅保存在进程内，重启不承诺恢复。运行时上下文仍复用 RecallService 的披露及预算，DSH 传入显式 `budget_chars` 和 `k`；宿主不能从错误主体读取或写入。`/runtime/context` 与旧 `/recall` 只接受布尔型的显式 `private`，错误类型在披露前返回 400；字段缺失仍分别默认非私聊与私聊，不改变原有兼容行为。
 
-DSH 每个宿主上下文只注册一次；卸载会撤销钩子、取消桥接请求并清空上下文缓存，迟到的响应不再注入。Node 集成测试分别覆盖真实 `scripts/serve.py` 记忆入口及独立的 `scripts/runtime_http.py` 验证入口。
+DSH 每个宿主上下文只注册一次；卸载会撤销钩子、取消桥接请求并清空上下文缓存，迟到的响应不再注入。Node 集成测试覆盖真实 `scripts/serve.py` 记忆入口及其 AgentRuntime 路径。
 
 关系模式默认为 observe：`off` 跳过关系维护，`observe` 与历史配置值 `enforce` 当前都只巩固已核验事件，不改变回复可用性或风格。关系 Artifact 不进入 Recall 或管理目录；未来的表达调优需单独评审和显式启用。
 
