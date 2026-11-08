@@ -134,6 +134,19 @@ class LoopbackServerContractTest(unittest.TestCase):
                 server.serve(Path("/unused"))
         fake.store.close.assert_called_once()
 
+    def test_metadata_publication_failure_closes_listener_and_store(self) -> None:
+        service = Mock()
+        listener = Mock()
+        listener.server_address = ("127.0.0.1", 0)
+        with patch.object(server, "MemoryService", return_value=service), patch.object(
+            server, "HTTPServer", return_value=listener,
+        ), patch.object(server, "_publish_runtime", side_effect=OSError("disk unavailable")):
+            with self.assertRaises(OSError):
+                server.serve(Path("/unused"))
+        listener.server_close.assert_called_once()
+        listener.serve_forever.assert_not_called()
+        service.store.close.assert_called_once()
+
     @staticmethod
     def _stop(process: subprocess.Popen[str]) -> None:
         if process.poll() is None:

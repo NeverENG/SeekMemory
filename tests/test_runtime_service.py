@@ -1,9 +1,8 @@
-"""Loopback E2E against the real Python AgentRuntime service."""
+"""Loopback E2E against the real memory service and its AgentRuntime ingress."""
 
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -20,8 +19,8 @@ class RuntimeServiceTest(unittest.TestCase):
     def setUp(self) -> None:
         self.data_dir = tempfile.TemporaryDirectory(prefix="seekmem-runtime-")
         self.process = subprocess.Popen(
-            [sys.executable, str(ROOT / "scripts" / "runtime_http.py"),
-             "--data-dir", self.data_dir.name, "--token", "test-token"],
+            [sys.executable, str(ROOT / "scripts" / "serve.py"),
+             "--data-dir", self.data_dir.name, "--token", "test-token", "--quiet"],
             cwd=ROOT,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -44,7 +43,7 @@ class RuntimeServiceTest(unittest.TestCase):
                 return json.loads(path.read_text())
             except (FileNotFoundError, json.JSONDecodeError):
                 time.sleep(0.02)
-        self.fail("runtime service did not publish runtime.json")
+        self.fail("memory service did not publish runtime.json")
 
     def _post(self, path: str, body: dict):
         request = urllib.request.Request(
@@ -83,6 +82,12 @@ class RuntimeServiceTest(unittest.TestCase):
         self.assertEqual(receipt["decision"]["reason"], "direct_attention")
         self.assertTrue(receipt["source_id"])
         self.assertEqual(receipt["turn_id"], "event-1")
+        plan = urllib.request.Request(
+            f"http://127.0.0.1:{self.endpoint['port']}/extract/plan?subject_key=loopback:default",
+            headers={"authorization": "Bearer test-token"},
+        )
+        with urllib.request.urlopen(plan, timeout=2) as response:
+            self.assertIn(receipt["source_id"], json.load(response)["source_ids"])
 
         status, context = self._post("/runtime/context", {
             "session_id": "dsh-session-a",
@@ -105,6 +110,12 @@ class RuntimeServiceTest(unittest.TestCase):
                 },
             })
         self.assertEqual(caught.exception.code, 400)
+        plan = urllib.request.Request(
+            f"http://127.0.0.1:{self.endpoint['port']}/extract/plan?subject_key=loopback:default",
+            headers={"authorization": "Bearer test-token"},
+        )
+        with urllib.request.urlopen(plan, timeout=2) as response:
+            self.assertEqual(response.status, 204, "invalid host facts must not create a Source")
 
     def test_loopback_requires_bearer_token(self) -> None:
         request = urllib.request.Request(
