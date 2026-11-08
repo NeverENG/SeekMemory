@@ -119,7 +119,8 @@ test('DSH does not report an oversized capture as saved and accepts the next mes
     const denied = await client.capture({ subject_key: 'loopback:default', role: 'user',
       session: 'dsh-ingress', msg_id: 'too-large', text: '中'.repeat(1_400_000) });
     assert.equal(denied.ok, false, 'oversized input cannot be acknowledged as persisted');
-    assert.equal(denied.reason, 'http_413', 'the host must see the server rejection, not a saved Source');
+    assert.ok(['http_413', 'kernel_down'].includes(denied.reason),
+      'early close with unread upload may surface as a connection reset, never a saved Source');
     const accepted = await client.capture({ subject_key: 'loopback:default', role: 'user',
       session: 'dsh-ingress', msg_id: 'next-valid', text: '正常消息' });
     assert.equal(accepted.ok, true, JSON.stringify(accepted));
