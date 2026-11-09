@@ -305,6 +305,40 @@ class ArtifactRepository(SqliteRepository):
         ).fetchall()
         return [str(row["dst"]) for row in rows]
 
+    def current_evidence_ids(self, node_id: str, limit: int) -> list[str]:
+        """Read bounded Source IDs linked to the current committed revision.
+
+        有界读取当前提交版本的证据编号，不查询历史版本或正文。
+        """
+        if limit < 1:
+            raise ValueError("evidence limit must be positive")
+        rows = self.conn.execute(
+            "SELECT ae.source FROM artifact_evidence ae "
+            "JOIN nodes n ON n.id = ae.entity AND n.revision = ae.revision "
+            "WHERE ae.entity = ? ORDER BY ae.source LIMIT ?",
+            (node_id, limit),
+        ).fetchall()
+        return [str(row["source"]) for row in rows]
+
+    def active_dependents(self, node_id: str, limit: int) -> list[str]:
+        """Read bounded active memory IDs whose current lineage derives from a child.
+
+        有界读取当前血缘引用子节点的有效记忆编号；坏旧 JSON 不参与。
+        """
+        if limit < 1:
+            raise ValueError("dependency limit must be positive")
+        rows = self.conn.execute(
+            "SELECT DISTINCT n.id FROM nodes n "
+            "JOIN json_each(CASE WHEN json_valid(n.lineage) THEN "
+            "CASE WHEN json_type(n.lineage, '$.derived_from') = 'array' "
+            "THEN n.lineage ELSE '{}' END ELSE '{}' END, "
+            "'$.derived_from') d ON d.value = ? "
+            "WHERE n.family = 'memory' AND n.state = 'active' "
+            "ORDER BY n.id LIMIT ?",
+            (node_id, limit),
+        ).fetchall()
+        return [str(row["id"]) for row in rows]
+
     def active_tree_parents(self, node_id: str, limit: int) -> list[str]:
         """Cap ordered edges only after both current memory heads are active.
 

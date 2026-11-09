@@ -30,9 +30,11 @@ reflect.py can compute wrong/right signals from adjacent user messages, but the 
 
 `dream_reconcile.py` only prepares an offline explicit-correction example: a same-private-session user Source replies to the original evidence with a “更正：”/“Correction:” marker, and the sole identical parent impression depends entirely on one fact child. It prepares one atomic revision plan to revise the child and deactivate that parent. This module neither commits data nor changes tree edges, and it is not wired into Dream or Runtime; multiple parents, other phrasing and complex narratives defer rather than implying automatic correction is enabled.
 
+`dream_impact.py` offers an offline, read-only correction impact inspection: starting from a child, it compares raw tree edges with current active `derived_from` references within depth, parent, visit and evidence limits. Only paths corroborated by both records and matching identity, scope, visibility and existing Source references and current-revision evidence contribute affected parent IDs. Missing links, retired nodes, cycles, unsupported evidence or truncation produce blocker reasons. The report contains no message text, never authorizes a write and is not scheduled by Dream. Storage only reads existing `nodes.lineage` for bounded reverse dependencies; it changes no stored structure.
+
 ## Interfaces and plan ownership
 
-`maintain/domain.py` explicitly exports supported maintenance use cases and immutable `RevisionWrite` / `RevisionPlan` data. `maintain/ports.py` reuses existing Artifact/Source/cache protocols. Unrelated maintenance imports and return values remain available; retired V1 relationship helpers are removed. A `RevisionPlan` names one group transaction; distinct plans or relationship subjects are not collectively atomic. Resource construction/shutdown belongs to composition.
+`maintain/domain.py` explicitly exports supported maintenance use cases and immutable `RevisionWrite` / `RevisionPlan` data. `maintain/ports.py` reuses existing Artifact/Source/cache protocols and declares the read-only store capability for offline impact inspection. Unrelated maintenance imports and return values remain available; retired V1 relationship helpers are removed. A `RevisionPlan` names one group transaction; distinct plans or relationship subjects are not collectively atomic. Resource construction/shutdown belongs to composition.
 
 | Files | Responsibility and effects | Logical complexity and coupling |
 |---|---|---|

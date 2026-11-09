@@ -5,8 +5,12 @@
 ### 中文
 - #233：树召回按当前有效的父子记忆先过滤、再按编号限量，停用或缺失的旧边不再挤掉有效节点；保留原始边供离线检查，不自动纠错或清理连接。无数据库格式、已存数据或公开配置变化。
 
+- #233：新增离线只读的纠错影响图检查，有界比对当前血缘与原始树边，核对当前版本证据，明确报告多父路径及不一致、证据缺失、跨主体、环和截断；不推断应如何修订，也不接入生产 Dream。仅查询既有字段，不改已存数据格式、边或公开配置。
+
 ### English
 - #233: Tree recall filters for current active parent and child memories before applying ordered read limits, so retired or missing edge endpoints no longer starve valid nodes. Raw edges remain available for offline inspection; no automatic correction or edge cleanup. No database-format, stored-data or public-configuration changes.
+
+- #233: Add offline read-only correction impact inspection, comparing current lineage with raw tree edges under explicit bounds. It checks current-revision evidence and reports multi-parent paths and mismatches, missing evidence, identity differences, cycles and truncation without deciding how to revise or scheduling production Dream. It only reads existing fields; stored formats, edges and public settings are unchanged.
 
 ## 0.7.0-rc.1 — 2026-11-09
 
