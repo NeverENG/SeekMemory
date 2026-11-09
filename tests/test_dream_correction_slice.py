@@ -9,12 +9,16 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.budget import ContextBudget
 from core.artifact import Lineage, make, revise
-from core.domain.memory.versioning import VersionError
 from core.domain.memory.tree import tree_child_kind
+from core.domain.memory.versioning import VersionError
+from core.graph import Graph
 from core.source import Source
 from maintain.dream_reconcile import prepare_source_correction
 from maintain.writer import MaintenanceWriter
+from services.recall_service import RecallService
+from services.tree_service import TreeService
 from store import open_store
 from store.cache import Cache
 
@@ -59,6 +63,17 @@ class DreamCorrectionSliceTest(unittest.TestCase):
             self.child.header.id, self.correction.id,
         )
 
+    def recall(self, cache: Cache | None = None) -> RecallService:
+        view = cache if cache is not None else self.cache
+        return RecallService(
+            cache=view, graph=Graph(self.db.artifacts),
+            artifacts=self.db.artifacts, sources=self.db.sources,
+            budget=ContextBudget(injection_chars=600),
+            config=lambda key, default: {"source_recall_enabled": False, "recall_k": 2}.get(key, default),
+            owner_umo=lambda: self.original.session_id,
+            tree=TreeService(self.db.artifacts, view), tree_enabled=True,
+        )
+
     def test_explicit_correction_revises_child_and_retires_unsupported_parent_atomically(self) -> None:
         plan = self.plan()
         self.assertIsNotNone(plan)
@@ -73,6 +88,36 @@ class DreamCorrectionSliceTest(unittest.TestCase):
         self.assertEqual([row["revision"] for row in self.db.artifacts.history("child")], [1, 2])
         self.assertEqual([row["revision"] for row in self.db.artifacts.history("parent")], [1, 2])
         self.assertIsNone(self.plan())  # same input cannot multiply versions
+
+    def test_source_correction_remains_safe_through_read_only_recall(self) -> None:
+        service = self.recall()
+        old_block, old_info = service.query("我常住北京", self.original.session_id, True, "u1")
+        self.assertIn("常住北京", old_block)
+        self.assertIn("parent", old_info["picked_ids"])
+
+        self.assertEqual(MaintenanceWriter(self.db.artifacts, self.cache).execute(self.plan()), 2)
+        ledger_hash = self.db.ledger.last_hash()
+        edges = self.db.artifacts.tree_children("parent", 8)
+        source = self.db.sources.sources_by_ids([self.original.id, self.correction.id])
+        corrected, info = service.query("我在北京出差", self.original.session_id, True, "u1")
+        self.assertIn("child", info["picked_ids"])
+        self.assertNotIn("parent", info["picked_ids"])
+        self.assertIn("北京出差", corrected)
+        self.assertIn("不是常住北京", corrected)
+        self.assertNotIn("我常住北京", corrected)
+        self.assertEqual(self.db.ledger.last_hash(), ledger_hash)
+        self.assertEqual(self.db.artifacts.tree_children("parent", 8), edges)
+        self.assertEqual(self.db.sources.sources_by_ids([self.original.id, self.correction.id]), source)
+        self.assertIsNone(self.plan())
+        reloaded_cache = Cache(self.db.artifacts)
+        reloaded_cache.load()
+        self.assertIsNone(reloaded_cache.get("parent"))
+        reloaded, reloaded_info = self.recall(reloaded_cache).query(
+            "我在北京出差", self.original.session_id, True, "u1")
+        self.assertIn("child", reloaded_info["picked_ids"])
+        self.assertNotIn("parent", reloaded_info["picked_ids"])
+        self.assertNotIn("我常住北京", reloaded)
+        self.assertEqual(self.db.ledger.last_hash(), ledger_hash)
 
     def test_failed_second_write_rolls_back_both_and_retries_exact_plan(self) -> None:
         writer = MaintenanceWriter(self.db.artifacts, self.cache)
@@ -94,6 +139,12 @@ class DreamCorrectionSliceTest(unittest.TestCase):
         self.assertEqual(self.db.artifacts.get("parent"), self.parent)
         self.assertEqual(self.cache.get("child"), self.child)
         self.assertEqual(self.cache.get("parent"), self.parent)
+        ledger_hash = self.db.ledger.last_hash()
+        still_old, old_info = self.recall().query(
+            "我常住北京", self.original.session_id, True, "u1")
+        self.assertIn("parent", old_info["picked_ids"])
+        self.assertIn("常住北京", still_old)
+        self.assertEqual(self.db.ledger.last_hash(), ledger_hash)
         self.assertEqual(writer.retry_writebacks(), 2)
         self.assertEqual((self.db.artifacts.get("child").header.revision,
                           self.db.artifacts.get("parent").header.state), (2, "forgotten"))
