@@ -49,25 +49,29 @@ class TreeService:
         """Expose only the count of unmigrated legacy links / 仅暴露未迁移旧连接的数量。"""
         return self.artifacts.legacy_tree_gap_count()
 
+    def tree_parents(self, node_id: str, limit: int) -> list[str]:
+        """Provide current active parent IDs to the pure ancestry traversal / 向纯祖先遍历提供当前有效父节点。"""
+        return self.artifacts.active_tree_parents(node_id, limit)
+
     def parents(self, node_id: str, *, limit: int = 8) -> tuple[str, ...]:
-        """Read all bounded parent IDs from tree edges / 从树边读取有限数量的父节点。"""
-        return parent_ids(node_id, self.artifacts, limit=limit)
+        """Read bounded current active parents from tree edges / 从树边限量读取当前有效父节点。"""
+        return parent_ids(node_id, self, limit=limit)
 
     def ancestor_ids(self, node_id: str, *, max_depth: int = 3,
                      max_visits: int = 32, max_parents: int = 8) -> tuple[str, ...]:
         """Read multi-parent ancestry without writes / 只读查询多父祖先。"""
-        return ancestor_ids(node_id, self.artifacts, max_depth=max_depth,
+        return ancestor_ids(node_id, self, max_depth=max_depth,
                             max_visits=max_visits, max_parents=max_parents)
 
     def children(self, node_id: str, *, limit: int = 8) -> list[Artifact]:
-        """Read bounded existing children, cache first; no cache fill.
+        """Read bounded active children, cache first; no cache fill.
 
-        有界读取当前子节点，先缓存后仓储，不回填缓存。
+        有界读取当前有效子节点，先缓存后仓储，不回填缓存。
         """
         if not node_id:
             return []
         result: list[Artifact] = []
-        for child_id in self.artifacts.tree_children(node_id, limit):
+        for child_id in self.artifacts.active_tree_children(node_id, limit):
             art = self._get(child_id)
             if art is not None:
                 result.append(art)

@@ -58,7 +58,7 @@ Artifact version snapshots and evidence are audit facts; the ledger hash chain c
 | `metrics.py` | Capacity measurements through the borrowed connection | Low: read-only queries |
 | `cache.py`, `run_trace.py` | Derived active-memory indices and independent diagnostic JSONL | Medium: process state/file lock, separate from business truth |
 
-Repositories borrow the connection and never close it. Public writes own their transaction; `_commit_conn`, `write_source_conn` and `append_ledger_conn` join their callers transaction and must not commit independently. `set_parent` is an existing separate compatibility column write, not an Artifact revision/edge transaction.
+Repositories borrow the connection and never close it. Public writes own their transaction; `_commit_conn`, `write_source_conn` and `append_ledger_conn` join their callers transaction and must not commit independently. Active tree parent/child reads filter both current memory endpoints in SQL before applying the limit; raw `tree_parents` / `tree_children` still expose untouched stored edges for offline inspection. Neither read mutates edges or migrates legacy data. `set_parent` is an existing separate compatibility column write, not an Artifact revision/edge transaction.
 
 `tests/test_store_interface_contract.py` covers explicit identities, helper compatibility and connection sharing. Existing migration, kernel, extraction, runtime action and import-order scenarios cover behavior; these checks do not execute a live host or model.
 

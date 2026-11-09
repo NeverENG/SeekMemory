@@ -1,5 +1,13 @@
 # 变更记录
 
+## Unreleased
+
+### 中文
+- #233：树召回按当前有效的父子记忆先过滤、再按编号限量，停用或缺失的旧边不再挤掉有效节点；保留原始边供离线检查，不自动纠错或清理连接。无数据库格式、已存数据或公开配置变化。
+
+### English
+- #233: Tree recall filters for current active parent and child memories before applying ordered read limits, so retired or missing edge endpoints no longer starve valid nodes. Raw edges remain available for offline inspection; no automatic correction or edge cleanup. No database-format, stored-data or public-configuration changes.
+
 ## 0.7.0-rc.1 — 2026-11-09
 
 ### 中文

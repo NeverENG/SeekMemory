@@ -305,6 +305,40 @@ class ArtifactRepository(SqliteRepository):
         ).fetchall()
         return [str(row["dst"]) for row in rows]
 
+    def active_tree_parents(self, node_id: str, limit: int) -> list[str]:
+        """Cap ordered edges only after both current memory heads are active.
+
+        仅在两端当前记忆均有效后对有序父边限量。
+        """
+        if limit < 1:
+            raise ValueError("tree limit must be positive")
+        rows = self.conn.execute(
+            "SELECT e.src FROM edges e "
+            "JOIN nodes p ON p.id = e.src AND p.family = 'memory' AND p.state = 'active' "
+            "JOIN nodes c ON c.id = e.dst AND c.family = 'memory' AND c.state = 'active' "
+            "WHERE e.dst = ? AND e.src != e.dst "
+            "AND e.kind = 'tree_child:' || e.src ORDER BY e.src LIMIT ?",
+            (node_id, limit),
+        ).fetchall()
+        return [str(row["src"]) for row in rows]
+
+    def active_tree_children(self, node_id: str, limit: int) -> list[str]:
+        """Cap ordered edges only after both current memory heads are active.
+
+        仅在两端当前记忆均有效后对有序子边限量。
+        """
+        if limit < 1:
+            raise ValueError("tree limit must be positive")
+        rows = self.conn.execute(
+            "SELECT e.dst FROM edges e "
+            "JOIN nodes p ON p.id = e.src AND p.family = 'memory' AND p.state = 'active' "
+            "JOIN nodes c ON c.id = e.dst AND c.family = 'memory' AND c.state = 'active' "
+            "WHERE e.src = ? AND e.src != e.dst "
+            "AND e.kind = 'tree_child:' || e.src ORDER BY e.dst LIMIT ?",
+            (node_id, limit),
+        ).fetchall()
+        return [str(row["dst"]) for row in rows]
+
     def edges_of(self, node_id: str) -> list[tuple[str, str, float]]:
         """Read both endpoints as other-ID, kind and weight; omit direction / 读取两端连接的另一端编号、类型及权重，不包含方向。"""
         rows = self.conn.execute(

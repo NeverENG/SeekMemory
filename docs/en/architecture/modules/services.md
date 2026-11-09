@@ -25,9 +25,9 @@ perceive/absorb.build_plan is a side-effect-free conversion: it validates eviden
 
 Provider/model failures do not mark pending Sources complete. ExtractionRepository owns backoff, attempt limits, and the dead state. A failure in one selected session does not automatically cancel all other selected sessions.
 
-TreeService is implemented entirely in `services/tree_service.py`. It uses `TreeArtifactStore` and optional `TreeCache` from `app/ports.py`, without importing storage implementations. Child reads prefer cache and fall back to storage without filling cache; impression reads fall back only when the cached level is empty.
+TreeService is implemented entirely in `services/tree_service.py`. It uses `TreeArtifactStore` and optional `TreeCache` from `app/ports.py`, without importing storage implementations. Parent and child tree reads filter for active current memory heads at both edge endpoints before ordering and limiting; missing or retired endpoints do not consume the read budget. Old edges are not removed, and raw edge reads remain available for offline inspection. Child reads prefer cache and fall back to storage without filling cache; impression reads fall back only when the cached level is empty.
 
-`add_under` rejects self-parenting, then commits the memory, updates cache, sets the parent column, and adds the tree edge in order. These steps are not one transaction; failures propagate, and a failed commit leaves cache unchanged. An existing memory may gain a new revision, but the return value remains the original input. Setting or clearing the parent column does not delete old edges. The host currently constructs the service; its writes are covered by smoke and contract checks rather than the production ingestion path.
+`add_under` rejects self-parenting, then commits the memory, updates cache, and adds tree edges in order. These steps are not one transaction; failures propagate, and a failed commit leaves cache unchanged. An existing memory may gain a new revision, but the return value remains the original input. This use case does not write the legacy single-parent column or automatically remove old edges. The host currently constructs the service; its writes are covered by smoke and contract checks rather than the production ingestion path.
 
 ## Scheduling and admin work
 
