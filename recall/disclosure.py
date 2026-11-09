@@ -5,18 +5,22 @@
 from __future__ import annotations
 
 try:
-    from ..core.domain.memory.disclosure import DisclosureLevel, decide, safe_text
+    from ..core.domain.memory.disclosure import DisclosureLevel, PrivacyPolicy, DEFAULT_PRIVACY_POLICY
     from ..core.domain.character.bot_behavior import trusted_self_persona
 except ImportError:
-    from core.domain.memory.disclosure import DisclosureLevel, decide, safe_text
+    from core.domain.memory.disclosure import DisclosureLevel, PrivacyPolicy, DEFAULT_PRIVACY_POLICY
     from core.domain.character.bot_behavior import trusted_self_persona
 
 def disclose(arts: list, relevance: float, *, scene, sources, umo: str, owner_umo: str,
-             overrides: dict[str, str], disclosure_info: dict[str, str]) -> list:
+             overrides: dict[str, str], disclosure_info: dict[str, str],
+             privacy_policy: PrivacyPolicy = DEFAULT_PRIVACY_POLICY) -> list:
     """Apply existing disclosure and collect safe text overrides; failures withhold an item / 应用既有披露并收集安全措辞替换，失败时不提供该项。"""
     safe_arts = []
     for art in arts:
         try:
+            # A failed policy must not be bypassed by pinned, fallback or designated items.
+            # 策略失败不得被常驻、回退或指定记忆绕过。
+            privacy_policy.scope_prior(art)
             if art.header.family == "persona":
                 safe = trusted_self_persona(art)
                 disclosure_info[art.header.id] = "full" if safe else "silence"
@@ -39,12 +43,12 @@ def disclose(arts: list, relevance: float, *, scene, sources, umo: str, owner_um
                 else:
                     disclosure_info[art.header.id] = "silence"
                 continue
-            decision = decide(art, scene, relevance, origins)
+            decision = privacy_policy.decide(art, scene, relevance, origins)
             disclosure_info[art.header.id] = decision.level.value
             if decision.level == DisclosureLevel.SILENCE:
                 continue
             if decision.level != DisclosureLevel.FULL:
-                safe = safe_text(art, decision.level)
+                safe = privacy_policy.safe_text(art, decision.level)
                 if not safe:
                     continue
                 overrides[art.header.id] = safe

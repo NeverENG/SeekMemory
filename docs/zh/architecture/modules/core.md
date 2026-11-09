@@ -50,7 +50,7 @@ family 校验器位于 core/families。make 只构造对象，不自动校验；
 
 - **strength.py** 计算留存率、衰减权重和 recall/spoken/confirmed 强化；显式 hits 优先，旧数据可从 weight 推算有效命中。
 - **versioning.py** 校验新版本的稳定 ID/family、顺序连续性和 created 时间；定义状态事件及语义变化判定。
-- **disclosure.py** 把会话亲和、主体匹配、scope prior、敏感度和相关度组合为 full、paraphrase、hint 或 silence。只有 full 可返回 Artifact 原文；较低等级使用固定通用文本。secret family 的敏感度令其不能披露。
+- **disclosure.py** 把会话亲和、主体匹配、scope prior、敏感度和相关度组合为 full、paraphrase、hint 或 silence。只有 full 可返回 Artifact 原文；较低等级使用固定通用文本。secret family 的敏感度令其不能披露。`PrivacyPolicy` 把现有 scope 先验、披露决策及安全措辞绑定成可注入的纯策略；默认实例不改变公式或阈值，也不增加公开配置。
 - **graph.py** 通过注入的仓储协议处理关系边，不自行写 SQL。causal 边保留显式接口，没有自动语义推断。
 - **capacity.py** 根据容量快照和可配置阈值，纯函数式地给出状态与调度动作；执行由 services 完成。
 - **trace.py** 清理运行追踪字段并投影运行时间线，限制可保存的数据种类。

@@ -20,7 +20,7 @@ Source fallback recency compares absolute instants for offset-aware timestamps; 
 
 ## Disclosure and delivery
 
-core.disclosure combines context affinity, subject fit, scope prior, sensitivity, and relevance into full, paraphrase, hint, or silence. Lower than full uses fixed generic sentences, not the original text or tags. Being selected does not mean an item made the final block; injection does not prove that the model used it.
+core.disclosure combines context affinity, subject fit, scope prior, sensitivity, and relevance into full, paraphrase, hint, or silence. Lower than full uses fixed generic sentences, not the original text or tags. Being selected does not mean an item made the final block; injection does not prove that the model used it. `RecallService` may inject one `PrivacyPolicy` for candidate graph/BM25 scope priors and disclosure/safe wording of selected, pinned, and fallback memories; the default preserves existing rules. A policy failure withholds the affected memory. Persona trust and designated one-time delivery remain separate existing rules.
 
 family=secret never enters the ordinary candidate pool. A memory with scope=shadow can only use a masked expression. family=designated has a separate private-chat + trigger + unused-delivery check; given is committed only if the text actually appears in the final block. Admin diagnostics use dry_run and do not consume one-time delivery state.
 
