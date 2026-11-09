@@ -28,6 +28,8 @@ Weekly verification selects at most 24 due events for the current verifier versi
 
 reflect.py can compute wrong/right signals from adjacent user messages, but the current repository has no production caller. It is not an automatic reflection, memory-repair, or reinforcement path. Documentation and configuration must not present it as an enabled online feature.
 
+`dream_reconcile.py` only prepares an offline explicit-correction example: a same-private-session user Source replies to the original evidence with a “更正：”/“Correction:” marker, and the sole identical parent impression depends entirely on one fact child. It prepares one atomic revision plan to revise the child and deactivate that parent. This module neither commits data nor changes tree edges, and it is not wired into Dream or Runtime; multiple parents, other phrasing and complex narratives defer rather than implying automatic correction is enabled.
+
 ## Interfaces and plan ownership
 
 `maintain/domain.py` explicitly exports supported maintenance use cases and immutable `RevisionWrite` / `RevisionPlan` data. `maintain/ports.py` reuses existing Artifact/Source/cache protocols. Unrelated maintenance imports and return values remain available; retired V1 relationship helpers are removed. A `RevisionPlan` names one group transaction; distinct plans or relationship subjects are not collectively atomic. Resource construction/shutdown belongs to composition.
