@@ -3,11 +3,13 @@
 ## Unreleased
 
 ### 中文
+- #233：新增有证据、版本/树边/账本/无正文操作日志同事务的树写入；多父复核可显式提交，失败整组回滚、相同操作重试不重复，旧边不补造。旧库增量增加 `tree_change_log`，不迁移现有边或公开配置；旧版独立树边写入不可与新版混跑，降级前需停写并从备份恢复。自动 Dream 纠错尚未启用。
 - #233：树召回按当前有效的父子记忆先过滤、再按编号限量，停用或缺失的旧边不再挤掉有效节点；保留原始边供离线检查，不自动纠错或清理连接。无数据库格式、已存数据或公开配置变化。
 
 - #233：新增离线只读的纠错影响图检查，有界比对当前血缘与原始树边，核对当前版本证据，明确报告多父路径及不一致、证据缺失、跨主体、环和截断；不推断应如何修订，也不接入生产 Dream。仅查询既有字段，不改已存数据格式、边或公开配置。
 
 ### English
+- #233: Add evidence-backed tree writes with Artifact revisions, edges, ledger and content-free operation log in one transaction. Explicit multi-parent review can commit atomically, failures roll back, exact retries do not duplicate writes, and old links are not invented. Existing databases gain `tree_change_log` without rewriting edges or public settings; old separate tree writers must not run concurrently, and downgrades require stopping writes and restoring a backup. Automatic Dream correction remains off.
 - #233: Tree recall filters for current active parent and child memories before applying ordered read limits, so retired or missing edge endpoints no longer starve valid nodes. Raw edges remain available for offline inspection; no automatic correction or edge cleanup. No database-format, stored-data or public-configuration changes.
 
 - #233: Add offline read-only correction impact inspection, comparing current lineage with raw tree edges under explicit bounds. It checks current-revision evidence and reports multi-parent paths and mismatches, missing evidence, identity differences, cycles and truncation without deciding how to revise or scheduling production Dream. It only reads existing fields; stored formats, edges and public settings are unchanged.
