@@ -283,14 +283,63 @@ class TreeChangeTransactionTest(unittest.TestCase):
         self.db.artifacts.upsert(
             old_parent
         )  # Legacy seed has no current-version evidence.
+        child = self.memory("new-child")
+        self.save(child)
         self.db.artifacts.add_edge(
             "old-parent", "new-child", "tree_child:old-parent", 1.0
         )
         with self.assertRaisesRegex(ValueError, "Source evidence"):
-            self.tree.add_under(self.memory("new-child"), ("old-parent",))
-        self.assertIsNone(self.db.artifacts.get("new-child"))
+            self.tree.add_under(revise(child), ("old-parent",))
+        self.assertEqual(self.db.artifacts.get("new-child").header.revision, 1)
         self.assertEqual(self.db.artifacts.current_evidence_ids("old-parent", 8), [])
         self.assertEqual(self.db.artifacts.tree_parents("new-child", 8), ["old-parent"])
+
+    def test_privacy_tightening_can_retire_old_parent_and_remove_link(self):
+        parent = make(
+            "memory",
+            {"level": "impression", "text": "public old"},
+            id="public-parent",
+            subject_id="u1",
+            scope="shared",
+            shareable="shareable",
+            lineage={"sources": (self.source.id,)},
+        )
+        child = make(
+            "memory",
+            {"level": "fact", "text": "public old"},
+            id="public-child",
+            subject_id="u1",
+            scope="shared",
+            shareable="shareable",
+            lineage={"sources": (self.source.id,)},
+        )
+        self.save(parent)
+        self.save(child)
+        self.db.artifacts.add_edge(
+            "public-parent", "public-child", "tree_child:public-parent", 1.0
+        )
+        change = TreeChange(
+            "privacy-tightening",
+            (
+                TreeRevision(
+                    revise(child, scope="private", shareable="private_only"),
+                    1,
+                    (self.source.id,),
+                ),
+                TreeRevision(revise(parent, state="forgotten"), 1, (self.source.id,)),
+            ),
+            (("public-child", 1), ("public-parent", 1)),
+            (("public-child", self.db.artifacts.tree_snapshot("public-child")),),
+            (("public-child", ()),),
+            "revise",
+            "review",
+        )
+        self.assertTrue(self.db.artifacts.commit_tree_change(change))
+        self.assertEqual(self.db.artifacts.tree_parents("public-child", 8), [])
+        self.assertEqual(self.db.artifacts.get("public-child").header.scope, "private")
+        self.assertEqual(
+            self.db.artifacts.get("public-parent").header.state, "forgotten"
+        )
 
     def test_source_subject_mismatch_rejects_edge_and_revision(self):
         parent = make(

@@ -87,33 +87,36 @@ class TreeValidation:
         for link in all_links:
             if link.parent not in heads or link.child not in heads:
                 raise ValueError("tree endpoint not observed")
-            parent = (
-                writes[link.parent].artifact
-                if link.parent in writes
-                else self.get(link.parent)
-            )
-            child = (
-                writes[link.child].artifact
-                if link.child in writes
-                else self.get(link.child)
-            )
-            if (
-                parent is None
-                or child is None
-                or parent.header.family != "memory"
-                or child.header.family != "memory"
-                or (
-                    parent.header.subject_id,
-                    parent.header.scope,
-                    parent.header.shareable,
+        # Existing links are evidence about the *old* heads, not the proposed heads.
+        # Recheck their evidence before replacing or removing them.
+        for edges in before.values():
+            for link in edges:
+                parent, child = self.get(link.parent), self.get(link.child)
+                if parent is None or child is None:
+                    raise ValueError("tree old endpoint missing")
+                self._check_link_identity(parent, child)
+                for endpoint in (parent, child):
+                    self._check_sources(
+                        endpoint,
+                        tuple(self.current_evidence_ids(endpoint.header.id, 129)),
+                    )
+        for edges in after.values():
+            for link in edges:
+                parent = (
+                    writes[link.parent].artifact
+                    if link.parent in writes
+                    else self.get(link.parent)
                 )
-                != (child.header.subject_id, child.header.scope, child.header.shareable)
-            ):
-                raise ValueError("tree identity or scope conflict")
-            if link in after.get(link.child, ()) and (
-                parent.header.state != "active" or child.header.state != "active"
-            ):
-                raise ValueError("inactive tree endpoint")
+                child = (
+                    writes[link.child].artifact
+                    if link.child in writes
+                    else self.get(link.child)
+                )
+                if parent is None or child is None:
+                    raise ValueError("tree endpoint missing")
+                self._check_link_identity(parent, child)
+                if parent.header.state != "active" or child.header.state != "active":
+                    raise ValueError("inactive tree endpoint")
         # An existing parent conclusion cannot remain active and stale after its child changes.
         for child_id, old_links in before.items():
             if (
@@ -133,26 +136,39 @@ class TreeValidation:
                 if node_id in writes
                 else tuple(self.current_evidence_ids(node_id, 129))
             )
-            if (
-                not evidence
-                or len(evidence) > 128
-                or set(evidence) != set(art.header.lineage.sources)
-            ):
-                raise ValueError("tree endpoint lacks current Source evidence")
-            marks = ",".join("?" for _ in evidence)
-            sources = self.conn.execute(
-                f"SELECT role, json_extract(flags, '$.speaker_id') AS speaker "
-                f"FROM sources WHERE id IN ({marks})",
-                evidence,
-            ).fetchall()
-            if len(sources) != len(set(evidence)):
-                raise ValueError("tree Source evidence missing")
-            if art.header.subject_id and any(
-                row["role"] == "user" and row["speaker"] != art.header.subject_id
-                for row in sources
-            ):
-                raise ValueError("tree Source subject mismatch")
+            self._check_sources(art, evidence)
         self._check_tree_cycles(after)
+
+    @staticmethod
+    def _check_link_identity(parent, child) -> None:
+        if (
+            parent.header.family != "memory"
+            or child.header.family != "memory"
+            or (parent.header.subject_id, parent.header.scope, parent.header.shareable)
+            != (child.header.subject_id, child.header.scope, child.header.shareable)
+        ):
+            raise ValueError("tree identity or scope conflict")
+
+    def _check_sources(self, art, evidence: tuple[str, ...]) -> None:
+        if (
+            not evidence
+            or len(evidence) > 128
+            or set(evidence) != set(art.header.lineage.sources)
+        ):
+            raise ValueError("tree endpoint lacks current Source evidence")
+        marks = ",".join("?" for _ in evidence)
+        sources = self.conn.execute(
+            f"SELECT role, json_extract(flags, '$.speaker_id') AS speaker "
+            f"FROM sources WHERE id IN ({marks})",
+            evidence,
+        ).fetchall()
+        if len(sources) != len(set(evidence)):
+            raise ValueError("tree Source evidence missing")
+        if art.header.subject_id and any(
+            row["role"] == "user" and row["speaker"] != art.header.subject_id
+            for row in sources
+        ):
+            raise ValueError("tree Source subject mismatch")
 
     def _check_tree_cycles(self, after: dict[str, tuple[TreeLink, ...]]) -> None:
         """Reject cycles or truncated proofs in the proposed current projection."""
