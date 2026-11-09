@@ -1,23 +1,29 @@
-"""Read and write trees through injected ports; separate writes are not one transaction.
+"""Read trees and submit evidence-backed tree changes through injected ports.
 
-通过注入接口读写树结构，各写入步骤不是整体事务，资源由调用方管理。
+通过注入接口读取树并提交带证据的原子树变更。
 """
 
 from __future__ import annotations
 
+from dataclasses import asdict
+from hashlib import sha256
+import json
+
 try:
     from ..app.ports import TreeArtifactStore, TreeCache
     from ..app.revision_plan import prepare_revision
-    from ..core.domain.memory.artifact import Artifact, revise
-    from ..core.domain.memory.tree import ancestor_ids, parent_ids, tree_child_kind
+    from ..core.domain.memory.artifact import Artifact
+    from ..core.domain.memory.tree import ancestor_ids, parent_ids
+    from ..core.domain.memory.tree_change import TreeChange, TreeLink, TreeRevision
 except ImportError:
     from app.ports import TreeArtifactStore, TreeCache
     from app.revision_plan import prepare_revision
-    from core.domain.memory.artifact import Artifact, revise
-    from core.domain.memory.tree import ancestor_ids, parent_ids, tree_child_kind
+    from core.domain.memory.artifact import Artifact
+    from core.domain.memory.tree import ancestor_ids, parent_ids
+    from core.domain.memory.tree_change import TreeChange, TreeLink, TreeRevision
 
 class TreeService:
-    """Read tree memory and commit before separate cache, parent and edge writes; failures propagate / 读取树记忆，提交后分别写缓存、父节点和连接，失败向上传递。"""
+    """Read tree memory and commit version and edges together / 读取树记忆并一起提交版本与连接。"""
 
     def __init__(self, artifacts: TreeArtifactStore,
                  cache: TreeCache | None = None) -> None:
@@ -30,20 +36,6 @@ class TreeService:
         if art is not None:
             return art
         return self.artifacts.get(node_id)
-
-    def _persist(self, art: Artifact) -> None:
-        """Prepare and commit a revision, then update optional cache / 准备并提交版本，再更新可选缓存。"""
-        prepared = prepare_revision(art, self.artifacts)
-        art, expected, op = prepared.artifact, prepared.expected_revision, prepared.op
-        self.artifacts.commit(
-            art,
-            expected_revision=expected,
-            op=op,
-            reason="tree",
-            source_ids=tuple(art.header.lineage.sources),
-        )
-        if self.cache is not None:
-            self.cache.put(art)
 
     def legacy_gap_count(self) -> int:
         """Expose only the count of unmigrated legacy links / 仅暴露未迁移旧连接的数量。"""
@@ -90,11 +82,18 @@ class TreeService:
         ]
 
     def add_under(self, child: Artifact, parents: tuple[str, ...]) -> Artifact:
-        """Validate all parents, commit child and add each edge; no single-parent write.
+        """Commit a child revision and its parent links together; no single-parent write.
 
-        先验证所有父节点，再提交子节点及逐条写边；不写单值父字段。
+        先验证父节点，再原子提交子节点及树边；不写单值父字段。
         """
         parent_ids = tuple(dict.fromkeys(parents))
+        intent = json.dumps((asdict(child), sorted(parent_ids)), ensure_ascii=False,
+                            sort_keys=True, separators=(",", ":"), allow_nan=False)
+        operation_id = sha256(intent.encode("utf-8")).hexdigest()
+        if self.artifacts.tree_operation_done(operation_id):
+            if self.cache is not None:
+                self.cache.load()
+            return child
         if len(parent_ids) > 8:
             raise ValueError("too many parents")
         if child.header.id in parent_ids:
@@ -109,8 +108,30 @@ class TreeService:
             if child.header.id in self.ancestor_ids(parent_id, max_depth=3,
                                                      max_visits=32, max_parents=8):
                 raise ValueError("tree cycle")
-        self._persist(child)
-        for parent_id in parent_ids:
-            self.artifacts.add_edge(parent_id, child.header.id,
-                                    tree_child_kind(parent_id), 1.0)
+        prepared = prepare_revision(child, self.artifacts)
+        old_edges = self.artifacts.tree_snapshot(child.header.id)
+        existing_links = {link.parent: link for link in old_edges}
+        desired = tuple(sorted(set(existing_links) | set(parent_ids)))
+        observed_ids = {child.header.id, *desired}
+        observed = tuple(sorted((node_id,
+                                  (current.header.revision if (current := self.artifacts.get(node_id)) else 0))
+                                 for node_id in observed_ids))
+        change = TreeChange(
+            operation_id,
+            (TreeRevision(prepared.artifact, prepared.expected_revision,
+                          tuple(prepared.artifact.header.lineage.sources)),),
+            observed,
+            ((child.header.id, old_edges),),
+            ((child.header.id, tuple(existing_links.get(parent_id, TreeLink(parent_id, child.header.id))
+                                     for parent_id in desired)),),
+            prepared.op, "tree",
+        )
+        self.artifacts.commit_tree_change(change)
+        if self.cache is not None:
+            try:
+                self.cache.put(self.artifacts.get(child.header.id))
+            except Exception:
+                # The database is authoritative; retry from its head, never the prepared snapshot.
+                self.cache.load()
+                raise
         return child

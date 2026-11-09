@@ -8,10 +8,12 @@ from typing import Protocol
 
 try:
     from ..app.ports import ArtifactCache, ArtifactStore, SourceStore
+    from ..core.domain.memory.tree_change import TreeChange
     from ..core.domain.memory.artifact import Artifact
     from ..core.port.tree import TreeEdgeReader
 except ImportError:
     from app.ports import ArtifactCache, ArtifactStore, SourceStore
+    from core.domain.memory.tree_change import TreeChange
     from core.domain.memory.artifact import Artifact
     from core.port.tree import TreeEdgeReader
 
@@ -22,6 +24,12 @@ class DreamImpactStore(TreeEdgeReader, Protocol):
     def get(self, node_id: str) -> Artifact | None: ...
     def active_dependents(self, node_id: str, limit: int) -> list[str]: ...
     def current_evidence_ids(self, node_id: str, limit: int) -> list[str]: ...
+
+
+class TreeChangeStore(ArtifactStore, Protocol):
+    """Atomic tree projection, versions and durable operation identity."""
+
+    def commit_tree_change(self, change: TreeChange) -> bool: ...
 
 
 __all__ = ["ArtifactCache", "ArtifactStore", "SourceStore"]

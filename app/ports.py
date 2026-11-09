@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any, Protocol, runtime_checkable
 
 try:
+    from ..core.domain.memory.tree_change import TreeChange, TreeLink
     from ..core.domain.memory.artifact import Artifact
     from ..core.domain.memory.graph import ArtifactEdge
     from ..core.domain.memory.source import Source
@@ -18,6 +19,7 @@ try:
     from ..core.domain.memory.retrieval import RetrievalCandidate
     from .contracts import ChatRequest, ChatResponse
 except ImportError:
+    from core.domain.memory.tree_change import TreeChange, TreeLink
     from core.domain.memory.artifact import Artifact
     from core.domain.memory.graph import ArtifactEdge
     from core.domain.memory.source import Source
@@ -131,7 +133,19 @@ class ArtifactStore(Protocol):
 
 
 class TreeArtifactStore(Protocol):
-    """Storage needed by Tree; separate calls are not one transaction / 树所需存储，多次调用不是一个整体事务。"""
+    """Tree reads and one atomic evidence-backed tree write / 树读取与一次原子证据写入。"""
+
+    def tree_operation_done(self, operation_id: str) -> bool:
+        """Read a committed operation marker / 读取已提交操作标记。"""
+        ...
+
+    def tree_snapshot(self, child_id: str) -> tuple[TreeLink, ...]:
+        """Read the complete inbound tree snapshot for one child / 读取子节点的完整入边快照。"""
+        ...
+
+    def commit_tree_change(self, change: TreeChange) -> bool:
+        """Atomically commit heads, edges and metadata; False means exact replay / 原子提交，精确重试返回假。"""
+        ...
 
     def get(self, node_id: str) -> Artifact | None:
         """Read the current revision, or None if absent / 读取当前版本，不存在返回空。"""
