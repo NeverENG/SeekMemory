@@ -21,7 +21,7 @@ core 定义记忆领域的稳定词汇和不依赖 IO 的决策。它不负责 S
 
 模型调用不属于 `core.port`：抽取模型协议由 `app.ports.ChatModel` 持有，运行时文本协议由 `app.runtime.contracts.ModelGateway` 持有，AstrBot 提供方在边缘适配。目录迁移不改变模型选择或调用行为。
 
-`core/domain/memory/tree.py` 经有向 `tree_child:<父节点 ID>` 边返回多个父节点；祖先广度查询分别限制深度、单节点父数和访问总数，并去重截环。`TreeService` 接收多个父节点 ID，验证身份与状态，在 Artifact 提交后仅写树边。既有单值 `nodes.parent` 列仍留在数据库结构中，但不再读写为树关系；不自动迁移，旧库若存在只有父字段而没有树边的关系，启用树查询时回退到平面召回。
+`core/domain/memory/tree.py` 经有向 `tree_child:<父节点 ID>` 边返回多个父节点；祖先广度查询分别限制深度、单节点父数和访问总数，并去重截环。`TreeService` 接收多个父节点 ID，验证身份与状态，在同一事务内提交 Artifact 版本与树边。既有单值 `nodes.parent` 列仍留在数据库结构中，但不再读写为树关系；不自动迁移，旧库若存在只有父字段而没有树边的关系，启用树查询时回退到平面召回。
 
 领域实现现在按 `core/domain/memory/`（证据、版本、检索与披露）、`character/`（人格）、`social/`（关系与互动）、`operations/`（容量与追踪）分组；`core/families/` 保持 payload 校验归属，`core/port/` 仅声明领域实际依赖的图存储协议。`core.domain` 继续集中导出稳定 API；旧 `core.<module>` 与 `core.domain.<module>` 路径指向同一实现模块，不重复维护规则。应用运行时的契约继续留在 `app/runtime/contracts/`，不搬入记忆领域的端口。
 

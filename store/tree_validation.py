@@ -157,18 +157,11 @@ class TreeValidation:
         ):
             raise ValueError("tree endpoint lacks current Source evidence")
         marks = ",".join("?" for _ in evidence)
-        sources = self.conn.execute(
-            f"SELECT role, json_extract(flags, '$.speaker_id') AS speaker "
-            f"FROM sources WHERE id IN ({marks})",
-            evidence,
-        ).fetchall()
-        if len(sources) != len(set(evidence)):
+        count = self.conn.execute(
+            f"SELECT COUNT(*) FROM sources WHERE id IN ({marks})", evidence
+        ).fetchone()[0]
+        if count != len(set(evidence)):
             raise ValueError("tree Source evidence missing")
-        if art.header.subject_id and any(
-            row["role"] == "user" and row["speaker"] != art.header.subject_id
-            for row in sources
-        ):
-            raise ValueError("tree Source subject mismatch")
 
     def _check_tree_cycles(self, after: dict[str, tuple[TreeLink, ...]]) -> None:
         """Reject cycles or truncated proofs in the proposed current projection."""

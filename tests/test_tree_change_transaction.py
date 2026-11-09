@@ -341,7 +341,7 @@ class TreeChangeTransactionTest(unittest.TestCase):
             self.db.artifacts.get("public-parent").header.state, "forgotten"
         )
 
-    def test_source_subject_mismatch_rejects_edge_and_revision(self):
+    def test_third_party_subject_can_use_user_source_without_conflating_speaker(self):
         parent = make(
             "memory",
             {"level": "impression", "text": "wrong subject"},
@@ -357,9 +357,13 @@ class TreeChangeTransactionTest(unittest.TestCase):
             lineage={"sources": (self.source.id,)},
         )
         self.save(parent)
-        with self.assertRaisesRegex(ValueError, "Source subject"):
-            self.tree.add_under(child, (parent.header.id,))
-        self.assertIsNone(self.db.artifacts.get(child.header.id))
+        self.tree.add_under(child, (parent.header.id,))
+        self.assertEqual(
+            self.db.artifacts.tree_parents(child.header.id, 8), [parent.header.id]
+        )
+        self.assertEqual(
+            self.db.artifacts.current_evidence_ids(child.header.id, 8), [self.source.id]
+        )
 
     def test_cannot_attach_private_child_to_public_parent_or_form_long_cycle(self):
         parent = self.memory("parent", "impression")
