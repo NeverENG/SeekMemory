@@ -31,6 +31,8 @@ SQL schema 和迁移由 SqliteDatabase 管理；仓储共享连接，不创建�
 - 运行时动作行在 `runtime_episodes` 中增加可空动作身份和状态元数据。已有 episode 行保留原值；迁移补充默认值、保留每个普通 run 一条 episode 的唯一索引，同时允许动作行共享 run ID。部分唯一索引确保每个 action 至多一个终态；触发器会忽略终态之后到达的尝试。动作行沿用 episode 的清理上限。
 - `runtime_state` 继续以 JSON payload 保存 `SessionState`；后续回复窗口按说话人保存在 `followup_by_speaker`，旧额度字段不再解释为运行时状态。
 
+树事务沿用 `edges` 作为当前查询投影，增量创建仅存操作编号、计划摘要、受影响编号/版本和边前后元数据的 `tree_change_log`；不存正文，不推断旧边的历史来源，不补造旧 `parent` 字段缺边。显式操作 ID 的同计划重试不重复提交，异计划冲突；事务内重查版本、边快照、当前证据与有界防环后，版本/证据/账本/边/日志一并提交或回滚。旧 `add_edge` 保留供非树图边及测试种子使用，不作为生产树边写入口。回退新写入可停用调用方；若旧版仍独立写树边，不能与新写入混跑，回退旧程序前须停写并从部署前备份恢复。
+
 ## Cache
 
 Cache 仅持有 active Artifact，并维护 family、level、subject 索引。读路径用它构建候选池。put/remove/load 更新单调递增的 version；HybridRetriever 用 version 确认自己的内存索引是否过期。Cache 不能取代数据库提交，也不应在 CAS 失败时提前更新。
@@ -51,7 +53,7 @@ Artifact 版本快照和证据是审计事实；ledger 的哈希链用于检查�
 | `serialization.py` | 既有 JSON 编码与旧值解析，无 SQL 或时钟 | 低：纯转换，持久化字节稳定 |
 | `artifact_codec.py` | 记忆数据行及头部转换，原 SQL 导入保留兼容别名 | 低至中：纯转换 |
 | `artifact_sql.py` | 既有记忆 SQL 模板，不执行语句 | 低：仅语句 |
-| `artifacts.py` | 版本读取及预期版本单次和分组提交、证据、事件、账本，以及明确的图和父字段写入 | 高：多表事务所有者，不写缓存 |
+| `artifacts.py`、`tree_transactions.py`、`tree_validation.py` | 版本读写与分组提交；后者独占树版本、入边快照、边投影、操作日志的原子提交与校验 | 高：多表事务所有者，不写缓存 |
 | `sources.py`、`extraction.py` | 不可变证据、队列接纳及结果；入队共用一个事务 | 中：证据和队列职责明确，不调用模型 |
 | `ledger.py` | 唯一链条编码与哈希，以及加入调用方事务的追加函数 | 中：稳定字节契约，帮助函数不独立提交 |
 | `runtime_state.py`、`runtime_episodes.py`、`dreams.py` | 分别负责调度状态、审计及每日运行事务 | 中：不拥有记忆规则 |

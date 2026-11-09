@@ -59,6 +59,16 @@ CREATE TABLE IF NOT EXISTS edges (
     PRIMARY KEY (src, dst, kind)
 );
 
+-- Durable metadata only; legacy edges are not assigned invented history.
+CREATE TABLE IF NOT EXISTS tree_change_log (
+    operation_id TEXT PRIMARY KEY,
+    plan_hash TEXT NOT NULL,
+    revisions TEXT NOT NULL,
+    edges_before TEXT NOT NULL,
+    edges_after TEXT NOT NULL,
+    at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS sources (
     id    TEXT PRIMARY KEY,
     umo   TEXT NOT NULL,

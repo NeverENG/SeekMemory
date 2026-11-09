@@ -5,15 +5,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 try:
+    from ..core.domain.memory.tree_change import TreeChange
     from ..core.domain.memory.versioning import VersionError
     from ..app.cache_repair import CacheRepairs
 except ImportError:
+    from core.domain.memory.tree_change import TreeChange
     from core.domain.memory.versioning import VersionError
     from app.cache_repair import CacheRepairs
 from .plans import RevisionPlan
-from .ports import ArtifactStore, ArtifactCache
+from .ports import ArtifactStore, ArtifactCache, TreeChangeStore
 
 
 @dataclass(frozen=True)
@@ -63,6 +66,20 @@ class MaintenanceWriter:
         self._repair()
         return committed
 
+    def execute_tree(self, change: TreeChange) -> int:
+        """Commit an explicit reviewed hierarchy change; repair from current heads.
+
+        Offline caller supplies a stable operation ID; no Dream scheduling or model
+        work occurs here. Exact retries recover a completed database commit.
+        """
+        committed = cast(TreeChangeStore, self.artifacts).commit_tree_change(change)
+        for write in change.writes:
+            self.cache_repairs.mark(write.artifact.header.id, self)
+        self._repair()
+        count = len(change.writes) if committed else 0
+        self.committed += count
+        return count
+
     def _commit(self, key: tuple) -> int:
         """Consume a plan immediately after database success; conflicts never rebase.
 
@@ -103,8 +120,12 @@ class MaintenanceWriter:
                 self.cache_repairs.repair(entity)
             except Exception as exc:
                 failure = failure or exc
-        if failure is not None and not self.defer_cache_errors:
-            raise failure
+        if failure is not None:
+            if self.cache is not None:
+                # Reload the current database projection before another reader uses stale heads.
+                self.cache.load()
+            if not self.defer_cache_errors:
+                raise failure
 
     def retry_writebacks(self) -> int:
         """Resume exact prepared writes without policy/model calls; return completed IDs.

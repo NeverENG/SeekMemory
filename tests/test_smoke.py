@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.artifact import Artifact, content_of, make, validate
 from core.graph import Graph
+from core.source import Source
 from core.strength import reinforce, retention
 from recall.assemble import build as assemble
 from recall.score import score, select
@@ -34,6 +35,7 @@ def _mk(level: str, text: str, parent: str | None = None, weight: float = 1.0) -
             "about": "other",
         },
         strength={"weight": weight, "confidence": 1.0, "arousal": 0.5, "valence": 0.0, "funny": 0.2},
+        lineage={"sources": ("smoke_source",)}, subject_id="smoke",
     )
     return art
 
@@ -62,9 +64,14 @@ def _exercise(db) -> None:
         {"type": "video", "title": "大肥鱼是怎么来的", "url": "https://x", "summary": "讲大肥鱼由来的视频"},
     )
 
-    for art in (impression, scene, detail, media):
-        db.artifacts.upsert(art)
+    db.sources.append_sources([Source("smoke_source", "smoke_turn", "smoke_session",
+                                      "smoke", "user", "smoke observation")])
+    for art in (impression, scene, detail):
+        db.artifacts.commit(art, expected_revision=0, op="create",
+                            source_ids=art.header.lineage.sources)
         cache.put(art)
+    db.artifacts.upsert(media)
+    cache.put(media)
 
     tree.add_under(scene, (impression.header.id,))
     tree.add_under(detail, (scene.header.id,))

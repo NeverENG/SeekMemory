@@ -15,6 +15,7 @@ try:
         row_to_artifact,
         stored_header,
     )
+    from .tree_transactions import TreeTransactions
     from .ledger import append_ledger_conn
     from .sqlite import SqliteRepository, dump_json, now_iso
 except ImportError:
@@ -25,6 +26,7 @@ except ImportError:
         row_to_artifact,
         stored_header,
     )
+    from tree_transactions import TreeTransactions
     from ledger import append_ledger_conn
     from sqlite import SqliteRepository, dump_json, now_iso
 
@@ -43,7 +45,7 @@ _COMMIT_OPERATIONS = frozenset({
 })
 
 
-class ArtifactRepository(SqliteRepository):
+class ArtifactRepository(TreeTransactions, SqliteRepository):
     """Own current memories, versions, evidence, graph writes and atomic ledger updates / 管理当前记忆、版本、证据、图写入及原子账本更新。"""
 
     def upsert(self, art: Artifact) -> None:

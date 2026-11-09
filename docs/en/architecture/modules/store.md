@@ -31,6 +31,8 @@ SqliteDatabase owns schema creation and migrations; repositories share its conne
 - Runtime action rows extend `runtime_episodes` with nullable action identity and status metadata. Existing episode rows keep their values; migration adds defaults and preserves the one-normal-episode-per-run index while allowing action rows to share a run ID. A partial unique index permits at most one terminal outcome per action, and a trigger ignores attempts arriving after that terminal. Action rows use the existing episode pruning limits.
 - `runtime_state` continues storing `SessionState` as a JSON payload; the follow-up window is stored per speaker in `followup_by_speaker`, and legacy quota fields are no longer interpreted as runtime state.
 
+Tree transactions retain `edges` as the current query projection and incrementally add `tree_change_log` with operation ID, plan digest, affected IDs/revisions and before/after edge metadata only (never payload text). They neither assign invented provenance to old edges nor synthesize missing legacy `parent` links. Exact operation retries do not commit again; reuse with a different plan conflicts. Heads, complete inbound snapshots, current Source evidence and bounded acyclicity are rechecked inside the transaction before versions/evidence/ledger/edges/log commit or roll back together. The old `add_edge` remains for non-tree graph edges and test seeds, not production tree writes. Stop new writes before rollback; an old binary that writes tree edges separately must not run alongside new writes and requires a pre-deployment backup restore for downgrade.
+
 ## Cache
 
 Cache holds active Artifacts only and indexes them by family, level, and subject. Recall uses it to build the candidate pool. put/remove/load increment a monotonic version; HybridRetriever uses that version to decide when to rebuild its in-memory index. Cache cannot replace a database commit and must not update before a failed CAS.
@@ -51,7 +53,7 @@ Artifact version snapshots and evidence are audit facts; the ledger hash chain c
 | `serialization.py` | Existing JSON encoding/legacy decoding; no SQL or clocks | Low: pure conversion, stable persisted bytes |
 | `artifact_codec.py` | Artifact row/header conversion; old SQL imports are compatibility aliases | Low/medium: pure conversion |
 | `artifact_sql.py` | Existing Artifact SQL templates, without execution | Low: statements only |
-| `artifacts.py` | Revision reads and CAS single/group commits, evidence, events, ledger and explicit graph/parent writes | High: multi-table transaction owner; no cache writes |
+| `artifacts.py`, `tree_transactions.py`, `tree_validation.py` | Revision reads and group commits; atomic tree revisions, inbound snapshots, projection and operation log | High: multi-table transaction owner; no cache writes |
 | `sources.py`, `extraction.py` | Immutable evidence and queue admission/outcomes; admission shares one transaction | Medium: one queue/evidence owner, no model calls |
 | `ledger.py` | Single chain encoding/hash and caller-owned transaction append helper | Medium: stable byte contract, no independent commit inside helper |
 | `runtime_state.py`, `runtime_episodes.py`, `dreams.py` | Distinct scheduling state, audit and daily-run transactions | Medium: no memory-policy ownership |
