@@ -164,6 +164,13 @@ class TreeArtifactStore(Protocol):
         """Read ordered child IDs with an SQL limit / 在 SQL 侧限制并排序子节点编号。"""
         ...
 
+    def active_tree_parents(self, node_id: str, limit: int) -> list[str]:
+        """Read limited parents after filtering inactive/missing endpoints / 先过滤无效或缺失端点，再限量读取父节点。"""
+        ...
+    def active_tree_children(self, node_id: str, limit: int) -> list[str]:
+        """Read limited children after filtering inactive/missing endpoints / 先过滤无效或缺失端点，再限量读取子节点。"""
+        ...
+
     def add_edge(self, src: str, dst: str, kind: str, weight: float) -> None:
         """Upsert one edge; does not change the parent column / 写入或更新一条连接，不修改父节点字段。"""
         ...

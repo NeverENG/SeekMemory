@@ -58,7 +58,7 @@ Artifact 版本快照和证据是审计事实；ledger 的哈希链用于检查�
 | `metrics.py` | 通过借用连接读取容量用量 | 低：只读查询 |
 | `cache.py`、`run_trace.py` | 派生有效记忆索引及独立诊断 JSONL | 中：进程状态和文件锁，与业务事实分开 |
 
-仓储借用连接，不关闭连接；公开写入操作负责事务。`_commit_conn`、`write_source_conn`、`append_ledger_conn` 加入调用方事务，不能独立提交。`set_parent` 是既有的独立兼容字段写入，不是记忆版本与连接的整体事务。
+仓储借用连接，不关闭连接；公开写入操作负责事务。`_commit_conn`、`write_source_conn`、`append_ledger_conn` 加入调用方事务，不能独立提交。树的当前有效父/子查询在 SQL 层连接两端有效 memory 后限量；原始 `tree_parents` / `tree_children` 仍读取未清理的边，供离线检查。两种读取都不改边、不迁移旧库。`set_parent` 是既有的独立兼容字段写入，不是记忆版本与连接的整体事务。
 
 `tests/test_store_interface_contract.py` 验证明确接口的对象身份、帮助函数兼容及共享连接；原有迁移、内核、抽取、运行动作及导入顺序场景验证行为，不能据此声称真实宿主或模型已经运行。
 

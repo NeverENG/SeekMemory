@@ -27,9 +27,10 @@ class TreeQueryTest(unittest.TestCase):
         self.db.sources.append_sources([Source("s1", "t", self.session, "u", "user", "proof", "t")])
         self.nodes = []
 
-    def node(self, text, *, subject="u", scope="private", evidence=True, level="scene"):
+    def node(self, text, *, subject="u", scope="private", evidence=True, level="scene", node_id=None):
         art = make("memory", {"text": text, "level": level}, subject_id=subject,
-                   scope=scope, lineage=Lineage(("s1",) if evidence else ()))
+                   scope=scope, lineage=Lineage(("s1",) if evidence else ()),
+                   **({"id": node_id} if node_id else {}))
         self.db.artifacts.commit(art, expected_revision=0, op="create",
                                  source_ids=("s1",) if evidence else ())
         self.cache.put(art)
@@ -88,6 +89,26 @@ class TreeQueryTest(unittest.TestCase):
         self.assertNotIn(side.header.id, one_hop.ids)
         self.edge(top, leaf)  # Cyclic multi-parent data must still terminate.
         self.assertLessEqual(self.expand(leaf, TreeQueryLimits(visits=5)).visits, 5)
+
+    def test_retired_edges_do_not_hide_later_valid_siblings_or_parents(self):
+        old_parent = self.node("old parent", level="impression", node_id="a_parent")
+        live_parent = self.node("live parent", level="impression", node_id="z_parent")
+        old_child = self.node("old sibling", level="fact", node_id="a_sibling")
+        anchor = self.node("anchor", level="fact", node_id="m_anchor")
+        live_sibling = self.node("live sibling", level="fact", node_id="z_sibling")
+        self.edge(anchor, old_parent)
+        self.edge(anchor, live_parent)
+        self.edge(old_child, live_parent)
+        self.edge(live_sibling, live_parent)
+        for art in (old_parent, old_child):
+            inactive = revise(art, state="forgotten")
+            self.db.artifacts.commit(inactive, expected_revision=1, op="revise",
+                                     source_ids=("s1",))
+        result = self.expand(anchor, TreeQueryLimits(parents=1, siblings=1, depth=2))
+        self.assertIn(live_parent.header.id, result.ids)
+        self.assertIn(live_sibling.header.id, result.ids)
+        self.assertNotIn(old_parent.header.id, result.ids)
+        self.assertNotIn(old_child.header.id, result.ids)
 
     def test_two_sources_support_one_parent_and_multiple_parent_paths(self):
         self.db.sources.append_sources([Source("s2", "t2", self.session, "u", "user", "other", "t")])

@@ -60,6 +60,53 @@ class TreeServiceContractTest(unittest.TestCase):
                          [self.db.artifacts.get(art.header.id)
                           for art in self.tree.children(parent.header.id)])
 
+    def test_retired_or_missing_edges_do_not_consume_bounded_child_slots(self) -> None:
+        parent = self.memory("parent", "impression", id="parent")
+        retired = self.memory("old child", id="a_retired")
+        live = self.memory("live child", id="z_live")
+        for art in (parent, retired, live):
+            self.save(art)
+        kind = "tree_child:parent"
+        for child_id in (retired.header.id, "b_missing", live.header.id):
+            self.db.artifacts.add_edge(parent.header.id, child_id, kind, 1.0)
+        self.cache.put(retired)  # A stale active cache cannot restore a retired head.
+        inactive = revise(retired, state="forgotten")
+        self.db.artifacts.commit(inactive, expected_revision=1, op="revise",
+                                 source_ids=(self.source.id,))
+        ledger_hash, cache_version = self.db.ledger.last_hash(), self.cache.version
+
+        self.assertEqual(self.tree.children(parent.header.id, limit=1), [live])
+        self.assertEqual(self.db.artifacts.tree_children(parent.header.id, 3),
+                         ["a_retired", "b_missing", "z_live"])
+        self.assertEqual(self.db.ledger.last_hash(), ledger_hash)
+        self.assertEqual(self.cache.version, cache_version)
+
+    def test_retired_or_missing_edges_do_not_consume_bounded_parent_slots(self) -> None:
+        retired = self.memory("old parent", id="a_retired")
+        live = self.memory("live parent", id="z_live")
+        child = self.memory("child", id="child")
+        for art in (retired, live, child):
+            self.save(art)
+        for parent_id in (retired.header.id, "b_missing", live.header.id):
+            self.db.artifacts.add_edge(parent_id, child.header.id,
+                                       "tree_child:" + parent_id, 1.0)
+        inactive = revise(retired, state="forgotten")
+        self.db.artifacts.commit(inactive, expected_revision=1, op="revise",
+                                 source_ids=(self.source.id,))
+        ledger_hash = self.db.ledger.last_hash()
+
+        self.assertEqual(self.tree.parents(child.header.id, limit=1), (live.header.id,))
+        self.assertEqual(self.tree.ancestor_ids(child.header.id, max_parents=1),
+                         (live.header.id,))
+        self.assertEqual(self.db.artifacts.tree_parents(child.header.id, 3),
+                         ["a_retired", "b_missing", "z_live"])
+        self.assertEqual(self.tree.children(retired.header.id, limit=1), [])
+        self.assertEqual(self.db.ledger.last_hash(), ledger_hash)
+        inactive_child = revise(child, state="forgotten")
+        self.db.artifacts.commit(inactive_child, expected_revision=1, op="revise",
+                                 source_ids=(self.source.id,))
+        self.assertEqual(self.tree.parents(child.header.id, limit=1), ())
+
     def test_parent_and_ancestors_follow_existing_edges_without_writes(self) -> None:
         root, middle, leaf = (self.memory(name) for name in ("root", "middle", "leaf"))
         self.tree.add_under(root, ())
