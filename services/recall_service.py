@@ -10,11 +10,13 @@ from typing import Any, Callable
 try:
     from .ports import ArtifactCache, ArtifactStore, SourceStore
     from ..core.domain.memory.graph import Graph
+    from ..core.domain.memory.disclosure import PrivacyPolicy
     from ..app.budget import ContextBudget
     from ..app.cache_repair import CacheRepairs
 except ImportError:
     from services.ports import ArtifactCache, ArtifactStore, SourceStore
     from core.domain.memory.graph import Graph
+    from core.domain.memory.disclosure import PrivacyPolicy
     from app.budget import ContextBudget
     from app.cache_repair import CacheRepairs
 
@@ -50,6 +52,7 @@ class RecallService:
         cache_repairs: CacheRepairs | None = None,
         tree: TreeLookup | None = None,
         tree_enabled: bool = False,
+        privacy_policy: PrivacyPolicy | None = None,
     ) -> None:
         self.cache = cache
         self.graph = graph
@@ -62,6 +65,7 @@ class RecallService:
         self.log = log or (lambda _msg: None)
         self.tree = tree
         self.tree_enabled = tree_enabled
+        self.privacy_policy = privacy_policy
         self._context_writer = ContextRecorder(artifacts, cache, cache_repairs=cache_repairs)
 
     def query(
@@ -121,6 +125,7 @@ class RecallService:
             hybrid_retriever=self.hybrid_retriever,
             tree=self.tree,
             tree_enabled=self.tree_enabled,
+            privacy_policy=self.privacy_policy,
         )
 
     def build(

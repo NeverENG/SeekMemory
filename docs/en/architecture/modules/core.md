@@ -50,7 +50,7 @@ Family validators live in core/families. make constructs an object but does not 
 
 - **strength.py** computes retention, decay weight, and recall/spoken/confirmed reinforcement. Explicit hits take precedence; older data may derive effective hits from weight.
 - **versioning.py** checks stable ID/family, contiguous revision, and created time; it defines state events and semantic-change detection.
-- **disclosure.py** combines context affinity, subject fit, scope prior, sensitivity, and relevance into full, paraphrase, hint, or silence. Only full may return raw Artifact content; lower levels use fixed generic text. The sensitivity of the secret family prevents disclosure.
+- **disclosure.py** combines context affinity, subject fit, scope prior, sensitivity, and relevance into full, paraphrase, hint, or silence. Only full may return raw Artifact content; lower levels use fixed generic text. The sensitivity of the secret family prevents disclosure. `PrivacyPolicy` binds the existing scope prior, decision, and safe wording into an injectable pure strategy; its default instance changes no formula, threshold, or public configuration.
 - **graph.py** uses an injected repository protocol for relation edges and does not issue SQL. Causal edges have an explicit API but no automatic semantic inference.
 - **capacity.py** converts a capacity snapshot and configurable thresholds into a state and scheduler actions as a pure decision; services perform the actions.
 - **trace.py** sanitizes run-trace fields and projects event timelines while restricting stored data.

@@ -150,10 +150,16 @@ def exposure(art: Artifact, scene: RecallScene, relevance: float,
 
     将上下文、主体、范围、敏感度及相关度组合为有界分数。
     """
+    return _exposure_with_prior(art, scene, relevance, origin_sessions, scope_prior(art))
+
+
+def _exposure_with_prior(art: Artifact, scene: RecallScene, relevance: float,
+                         origins: Iterable[str], prior: float) -> float:
+    """Apply the single exposure formula with the policy-supplied prior / 使用策略提供的先验计算唯一暴露公式。"""
     topic = max(0.0, min(1.0, float(relevance)))
-    score = context_affinity(art, scene, origin_sessions)
+    score = context_affinity(art, scene, origins)
     score *= subject_fit(art, scene)
-    score *= scope_prior(art)
+    score *= prior
     score *= max(0.0, 1.0 - sensitivity_of(art))
     score *= topic
     return max(0.0, min(1.0, score))
@@ -183,7 +189,11 @@ def decide(art: Artifact, scene: RecallScene, relevance: float,
 
     按既有阈值选择全文、改述、提示或静默。
     """
-    score = exposure(art, scene, relevance, origin_sessions)
+    return _decision_for_score(art, scene, exposure(art, scene, relevance, origin_sessions))
+
+
+def _decision_for_score(art: Artifact, scene: RecallScene, score: float) -> DisclosureDecision:
+    """Apply the single level threshold rule / 应用唯一的披露等级阈值规则。"""
     full_min = OWNER_PRIVATE_FULL_MIN if owner_private_quote(art, scene) else FULL_MIN
     if score >= full_min:
         return DisclosureDecision(DisclosureLevel.FULL, score, "high exposure")
@@ -209,3 +219,28 @@ def safe_text(art: Artifact, level: DisclosureLevel) -> str:
         except Exception:
             return ""
     return "\u4f60\u4e4b\u524d\u63d0\u5230\u8fc7\u4e00\u4ef6\u76f8\u5173\u7684\u4e8b\uff0c\u7ec6\u8282\u8fd9\u91cc\u4e0d\u65b9\u4fbf\u5c55\u5f00\u3002"
+
+
+@dataclass(frozen=True)
+class PrivacyPolicy:
+    """Bind the existing retrieval prior and disclosure rules as one pure strategy.
+
+    将既有召回先验与披露规则绑定为同一纯策略。
+    """
+
+    def scope_prior(self, art: Artifact) -> float:
+        """Return the existing scope prior / 返回既有范围先验。"""
+        return scope_prior(art)
+
+    def decide(self, art: Artifact, scene: RecallScene, relevance: float,
+               origins: Iterable[str] = ()) -> DisclosureDecision:
+        """Apply the existing exposure matrix / 应用既有暴露矩阵。"""
+        score = _exposure_with_prior(art, scene, relevance, origins, self.scope_prior(art))
+        return _decision_for_score(art, scene, score)
+
+    def safe_text(self, art: Artifact, level: DisclosureLevel) -> str:
+        """Return the existing bounded wording / 返回既有有界措辞。"""
+        return safe_text(art, level)
+
+
+DEFAULT_PRIVACY_POLICY = PrivacyPolicy()

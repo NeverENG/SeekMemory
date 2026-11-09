@@ -12,11 +12,9 @@ from typing import Any
 try:  # Plugin namespace / 插件命名空间。
     from ..app.ports import ArtifactCache, ArtifactStore, Retriever, SourceStore
     from ..core.domain.memory.disclosure import (
-        DisclosureLevel,
         RecallScene,
-        decide,
-        safe_text,
-        scope_prior,
+        PrivacyPolicy,
+        DEFAULT_PRIVACY_POLICY,
     )
     from ..core.domain.memory.graph import Graph
     from ..core.domain.character.bot_behavior import trusted_self_persona
@@ -36,11 +34,9 @@ try:  # Plugin namespace / 插件命名空间。
 except ImportError:  # Top-level package / 顶层包。
     from app.ports import ArtifactCache, ArtifactStore, Retriever, SourceStore
     from core.domain.memory.disclosure import (
-        DisclosureLevel,
         RecallScene,
-        decide,
-        safe_text,
-        scope_prior,
+        PrivacyPolicy,
+        DEFAULT_PRIVACY_POLICY,
     )
     from core.domain.memory.graph import Graph
     from core.domain.character.bot_behavior import trusted_self_persona
@@ -84,8 +80,10 @@ def query_block(
     hybrid_retriever: Retriever | None = None,
     tree: TreeLookup | None = None,
     tree_enabled: bool = False,
+    privacy_policy: PrivacyPolicy | None = None,
 ) -> tuple[str, dict]:
     """Read candidates, rank, disclose and assemble context without memory writes / 读取候选、排序、披露并组装上下文，不写入记忆。"""
+    policy = privacy_policy if privacy_policy is not None else DEFAULT_PRIVACY_POLICY
     lookup = sources.source_umo
     subject = subject_of(speaker, owner_umo)
     owner_id = str(owner_umo or "").split(":")[-1] if owner_umo else ""
@@ -144,14 +142,17 @@ def query_block(
         else:
             retriever = GraphRetriever(graph, cache)
         candidates = retriever.retrieve(text, pool)
-        candidates = [
-            type(candidate)(
-                candidate.artifact,
-                candidate.activation * scope_prior(candidate.artifact),
-                candidate.lexical * scope_prior(candidate.artifact),
-            )
-            for candidate in candidates
-        ]
+        weighted = []
+        for candidate in candidates:
+            try:
+                prior = policy.scope_prior(candidate.artifact)
+                weighted.append(type(candidate)(
+                    candidate.artifact, candidate.activation * prior,
+                    candidate.lexical * prior,
+                ))
+            except Exception:  # noqa: BLE001 - A failed privacy decision withholds the candidate.
+                continue
+        candidates = weighted
         loose = mode == "loose"
         picked = select(
             candidates,
@@ -193,7 +194,7 @@ def query_block(
         应用共用披露规则并收集文本替换。
         """
         return disclose(arts, relevance, scene=scene, sources=sources, umo=umo, owner_umo=owner_umo,
-                        overrides=overrides, disclosure_info=disclosure_info)
+                        overrides=overrides, disclosure_info=disclosure_info, privacy_policy=policy)
 
     source_info = supplement(
         picked, mode=mode, text=text, sources=sources, artifacts=artifacts, conf=conf,
@@ -282,13 +283,15 @@ def build_block(
     umo: str, text: str, private: bool, conf: Conf, owner_umo: str, speaker: str = "",
     log: Callable[[str], None] = lambda _msg: None, *, dry_run: bool = False,
     hybrid_retriever: Retriever | None = None,
+    privacy_policy: PrivacyPolicy | None = None,
 ) -> tuple[str, dict]:
     """Keep legacy query-plus-injection semantics; dry_run skips recording.
 
     保留旧查询加注入记录语义，dry_run 跳过记录；成功返回值及原参数保持兼容。
     """
     block, info = query_block(cache, graph, artifacts, sources, umo, text, private, conf,
-                              owner_umo, speaker, log, hybrid_retriever=hybrid_retriever)
+                              owner_umo, speaker, log, hybrid_retriever=hybrid_retriever,
+                              privacy_policy=privacy_policy)
     if not dry_run:
         record_context(artifacts, cache, block, info)
     return block, info

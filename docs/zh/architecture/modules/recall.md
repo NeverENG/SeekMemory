@@ -21,7 +21,7 @@ Source 回查的新鲜度对带时区的值按绝对时刻计算；无时区的�
 
 ## 披露与交付
 
-core.disclosure 将上下文亲和、subject fit、scope prior、敏感度和相关度组合为 full、paraphrase、hint 或 silence。低于 full 的记忆用固定通用句，不暴露原始文本或 tags。被选中不等于最终注入；被注入也不代表模型实际引用。
+core.disclosure 将上下文亲和、subject fit、scope prior、敏感度和相关度组合为 full、paraphrase、hint 或 silence。低于 full 的记忆用固定通用句，不暴露原始文本或 tags。被选中不等于最终注入；被注入也不代表模型实际引用。`RecallService` 可注入同一个 `PrivacyPolicy`，用于候选图/BM25 的 scope 先验及选中、常驻、回退记忆的披露和安全措辞；未注入时维持默认规则。策略失败时受影响的记忆不输出；persona 信任及 designated 一次性交付仍遵循各自的独立规则。
 
 family=secret 完全不会进入普通候选。scope=shadow 的 memory 只允许遮蔽表达。family=designated 独立执行私聊 + 触发词 + 尚未交付检查；只有正文确实出现在最终块时才提交 given 状态。管理诊断以 dry_run 运行，不消耗一次性交付状态。
 
