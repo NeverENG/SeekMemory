@@ -12,6 +12,7 @@ from dataclasses import replace
 from .contracts import ActionKind, ActionRecord, ActionSink, ActionStatus
 from .port.capabilities import ActionRepository
 from .episode import safe_error_code
+from .runs import RunClosedError, RunHandle, RunSupersededError
 
 
 def action_idempotency_key(
@@ -190,9 +191,18 @@ class ActionExecutor:
         callback_key: str,
         at: float | None = None,
         attempt: int = 1,
+        guard: RunHandle | None = None,
     ):
-        """Record attempt, execute, then record terminal; sanitize host failures / 记录尝试、执行、记录终态，并规整宿主错误。"""
+        """Check an optional run at the action boundary; never cancel started effects.
+
+        可选运行句柄仅在动作开始前阻止过期动作；已开始的外部效果不伪称撤销。
+        """
         from .contracts import ActionResult
+
+        if guard is not None:
+            if guard.lane_id != request.session_id or guard.run_id != run_id:
+                raise ValueError("action guard does not match run")
+            guard.raise_if_invalid()
 
         attempted = self.begin(
             request,
@@ -201,6 +211,13 @@ class ActionExecutor:
             at=at,
             attempt=attempt,
         )
+        try:
+            if guard is not None:
+                guard.mark_action_started()
+        except (RunSupersededError, RunClosedError) as exc:
+            reason = "closed" if isinstance(exc, RunClosedError) else "superseded"
+            self.finish(attempted, ActionStatus.CANCELLED, at=at, reason=reason)
+            raise
         try:
             result = await self.port.execute(request)
         except Exception:  # noqa: BLE001 - sanitize host failures / 宿主失败不泄漏正文

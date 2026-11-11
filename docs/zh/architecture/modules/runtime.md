@@ -37,7 +37,7 @@ epoch 由控制器实例的单调计数器发放，同 lane 重开及跨 lane �
 
 `DefaultProactivePolicy` 是确定性的纯状态策略。它要求显式传入 `now`，返回下一次可执行时间，并检查到期时间、安静截止时间、冷却、重试、忽略连击退避和尝试次数上限。它不做 I/O、不调用模型、不修改状态；默认关闭，只有 runtime composition 明确启用后才会生效。`plan_proactive_dispatch` 按到期时间排序可执行会话，应用每轮派发上限，并将超出部分作为仍然到期的任务留待后续轮次。宿主通过 `AgentRuntime.schedule_proactive()` 持久化显式到期时间；AstrBot 在启用 proactive 后由消息入口按 `proactive_idle_seconds` 排期。`TopicSource` 从 Source-backed 缓冲投影中提供记忆由头；没有候选时 worker 清除该次主动机会，不发送空主动。
 
-`ActionExecutor` 是 Runtime 发起 action 的唯一执行/审计协调者：先写 attempt，再调用 `ActionPort`，最后写 terminal；`ActionMessageSender` 只是 `SEND_TEXT` 的兼容适配器。`ActionLedger` 记录动作尝试及至多一个终态（`succeeded`、`failed` 或 `cancelled`）。幂等键由会话、run、动作类型和宿主 callback key 稳定生成；callback key 本身不会落盘。`RepoActionSink` 通过 `RuntimeEpisodeRepository` 写入元数据。审计仅保留标识符、时间戳、受限原因码、尝试序号和状态，不保存消息正文、prompt、工具参数或结果。
+`ActionExecutor` 是 Runtime 发起 action 的唯一执行/审计协调者：先写 attempt，再调用 `ActionPort`，最后写 terminal；可选的 `RunHandle` guard 在尝试前及宿主调用前同步检查，过期时不调用宿主；若尝试已记录则记 `cancelled`。宿主调用一旦开始，即便随后被覆盖也按实际回执记录，不伪称撤销。此检查点尚未接入 Runtime 派发或宿主发送路径，不等于已启用旧回复抑制。`ActionMessageSender` 只是 `SEND_TEXT` 的兼容适配器。`ActionLedger` 记录动作尝试及至多一个终态（`succeeded`、`failed` 或 `cancelled`）。幂等键由会话、run、动作类型和宿主 callback key 稳定生成；callback key 本身不会落盘。`RepoActionSink` 通过 `RuntimeEpisodeRepository` 写入元数据。审计仅保留标识符、时间戳、受限原因码、尝试序号和状态，不保存消息正文、prompt、工具参数或结果。
 
 `SessionState` 保存会话级调度状态和按说话人分开的 `followup_by_speaker` 后续回复计数。它不是记忆主体；说话人身份仍由 `speaker_id` 表达。
 
