@@ -11,7 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.runtime.actions import ActionExecutor, ActionLedger, ActionMessageSender
-from app.runtime.contracts import ActionKind, ActionRequest, ActionResult, ActionStatus
+from app.runtime.contracts import (ActionKind, ActionRequest, ActionResult, ActionStatus,
+                                   RunKind, RunTrigger)
+from app.runtime.runs import RunControl, RunSupersededError
 
 
 class _Sink:
@@ -72,6 +74,71 @@ class ActionExecutorTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(action.reason, reason)
             self.assertEqual(sink.records[-1].status, ActionStatus.FAILED)
             self.assertNotIn("private", str([row.__dict__ for row in sink.records]))
+
+    async def test_superseded_before_attempt_never_calls_port(self):
+        control = RunControl()
+        handle = control.begin("s1", RunTrigger(RunKind.USER, None, 10.0))
+        control.supersede("s1", handle.run_id)
+        sink, port = _Sink(), _Port(ActionResult(True))
+        executor = ActionExecutor(port, ActionLedger(sink), clock=lambda: 10.0)
+        with self.assertRaises(RunSupersededError):
+            await executor.execute(ActionRequest("s1", text="secret"),
+                                   run_id=handle.run_id, callback_key="send", guard=handle)
+        self.assertEqual(sink.records, [])
+        self.assertEqual(port.requests, [])
+
+    async def test_guard_must_match_action_lane_and_run(self):
+        handle = RunControl().begin("s1", RunTrigger(RunKind.USER, None, 10.0))
+        sink, port = _Sink(), _Port(ActionResult(True))
+        executor = ActionExecutor(port, ActionLedger(sink), clock=lambda: 10.0)
+        for request, run_id in (
+            (ActionRequest("other", text="secret"), handle.run_id),
+            (ActionRequest("s1", text="secret"), "other-run"),
+        ):
+            with self.assertRaises(ValueError):
+                await executor.execute(request, run_id=run_id, callback_key="send", guard=handle)
+        self.assertEqual(sink.records, [])
+        self.assertEqual(port.requests, [])
+
+    async def test_superseded_during_attempt_records_cancelled_without_host_call(self):
+        control = RunControl()
+        handle = control.begin("s1", RunTrigger(RunKind.USER, None, 10.0))
+
+        class SupersedingSink(_Sink):
+            def append(self, record):
+                super().append(record)
+                if record.status is ActionStatus.ATTEMPTED:
+                    control.supersede("s1", handle.run_id)
+
+        sink, port = SupersedingSink(), _Port(ActionResult(True))
+        executor = ActionExecutor(port, ActionLedger(sink), clock=lambda: 10.0)
+        with self.assertRaises(RunSupersededError):
+            await executor.execute(ActionRequest("s1", text="secret"),
+                                   run_id=handle.run_id, callback_key="send", guard=handle)
+        self.assertEqual(port.requests, [])
+        self.assertFalse(handle.action_started)
+        self.assertEqual([r.status for r in sink.records],
+                         [ActionStatus.ATTEMPTED, ActionStatus.CANCELLED])
+        self.assertNotIn("secret", str([r.__dict__ for r in sink.records]))
+
+    async def test_superseded_after_host_call_starts_keeps_real_result(self):
+        control = RunControl()
+        handle = control.begin("s1", RunTrigger(RunKind.USER, None, 10.0))
+
+        class SupersedingPort(_Port):
+            async def execute(self, request):
+                control.supersede("s1", handle.run_id)
+                return await super().execute(request)
+
+        sink, port = _Sink(), SupersedingPort(ActionResult(True))
+        result = await ActionExecutor(port, ActionLedger(sink), clock=lambda: 10.0).execute(
+            ActionRequest("s1", text="secret"), run_id=handle.run_id,
+            callback_key="send", guard=handle,
+        )
+        self.assertTrue(result.ok)
+        self.assertTrue(handle.action_started)
+        self.assertTrue(handle.is_superseded())
+        self.assertEqual(sink.records[-1].status, ActionStatus.SUCCEEDED)
 
     async def test_runtime_prefers_action_executor_for_text_send(self):
         from app.runtime import AgentRuntime, InMemoryStateStore
