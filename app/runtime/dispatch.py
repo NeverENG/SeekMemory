@@ -17,6 +17,7 @@ from .contracts import (
 )
 from .actions import ActionExecutor
 from .recorder import RunRecorder
+from .runs import RunHandle
 from .topics import TopicCandidate
 from .writeback import DeliveryReceipt, DeliveryWritebacks
 
@@ -110,10 +111,37 @@ class Dispatch:
         save_state(self.store, state)
 
 
+    def _supersession_result(
+        self, exc: BaseException, guard: RunHandle | None, *, run_id: str,
+        session_id: str, user_source_id: str, moment: float,
+        decision: str = "wait", reason: str = "deferred_wait",
+    ) -> RunResult | None:
+        """Separate obsolete work from actual started-action failures / 区分旧计划与已开始动作的真实失败。"""
+        if guard is None or guard.is_valid():
+            return None
+        if isinstance(exc, asyncio.CancelledError):
+            # Host cancellation propagates; supersession alone cannot retry old work.
+            # 宿主取消继续上抛，覆盖状态不能为旧计划安排重试。
+            raise exc
+        if guard.action_started:
+            self.recorder.record_deferred_error(
+                run_id=run_id, session_id=session_id, user_source_id=user_source_id,
+                error=exc, decision=decision, reason=reason,
+                at=datetime.datetime.fromtimestamp(
+                    moment, datetime.timezone.utc
+                ).isoformat(timespec="seconds"),
+            )
+            return RunResult(run_id, session_id, False, error=type(exc).__name__)
+        return RunResult(run_id, session_id, False, error="superseded")
+
     async def _send_text(
-        self, session_id: str, text: str, *, run_id: str, callback_key: str
+        self, session_id: str, text: str, *, run_id: str, callback_key: str,
+        guard: RunHandle | None = None,
     ) -> bool:
+        if guard is not None:
+            guard.raise_if_invalid()
         if self.action_executor is not None:
+            options = {"guard": guard} if guard is not None else {}
             result = await self.action_executor.execute(
                 ActionRequest(
                     session_id=session_id,
@@ -123,11 +151,14 @@ class Dispatch:
                 run_id=run_id,
                 callback_key=callback_key,
                 at=self.clock(),
+                **options,
             )
             if not result.ok:
                 raise RuntimeError(result.reason or "send_failed")
             return True
         if self.message_sender is not None:
+            if guard is not None:
+                guard.mark_action_started()
             if not await self.message_sender.send(session_id, text):
                 raise RuntimeError("send_failed")
             return True
@@ -141,6 +172,7 @@ class Dispatch:
         now: float | None = None,
         max_attempts: int = 3,
         base_seconds: float = 2.0,
+        guard: RunHandle | None = None,
     ) -> RunResult:
         """Claim, generate and send; retain a receipt before fallible write-back. Model/send failures retain bounded retries and cancellation propagation.
 
@@ -169,6 +201,10 @@ class Dispatch:
             return RunResult(run_id, session_id, False, error="runtime_port_missing")
         if self.recorder is None:
             return RunResult(run_id, session_id, False, error="recorder_missing")
+        if guard is not None:
+            if guard.lane_id != session_id or guard.run_id != run_id:
+                raise ValueError("dispatch guard does not match run")
+            guard.raise_if_invalid()
         if not run_id:
             run_id = self.recorder.new_run_id()
 
@@ -192,19 +228,31 @@ class Dispatch:
             memory = self.build_context(
                 runtime_input, now=moment, reason="deferred"
             )
+            if guard is not None:
+                guard.raise_if_invalid()
             self.record_context_injection(memory)
+            if guard is not None:
+                guard.raise_if_invalid()
             reply = await self.model_gateway.complete(
                 session_id, text, memory.text or None
             )
+            if guard is not None:
+                guard.raise_if_invalid()
             if not str(reply or "").strip():
                 raise RuntimeError("empty_response")
             await self._send_text(
                 session_id,
                 reply,
                 run_id=run_id,
-                callback_key=f"deferred:{run_id}",
+                callback_key=f"deferred:{run_id}", guard=guard,
             )
         except (Exception, asyncio.CancelledError) as exc:
+            superseded = self._supersession_result(
+                exc, guard, run_id=run_id, session_id=session_id,
+                user_source_id=source_id, moment=moment,
+            )
+            if superseded is not None:
+                return superseded
             try:
                 # Refresh after model/send; explicit start time remains the lower bound.
                 # 模型或发送结束后刷新时间，显式开始时间仍为下界。
@@ -266,6 +314,7 @@ class Dispatch:
         *,
         topic: TopicCandidate | None = None,
         now: float | None = None,
+        guard: RunHandle | None = None,
     ) -> RunResult:
         """Generate a due proactive reply using its own prompt; retain confirmed delivery for write-back.
 
@@ -282,6 +331,10 @@ class Dispatch:
             return RunResult(run_id, session_id, False, error="runtime_port_missing")
         if self.recorder is None:
             return RunResult(run_id, session_id, False, error="recorder_missing")
+        if guard is not None:
+            if guard.lane_id != session_id or guard.run_id != run_id:
+                raise ValueError("dispatch guard does not match run")
+            guard.raise_if_invalid()
         if not run_id:
             run_id = self.recorder.new_run_id()
         topic_text = str(topic.text if topic is not None else "").strip()
@@ -299,19 +352,32 @@ class Dispatch:
                 prompt = (
                     f"{prompt}\n\n主动由头（来自记忆）：{topic_text}"
                 ).strip()
+            if guard is not None:
+                guard.raise_if_invalid()
             self.record_context_injection(memory)
+            if guard is not None:
+                guard.raise_if_invalid()
             reply = await self.model_gateway.complete(
                 session_id, prompt or context.text, None
             )
+            if guard is not None:
+                guard.raise_if_invalid()
             if not str(reply or "").strip():
                 raise RuntimeError("empty_response")
             await self._send_text(
                 session_id,
                 reply,
                 run_id=run_id,
-                callback_key=f"proactive:{run_id}",
+                callback_key=f"proactive:{run_id}", guard=guard,
             )
         except (Exception, asyncio.CancelledError) as exc:
+            superseded = self._supersession_result(
+                exc, guard, run_id=run_id, session_id=session_id,
+                user_source_id=context.source_id, moment=moment,
+                decision="proactive", reason=decision.reason,
+            )
+            if superseded is not None:
+                return superseded
             try:
                 state = transitions.snapshot(self.store.get(session_id))
                 state.last_proactive_at = moment

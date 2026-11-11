@@ -309,8 +309,20 @@ class AgentRuntime:
         pending = self._retry_before_dispatch(context)
         if pending is not None:
             return pending
-        return await self._dispatcher().dispatch_deferred(context, now=now, max_attempts=max_attempts,
-                                                           base_seconds=base_seconds)
+        if self._run_admission is None:
+            return await self._dispatcher().dispatch_deferred(context, now=now, max_attempts=max_attempts,
+                                                               base_seconds=base_seconds)
+        moment = self.clock() if now is None else float(now)
+        handle = self.begin_run(context.session_id, RunTrigger(RunKind.DEFERRED, None, moment))
+        if handle is None:
+            return RunResult(context.run_id, context.session_id, False, error="run_busy")
+        try:
+            return await self._dispatcher().dispatch_deferred(
+                replace(context, run_id=handle.run_id), now=moment, max_attempts=max_attempts,
+                base_seconds=base_seconds, guard=handle,
+            )
+        finally:
+            self.finish_run(handle)
 
     async def dispatch_proactive(self, context: RunContext, decision: ProactiveDecision, *,
                                  topic: TopicCandidate | None = None, now: float | None = None) -> RunResult:
@@ -318,7 +330,18 @@ class AgentRuntime:
         pending = self._retry_before_dispatch(context)
         if pending is not None:
             return pending
-        return await self._dispatcher().dispatch_proactive(context, decision, topic=topic, now=now)
+        if self._run_admission is None:
+            return await self._dispatcher().dispatch_proactive(context, decision, topic=topic, now=now)
+        moment = self.clock() if now is None else float(now)
+        handle = self.begin_run(context.session_id, RunTrigger(RunKind.PROACTIVE, None, moment))
+        if handle is None:
+            return RunResult(context.run_id, context.session_id, False, error="run_busy")
+        try:
+            return await self._dispatcher().dispatch_proactive(
+                replace(context, run_id=handle.run_id), decision, topic=topic, now=moment, guard=handle,
+            )
+        finally:
+            self.finish_run(handle)
 
     def schedule_proactive(self, session_id: str, delay_seconds: float, *, now: float | None = None) -> SessionState:
         """Persist an explicit proactive due time / 保存明确的主动发言时间。"""

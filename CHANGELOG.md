@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### 中文
+- #154：仅在显式启用运行准入时，延迟/主动派发在模型与发送边界检查同 lane 运行有效性；旧计划被新输入覆盖后不再发送或安排旧重试，已开始发送的真实回执仍补写。宿主普通回复尚未接入，默认行为、存储格式及公开配置不变。
 - #154：ActionExecutor 增加可选运行有效性检查点，过期动作在宿主调用前停止并按已记录尝试记取消；已开始动作仍按真实结果记账。派发和宿主尚未接入，不改变默认回复行为、存储格式或公开配置。
 - #233：新增有证据、版本/树边/账本/无正文操作日志同事务的树写入；多父复核可显式提交，失败整组回滚、相同操作重试不重复，旧边不补造。旧库增量增加 `tree_change_log`，不迁移现有边或公开配置；旧版独立树边写入不可与新版混跑，降级前需停写并从备份恢复。自动 Dream 纠错尚未启用。
 - #233：树召回按当前有效的父子记忆先过滤、再按编号限量，停用或缺失的旧边不再挤掉有效节点；保留原始边供离线检查，不自动纠错或清理连接。无数据库格式、已存数据或公开配置变化。
@@ -10,6 +11,7 @@
 - #233：新增离线只读的纠错影响图检查，有界比对当前血缘与原始树边，核对当前版本证据，明确报告多父路径及不一致、证据缺失、跨主体、环和截断；不推断应如何修订，也不接入生产 Dream。仅查询既有字段，不改已存数据格式、边或公开配置。
 
 ### English
+- #154: With run admission explicitly enabled, deferred/proactive dispatch checks same-lane validity across model and send boundaries. Superseded unsent replies do not send or retry; started sends retain real receipts and write-backs. Ordinary host replies are not wired; defaults, stored formats and public config stay unchanged.
 - #154: Add an optional run-validity checkpoint to ActionExecutor: obsolete actions stop before the host call and recorded attempts become cancelled; started actions retain their real outcome. Dispatch and hosts do not yet pass guards. Default reply behavior, storage formats and public config are unchanged.
 - #233: Add evidence-backed tree writes with Artifact revisions, edges, ledger and content-free operation log in one transaction. Explicit multi-parent review can commit atomically, failures roll back, exact retries do not duplicate writes, and old links are not invented. Existing databases gain `tree_change_log` without rewriting edges or public settings; old separate tree writers must not run concurrently, and downgrades require stopping writes and restoring a backup. Automatic Dream correction remains off.
 - #233: Tree recall filters for current active parent and child memories before applying ordered read limits, so retired or missing edge endpoints no longer starve valid nodes. Raw edges remain available for offline inspection; no automatic correction or edge cleanup. No database-format, stored-data or public-configuration changes.
