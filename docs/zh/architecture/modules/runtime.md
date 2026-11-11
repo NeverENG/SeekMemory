@@ -25,7 +25,7 @@ epoch 由控制器实例的单调计数器发放，同 lane 重开及跨 lane �
 
 ## 运行准入与输入接纳
 
-`AgentRuntime(..., run_control_enabled=True, run_policy=None)` 显式启用同 lane 运行准入。组装方须提供专用 `RunRecorder`，在同一事件循环线程使用，并先确认宿主、机器人实例隔离，再以 `session_id` 作为 lane。`accept_user()` 要求稳定的事件 ID（显式参数优先于 `RuntimeInput.event_id`），并独自执行注意力评估；启用时不接受预计算 `decision`。默认仍关闭，不改变现有宿主组装、回执线协议、持久化键或公开配置；模型、动作和宿主发送检查点尚未接入。
+`AgentRuntime(..., run_control_enabled=True, run_policy=None)` 显式启用同 lane 运行准入。组装方须提供专用 `RunRecorder`，在同一事件循环线程使用，并先确认宿主、机器人实例隔离，再以 `session_id` 作为 lane。`accept_user()` 要求稳定的事件 ID（显式参数优先于 `RuntimeInput.event_id`），并独自执行注意力评估；启用时不接受预计算 `decision`。默认仍关闭，不改变现有宿主组装、回执线协议、持久化键或公开配置；仅启用时 Runtime 自有的后台模型/发送检查点已接入；普通 AstrBot/DSH 宿主回复尚未接入。
 
 输入先完成 Source 及投影记录，再评估注意力并保存状态。`RecordedTurn.replayed` 标识当前 recorder 生命期内重复返回的回执，不以数据库已有 Source 推断接纳已完成。状态保存失败仍可重试，后台补完投影也不会消耗第一次接纳机会。重放返回 `IGNORE/replayed_event`，不推进状态或覆盖运行；过期输入保留 Source 证据。二者均不返回可确认消息的游标。相同或未知时间不等于重放；缺少可靠时间时，以成功接纳的先后为准，失败重试也遵循此顺序。这里是进程内记录，不保证崩溃后严格单次处理。
 
@@ -33,11 +33,13 @@ epoch 由控制器实例的单调计数器发放，同 lane 重开及跨 lane �
 
 `DefaultRunPolicy` 允许空闲 lane 启动，新用户输入覆盖同 lane 旧计划，后台触发则保留有效运行和到期标记。注入策略只收到独立状态快照和只读运行视图；异常或错误返回类型会回退默认策略；当前没有待处理输入重评估入口，因此 USER 策略拒绝启动或要求保留有效旧运行时也会回退。诊断仅保存生成的运行元数据、事件码和异常类型，不记录正文、lane/Source ID 或异常消息。覆盖不删除 Source、不确认未读，也不把已开始动作记作取消；`WAIT` 期间的新输入仍重新评估注意力。
 
+仅启用运行准入时，`dispatch_deferred` 与 `dispatch_proactive` 为隔离的 session lane 领取背景运行句柄；同 lane 已有有效运行时返回 `run_busy`，不消耗到期机会。运行编号采用该句柄的 run_id（默认关闭时仍使用既有 `RunContext.run_id`）；退出时只释放本句柄。模型前、返回后及发送前检查有效性，`_send_text` 把同一 guard 交给 ActionExecutor 或在旧 MessageSender 调用前标记动作开始。若在未开始发送时被新输入覆盖，结果为 `superseded`，不重试旧回复、不记普通错误，也不清除 Source、新输入及补写凭据；覆盖后宿主取消仍向上传播而不安排旧重试。发送已开始则保留真实回执、交付及待补写结果，不能保证撤回；已失效且已开始发送的真实失败记错误、不重试旧计划，未失效的普通失败继续按既有路径重试。此前的已到期主动机会仍由策略重新评估，不能从失效推断它已被消耗。宿主仍未启用此能力，不能据此宣称普通模型回复不会晚发。
+
 ## 主动策略与动作审计
 
 `DefaultProactivePolicy` 是确定性的纯状态策略。它要求显式传入 `now`，返回下一次可执行时间，并检查到期时间、安静截止时间、冷却、重试、忽略连击退避和尝试次数上限。它不做 I/O、不调用模型、不修改状态；默认关闭，只有 runtime composition 明确启用后才会生效。`plan_proactive_dispatch` 按到期时间排序可执行会话，应用每轮派发上限，并将超出部分作为仍然到期的任务留待后续轮次。宿主通过 `AgentRuntime.schedule_proactive()` 持久化显式到期时间；AstrBot 在启用 proactive 后由消息入口按 `proactive_idle_seconds` 排期。`TopicSource` 从 Source-backed 缓冲投影中提供记忆由头；没有候选时 worker 清除该次主动机会，不发送空主动。
 
-`ActionExecutor` 是 Runtime 发起 action 的唯一执行/审计协调者：先写 attempt，再调用 `ActionPort`，最后写 terminal；可选的 `RunHandle` guard 在尝试前及宿主调用前同步检查，过期时不调用宿主；若尝试已记录则记 `cancelled`。宿主调用一旦开始，即便随后被覆盖也按实际回执记录，不伪称撤销。此检查点尚未接入 Runtime 派发或宿主发送路径，不等于已启用旧回复抑制。`ActionMessageSender` 只是 `SEND_TEXT` 的兼容适配器。`ActionLedger` 记录动作尝试及至多一个终态（`succeeded`、`failed` 或 `cancelled`）。幂等键由会话、run、动作类型和宿主 callback key 稳定生成；callback key 本身不会落盘。`RepoActionSink` 通过 `RuntimeEpisodeRepository` 写入元数据。审计仅保留标识符、时间戳、受限原因码、尝试序号和状态，不保存消息正文、prompt、工具参数或结果。
+`ActionExecutor` 是 Runtime 发起 action 的唯一执行/审计协调者：先写 attempt，再调用 `ActionPort`，最后写 terminal；可选的 `RunHandle` guard 在尝试前及宿主调用前同步检查，过期时不调用宿主；若尝试已记录则记 `cancelled`。宿主调用一旦开始，即便随后被覆盖也按实际回执记录，不伪称撤销。启用运行准入的 Runtime 自有后台派发已传入此 guard；普通宿主回复尚未接入。`ActionMessageSender` 只是 `SEND_TEXT` 的兼容适配器。`ActionLedger` 记录动作尝试及至多一个终态（`succeeded`、`failed` 或 `cancelled`）。幂等键由会话、run、动作类型和宿主 callback key 稳定生成；callback key 本身不会落盘。`RepoActionSink` 通过 `RuntimeEpisodeRepository` 写入元数据。审计仅保留标识符、时间戳、受限原因码、尝试序号和状态，不保存消息正文、prompt、工具参数或结果。
 
 `SessionState` 保存会话级调度状态和按说话人分开的 `followup_by_speaker` 后续回复计数。它不是记忆主体；说话人身份仍由 `speaker_id` 表达。
 
@@ -49,7 +51,7 @@ accept_user 返回的 UserRunReceipt 包含本轮接收时的消息确认序号 
 
 **延迟 ambient 回复**：开启 runtime_gate_enabled 后，worker 根据已到期 wait/retry 选择会话；Runtime 领取 dispatch、构建记忆上下文、调用 ModelGateway、通过 MessageSender 发送，再记录助手 Source 与 EpisodeRecord。失败会按每会话上限和指数退避重试。该路径直接调用 provider，不运行完整 AstrBot agent/tool 循环。
 
-等待和重试期限在模型与发送执行期间保留，尝试次数在调用前持久化。取消会安排有限重试并继续抛出取消信号；进程中断后，原有 Scheduler 可从同一状态恢复。重试次数跨重启保留，新 Source 使用自己的次数预算。只有成功确认对应消息或旧任务耗尽时才清理相应任务，不能覆盖期间新消息安排的期限。运行时保存领取时的状态快照以区分旧标记与新任务，不增加数据库字段、表或第二套调度循环。
+等待和重试期限在模型与发送执行期间保留，尝试次数在调用前持久化。默认未启用运行准入时，取消会安排有限重试并继续抛出取消信号；启用准入后，被新输入覆盖的旧计划即使收到宿主取消也不安排旧回复重试，取消信号仍向上传播。进程中断后，原有 Scheduler 可从同一状态恢复。重试次数跨重启保留，新 Source 使用自己的次数预算。只有成功确认对应消息或旧任务耗尽时才清理相应任务，不能覆盖期间新消息安排的期限。运行时保存领取时的状态快照以区分旧标记与新任务，不增加数据库字段、表或第二套调度循环。
 
 成功发送后重新读取注入时钟，作为交付审计和最近发言时间的起点；失败或取消后也重新读时钟，从失败时刻开始退避。显式传入的 now 是该次运行的时间下界。RuntimeWorker.dispatch 统一管理并发名额与会话去重；轮询、直接调用共用此入口。排队也占用会话去重标记，取得名额后复查开关、时钟和到期状态，取消会释放名额与标记。这只保证单个 worker 进程中的协调，不保证跨进程严格单次发送。
 

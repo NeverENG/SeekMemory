@@ -37,6 +37,10 @@ AccessService 基于完整 session UMO、sender ID、owner/trusted 配置和 obs
 
 显式启用 `runtime_gate_enabled` 时，AstrBotRuntimeAdapter 将 `REPLY` / `must_reply` 映射为 `should_call_llm(False)`，因为宿主参数表示**禁止默认模型请求**；其他动作映射为 `True`。关闭 gate 时不修改已有宿主标记；关系观察不会改变该 gate。此映射保留宿主自身的唤醒、已发送及 provider 检查，不启用插件内独立模型请求。
 
+AstrBot 最低声明版本 v4.24.1 的标准非流式流水线在 `ResultDecorateStage` 提供 `on_decorating_result`，位于 `RespondStage` 前；但 `STREAMING_RESULT` 会跳过该钩子并由 `RespondStage` 调用 `send_streaming`，插件主动调用宿主 `send_message` 也不经过该流水线。现有回复捕获采用 `on_llm_response`，交付确认采用发送后的 `after_message_sent`，均非通用最终发送 guard；宿主内部错误还可能直接调用 `event.send`。未证明流式、分段或直接发送可在提交宿主前统一阻断。启用普通回复的同 lane 覆盖前，须分别验证宿主实际发送路径并处理用户 run 的接纳、回执关联与生命周期，不得将非流式钩子等同于全路径保障。
+
+当前 `attention_gate` 以优先级 9999 在默认优先级的 `buffer_message` 前运行，可能先 `stop_event()`；而可选 Source-backed 准入要求先保存用户 Source、再由 `accept_user()` 独自评估注意力，不能沿用预计算决策。这两个入口的先后与回执关联须在宿主接入时一并解决，不能只新增发送前回调。
+
 宿主 hook 注册必须绑定真实插件模块路径，避免热重载后回调无法识别。Runtime 的工具过滤在模型请求前运行；工具调用完成后的观测 hook 不能作为强制拦截。插件初始化/宿主 API 不可用时，由上层状态和 fail-open 处理，不应把 AstrBot 依赖泄漏到业务模块。
 
 ## 本机回环记忆适配层
@@ -58,6 +62,8 @@ AccessService 基于完整 session UMO、sender ID、owner/trusted 配置和 obs
 DSH 的 RuntimeBridge 复用 KernelClient 的本机认证连接。服务在 healthz 声明 runtime_contract: 1 后，桥接器通过 POST /runtime/events 传递输入、回复、交付、错误及动作执行结果，通过 POST /runtime/context 获取 MemoryContext。公共字段以 app/runtime/contracts/ 为准，共享非空样例同时由 Python 和 Node 测试校验。消息时间按已知毫秒或带时区字符串转为 epoch 秒；未知时间为 0，不猜历史时区。
 
 subject_key 表示稳定记忆归属，session_id 表示本轮运行会话，二者不混用。pre-step 只在消息 ID 匹配时使用对应的 Source 回执与事件时间；服务的 runtime_gate_enabled 明确开启后，才把其 RunDecision 映射为宿主放行或拒绝，不实现第二套注意力策略。
+
+DSH 当前只在 `session/event` 异步捕获用户与助手消息，并在 `agent/pre-step` 修改模型前决策；这两个位置不能阻止模型运行后已准备交付的旧回复。现有 `runtime_contract=1` 无跨进程 run handle/发送前有效性检查，loopback 健康检查始终报告 `runtime_gate_enabled=false`；因此尚未提供 DSH 普通回复的旧消息抑制。若需跨进程控制，须另行审定宿主可控的最终发送入口、lane 身份及线协议/回退语义，不能把捕获成功当作发送取消。
 
 旧服务或不支持此运行时协议的服务沿用 capture/recall。运行时写请求一旦发出，即使失败或超时，也不再补发 legacy capture，避免重复保存。普通 assistant/message 只映射为 record_reply，没有发送完成证明时不调用 record_delivery。桥接器不新增模型循环、调度器、主动发送或工具执行能力；真实 `scripts/serve.py` 现支持 runtime 接收与上下文，但 `runtime_gate_enabled=false`，会话决策仅保存在进程内，重启不承诺恢复。运行时上下文仍复用 RecallService 的披露及预算，DSH 传入显式 `budget_chars` 和 `k`；宿主不能从错误主体读取或写入。`/runtime/context` 与旧 `/recall` 只接受布尔型的显式 `private`，错误类型在披露前返回 400；字段缺失仍分别默认非私聊与私聊，不改变原有兼容行为。
 
