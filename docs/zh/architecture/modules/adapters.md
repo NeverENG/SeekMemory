@@ -37,7 +37,7 @@ AccessService 基于完整 session UMO、sender ID、owner/trusted 配置和 obs
 
 显式启用 `runtime_gate_enabled` 时，AstrBotRuntimeAdapter 将 `REPLY` / `must_reply` 映射为 `should_call_llm(False)`，因为宿主参数表示**禁止默认模型请求**；其他动作映射为 `True`。关闭 gate 时不修改已有宿主标记；关系观察不会改变该 gate。此映射保留宿主自身的唤醒、已发送及 provider 检查，不启用插件内独立模型请求。
 
-AstrBot 最低声明版本 v4.24.1 的标准非流式流水线在 `ResultDecorateStage` 提供 `on_decorating_result`，位于 `RespondStage` 前；但 `STREAMING_RESULT` 会跳过该钩子并由 `RespondStage` 调用 `send_streaming`，插件主动调用宿主 `send_message` 也不经过该流水线。现有回复捕获采用 `on_llm_response`，交付确认采用发送后的 `after_message_sent`，均非通用最终发送 guard；宿主内部错误还可能直接调用 `event.send`。未证明流式、分段或直接发送可在提交宿主前统一阻断。启用普通回复的同 lane 覆盖前，须分别验证宿主实际发送路径并处理用户 run 的接纳、回执关联与生命周期，不得将非流式钩子等同于全路径保障。
+AstrBot 最低声明版本 v4.24.1 的标准非流式流水线在 `ResultDecorateStage` 提供 `on_decorating_result`，位于 `RespondStage` 前；钩子结束后仍可能发生异步装饰，`RespondStage` 可等待分段间隔并多次调用 `event.send`，因此该钩子不是紧贴每次发送的原子 guard，新输入若在检查后到实际发送前到达仍可能晚发。另有 `STREAMING_RESULT` 会跳过该钩子并由 `RespondStage` 调用 `send_streaming`，插件主动调用宿主 `send_message` 也不经过该流水线。现有回复捕获采用 `on_llm_response`，交付确认采用发送后的 `after_message_sent`，均非通用最终发送 guard；宿主内部错误还可能直接调用 `event.send`。未证明流式、分段或直接发送可在提交宿主前统一阻断。启用普通回复的同 lane 覆盖前，须分别验证宿主实际发送路径并处理用户 run 的接纳、回执关联与生命周期，不得将非流式钩子等同于全路径保障。
 
 当前 `attention_gate` 以优先级 9999 在默认优先级的 `buffer_message` 前运行，可能先 `stop_event()`；而可选 Source-backed 准入要求先保存用户 Source、再由 `accept_user()` 独自评估注意力，不能沿用预计算决策。这两个入口的先后与回执关联须在宿主接入时一并解决，不能只新增发送前回调。
 
