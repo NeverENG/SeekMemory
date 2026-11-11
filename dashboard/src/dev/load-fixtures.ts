@@ -1,6 +1,6 @@
 import type { ManagementClient } from "../features/control/model.ts"
 import type { GraphSnapshot } from "../features/shell/model.ts"
-import { recentGraph } from "../features/memory-graph/model.ts"
+import { mockGraph } from "./graph-snapshot.ts"
 export function loadGraph(): GraphSnapshot {
   const kinds = [
     "fact",
@@ -58,7 +58,7 @@ export function loadClient(base: ManagementClient): ManagementClient {
     },
     console: {
       ...port,
-      graph: async () => recentGraph(loadGraph(), 120),
+      graph: async (sort = "weight") => mockGraph(loadGraph(), sort),
       impressions: async () => ({
         items: Array.from({ length: 100 }, (_, i) => ({
           id: `load-person-${i}`,

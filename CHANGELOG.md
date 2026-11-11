@@ -37,6 +37,8 @@
 
 - #154：可选接入输入准入与默认运行策略，排除重放和过期输入，以原始回执保证最新输入只启动一次，失败后仍可重试接纳。保留未读和后台到期机会，策略异常时回退；默认关闭，模型/发送检查点尚未接入，不改数据格式或公开配置。
 
+- #218：星图默认从全库有效记忆中按现有权重选取，支持最近更新排序及 40/80/120 条显示；移除星图解释文案与详细搜索抽屉，详细查找统一在记忆库进行，导航改用轨道图标。记忆库提升为一级导航，旧链接仍可访问。管理 graph 接口新增可选 sort 参数；无数据库、历史数据、聊天召回或公开配置变更。
+
 - #215：首页固定展示内置蓝发 Q 版形象，不随人格包封面变化，也不因缺少封面显示占位图。人格工作室继续展示关联封面；无数据、接口或公开配置变更。
 
 - #178：人格工作室新增姓名、正文、风格和边界表单；个人包支持创建、编辑、另存及复制官方包，自动处理分页外目标和版本/内容冲突。应用前对照当前设定，明确替换与历史保留；状态区分应用基线、成长和包更新。新应用在现有人格 payload 保存可选来源与摘要，旧记录保持未知，无数据库结构或包格式迁移。工作室按原包及图片摘要展示封面，缺失或改变时使用占位图，不自动切换形象或合并成长。
@@ -62,6 +64,8 @@
 - #222: Extract a transient HostRequest and HostGateway projection so AstrBot and the existing DSH Python HTTP entry share one RuntimeInput construction boundary. Preserve fields, wire protocol, runtime behavior and user configuration; no authentication, rate limiting or persistent idempotency is added.
 
 - #154: Add optional input admission and a default run policy. Reject replayed/stale input, require the original receipt to start the latest input once, and preserve acceptance retries after failures. Keep unread input and background due opportunities, with fallback on policy errors. Disabled by default; model/send checkpoints remain unconnected, with no data-format or public-configuration changes.
+
+- #218: Rank the graph across all active memories by existing weight by default, retaining recent-update sorting and 40/80/120 display counts. Remove the graph explanation and detailed search drawer, keep detailed lookup in Library, and use an orbit navigation icon. Promote Library to top-level navigation while preserving old links. Add an optional sort query to the management graph API; no database, historical-data, chat-recall or public-configuration changes.
 
 - #215: Always show the bundled blue-haired chibi character on Home, independently of persona-pack artwork and without a missing-cover placeholder. Studio continues to show associated artwork; no data, API or public configuration changes.
 

@@ -535,19 +535,6 @@
   grid-template-columns: 230px minmax(0, 1fr);
   gap: 20px;
 }
-.map-filters {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-.map-filters label {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--muted-foreground);
-}
 .map-legend {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -677,14 +664,6 @@
   .map-layout {
     grid-template-columns: 1fr;
   }
-  .map-filters {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-  }
-  .map-filters > h2,
-  .map-filters > input,
-  .map-filters > p,
   .map-legend {
     grid-column: 1/-1;
   }

@@ -120,7 +120,25 @@ class ConsoleHttpTests(unittest.TestCase):
             self.api(action)
         self.api("detail?id=absent", expected=404)
         self.api("packs?offset=invalid", expected=400)
+        self.api("graph?sort=weight")
+        self.api("graph?sort=recent")
+        self.api("graph?sort=invalid", expected=400)
+        self.api("graph?sort=", expected=400)
         self.api("task", "POST", {"kind": "extract", "confirmed": True}, expected=503)
+
+    def test_graph_sort_selects_different_candidates_through_http(self) -> None:
+        from dataclasses import replace
+        store = module("store").open_store(str(self.data / "memory.db"))
+        try:
+            for aid, weight, updated in [('old-high', 100, '2000-01-01'), ('new-low', 0.1, '2099-01-01')]:
+                art = module('core.artifact').make('memory', {'text': aid, 'level': 'fact'}, id=aid)
+                art = replace(art, header=replace(art.header, strength=replace(art.header.strength, weight=weight), time=replace(art.header.time, updated=updated)))
+                store.artifacts.upsert(art)
+        finally:
+            store.close()
+        self.assertEqual(self.api('graph')['nodes'][0]['id'], 'old-high')
+        self.assertEqual(self.api('graph?sort=recent')['nodes'][0]['id'], 'new-low')
+        self.assertEqual(self.request('/api/manage/graph?sort=weight', auth=False)[0], 401)
 
     def test_update_keeps_revision_history_and_rejects_stale_writes(self) -> None:
         command = {

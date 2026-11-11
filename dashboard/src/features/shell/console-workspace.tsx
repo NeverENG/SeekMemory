@@ -93,6 +93,9 @@ export function ConsoleWorkspace({ client }: { client: ManagementClient }) {
         />
       )
       break
+    case "library":
+      content = <ControlWorkspace client={client} initialSection="memory" />
+      break
     case "traces":
     case "system":
       content = (

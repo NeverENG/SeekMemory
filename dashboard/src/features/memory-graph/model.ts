@@ -39,39 +39,36 @@ export function layoutGraph(graph: GraphSnapshot): Point[] {
     }
   })
 }
-export function filterGraph(
-  graph: GraphSnapshot,
-  filter: {
-    query: string
-    kind: string
-    scope: string
-    subject: string
-    since: string
-    focus: string
+export function focusGraph(graph: GraphSnapshot, focus: string): GraphSnapshot {
+  if (!focus) return graph
+  const neighbors = new Set([focus])
+  for (const edge of graph.edges) {
+    if (edge.source === focus) neighbors.add(edge.target)
+    if (edge.target === focus) neighbors.add(edge.source)
   }
-): GraphSnapshot {
-  const neighbors = new Set([filter.focus])
-  for (const e of graph.edges) {
-    if (e.source === filter.focus) neighbors.add(e.target)
-    if (e.target === filter.focus) neighbors.add(e.source)
-  }
-  const nodes = graph.nodes.filter(
-    (n) =>
-      (!filter.query ||
-        `${n.label} ${n.id}`
-          .toLowerCase()
-          .includes(filter.query.toLowerCase())) &&
-      (filter.kind === "all" || n.kind === filter.kind) &&
-      (filter.scope === "all" || n.scope === filter.scope) &&
-      (filter.subject === "all" || n.subject === filter.subject) &&
-      (!filter.since || n.createdAt >= filter.since) &&
-      (!filter.focus || neighbors.has(n.id))
-  )
+  const nodes = graph.nodes.filter((node) => neighbors.has(node.id))
   const ids = new Set(nodes.map((n) => n.id))
   return {
     ...graph,
     nodes,
     edges: graph.edges.filter((e) => ids.has(e.source) && ids.has(e.target)),
+  }
+}
+
+export function displayGraph(
+  graph: GraphSnapshot,
+  limit: number
+): GraphSnapshot {
+  const bound = Math.min(120, Math.max(1, Math.floor(limit) || 80))
+  const nodes = graph.nodes.slice(0, bound)
+  const ids = new Set(nodes.map((node) => node.id))
+  return {
+    ...graph,
+    limit: bound,
+    nodes,
+    edges: graph.edges
+      .filter((edge) => ids.has(edge.source) && ids.has(edge.target))
+      .slice(0, bound * 2),
   }
 }
 

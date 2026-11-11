@@ -6,7 +6,7 @@ import { Window } from "happy-dom"
 import { act, createElement, useEffect } from "react"
 import { createRoot } from "react-dom/client"
 import { parseRoute, seedSchema } from "../src/features/shell/model.ts"
-import { filterGraph, layoutGraph } from "../src/features/memory-graph/model.ts"
+import { focusGraph, layoutGraph } from "../src/features/memory-graph/model.ts"
 import { loadGraph } from "../src/dev/load-fixtures.ts"
 import { useResource } from "../src/features/shell/use-resource.ts"
 import { useRoute } from "../src/features/shell/routing.ts"
@@ -21,37 +21,27 @@ void test("hash links validate pages and preserve encoded node identities", () =
   assert.equal(parseRoute("#/persona?revision=wrong").revision, null)
   assert.equal(parseRoute("#/untrusted").page, "home")
   assert.deepEqual(
+    parseRoute("#/system?section=memory"),
+    parseRoute("#/library")
+  )
+  assert.deepEqual(parseRoute("#/system"), parseRoute("#/library"))
+  assert.equal(parseRoute("#/system?section=runtime").section, "runtime")
+  assert.deepEqual(
     parseRoute("#/traces?node=run-1"),
     parseRoute("#/system?section=traces&node=run-1")
   )
   assert.equal(parseRoute("#/system?section=traces").section, "traces")
 })
-void test("graph filtering intersects scope, identity, date and actual neighbors", () => {
+void test("graph focus keeps the selected node and its actual neighbors", () => {
   const graph = loadGraph(),
     original = JSON.stringify(graph)
-  const result = filterGraph(graph, {
-    query: "",
-    kind: "all",
-    scope: "shared",
-    subject: "all",
-    since: "2026-10-01",
-    focus: "load-1",
-  })
+  const result = focusGraph(graph, "load-1")
   assert.deepEqual(
     new Set(result.nodes.map((n) => n.id)),
     new Set(["load-0", "load-1", "load-2", "load-12", "load-990"])
   )
-  assert.equal(
-    filterGraph(graph, {
-      query: "",
-      kind: "fact",
-      scope: "shadow",
-      subject: "all",
-      since: "",
-      focus: "",
-    }).nodes.length,
-    0
-  )
+  assert.deepEqual(focusGraph(graph, ""), graph)
+  assert.equal(focusGraph(graph, "missing").nodes.length, 0)
   assert.equal(JSON.stringify(graph), original)
   assert.equal(new Set(layoutGraph(graph).map((p) => p.id)).size, 1000)
   assert.ok(
