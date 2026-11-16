@@ -38,6 +38,7 @@ from .admission import RunAdmission
 from .recorder import RecordedReply, RunRecorder
 from .policy.attention import DefaultAttentionPolicy
 from .runs import RunHandle
+from .unread_context import UnreadSourceReader
 from .topics import TopicCandidate
 from .writeback import DeliveryReceipt, DeliveryWritebacks
 from .episode import normalize_tool_calls
@@ -76,6 +77,7 @@ class AgentRuntime:
         *, context_recorder: MemoryContextRecorder | None = None,
         run_control_enabled: bool = False,
         run_policy: RunPolicy | None = None,
+        source_reader: UnreadSourceReader | None = None,
     ) -> None:
         self.store = store
         self.policy = policy or DefaultAttentionPolicy()
@@ -87,6 +89,7 @@ class AgentRuntime:
         self.action_executor = action_executor
         self.message_sender = message_sender
         self.recorder = recorder
+        self.source_reader = source_reader
         self.context_recorder = context_recorder
         self._writebacks = DeliveryWritebacks()
         if run_control_enabled and recorder is None:
@@ -144,9 +147,11 @@ class AgentRuntime:
         moment = self.clock() if now is None else float(now)
         return self._observe(event, moment).decision
 
-    def _observe(self, event: RuntimeInput, moment: float) -> _Observation:
+    def _observe(self, event: RuntimeInput, moment: float, *, source_id: str = "") -> _Observation:
         """Return the saved snapshot without another store read / 返回已保存快照，不再次读取存储。"""
         state = self.store.get(event.session_id)
+        if source_id and source_id in state.unread_sources.values():
+            return _Observation(state, RunDecision(WakeAction.IGNORE, "replayed_event"))
         event_time = float(event.event_time or 0.0)
         if event_time > 0 and state.last_event_at > event_time:
             if self.trace is not None:
@@ -155,6 +160,8 @@ class AgentRuntime:
                 })
             return _Observation(state, RunDecision(WakeAction.IGNORE, "stale_event"))
         state = transitions.observe_event(state, event, moment)
+        if source_id:
+            state.unread_sources[str(state.last_unread_seq)] = source_id
         decision = self.policy.evaluate(event, state, moment)
         state = transitions.apply_attention(state, decision, moment, self.wait_seconds)
         self._save(state)
@@ -216,10 +223,10 @@ class AgentRuntime:
                 RunDecision(WakeAction.IGNORE, "replayed_event"), recorded.source_id, recorded.turn_id,
             )
         moment = self.clock() if now is None else float(now)
-        observed = self._observe(event, moment)
+        observed = self._observe(event, moment, source_id=recorded.source_id)
         admission.complete(recorded.source_id)
         receipt = UserRunReceipt(observed.decision, recorded.source_id, recorded.turn_id)
-        if observed.decision.reason != "stale_event":
+        if observed.decision.reason not in ("stale_event", "replayed_event"):
             receipt = replace(receipt, read_through_seq=observed.state.last_unread_seq)
             admission.accept(observed.state, RunTrigger(RunKind.USER, event, moment), receipt)
         return receipt
@@ -385,7 +392,8 @@ class AgentRuntime:
         return Dispatch(store=self.store, clock=self.clock, memory_context=self.memory_context,
                         model_gateway=self.model_gateway, action_executor=self.action_executor,
                         message_sender=self.message_sender, recorder=self.recorder, trace=self.trace,
-                        writebacks=self._writebacks, context_recorder=self.context_recorder)
+                        writebacks=self._writebacks, context_recorder=self.context_recorder,
+                        source_reader=self.source_reader)
 
     def retry_writebacks(self) -> int:
         """Retry writes without model/send access, including with speaking disabled.

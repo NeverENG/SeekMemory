@@ -6,6 +6,7 @@ import asyncio
 import os
 import sys
 import unittest
+from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -351,6 +352,8 @@ class RuntimeWorkerTest(unittest.TestCase):
         state.proactive_due_at = 100.0
         store.put(state)
         runtime = Runtime()
+        trace = SimpleNamespace(rows=[])
+        trace.record = lambda kind, status, context: trace.rows.append((kind, status, context))
         worker = RuntimeWorker(
             runtime=runtime,
             scheduler=Scheduler(store),
@@ -364,9 +367,13 @@ class RuntimeWorkerTest(unittest.TestCase):
             base_seconds=lambda: 2,
             proactive_policy=DefaultProactivePolicy(enabled=True),
             topic_source=Topics(),
+            trace=trace,
         )
         self.assertEqual(asyncio.run(worker.tick(now=100)), 0)
         self.assertEqual(runtime.cleared, ["s1"])
+        self.assertEqual(trace.rows, [
+            ("runtime", "proactive_no_topic", {"error": "RuntimeError"}),
+        ])
 
     def test_tick_records_scheduler_failure(self) -> None:
         class Trace:
@@ -433,8 +440,7 @@ class RuntimeWorkerTest(unittest.TestCase):
         )
         self.assertEqual(asyncio.run(worker.tick(now=100)), 1)
         self.assertEqual(trace.rows[0][:2], ("runtime", "dispatch_failed"))
-        self.assertEqual(trace.rows[0][2]["session_id"], "s1")
-        self.assertEqual(trace.rows[0][2]["error"], "RuntimeError")
+        self.assertEqual(trace.rows[0][2], {"error": "RuntimeError"})
 
     def test_direct_dispatch_dedupes_one_in_flight_session(self) -> None:
         class Runtime:

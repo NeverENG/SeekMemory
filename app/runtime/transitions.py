@@ -14,7 +14,8 @@ MAX_FOLLOWUP_SPEAKERS = 64
 
 def snapshot(state: SessionState) -> SessionState:
     """Copy state including the mutable follow-up map / 复制状态及可变的后续回复表。"""
-    return replace(state, followup_by_speaker=dict(state.followup_by_speaker))
+    return replace(state, followup_by_speaker=dict(state.followup_by_speaker),
+                   unread_sources=dict(state.unread_sources))
 
 
 def observe_event(state: SessionState, event: RuntimeInput, moment: float) -> SessionState:
@@ -145,6 +146,8 @@ def mark_delivered(state: SessionState, moment: float, *,
         advanced = cursor > state.read_through_seq
         state.read_through_seq = max(state.read_through_seq, cursor)
         state.unread_count = max(0, state.last_unread_seq - state.read_through_seq)
+        state.unread_sources = {seq: source_id for seq, source_id in state.unread_sources.items()
+                                if int(seq) > state.read_through_seq}
         current_claim = claimed is not None and not pending_changed(state, claimed)
         if cursor >= state.last_unread_seq and (
             current_claim or (claimed is None and advanced)

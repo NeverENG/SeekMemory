@@ -18,6 +18,7 @@ class SessionState:
     unread_count: int = 0
     last_unread_seq: int = 0
     read_through_seq: int = 0
+    unread_sources: dict[str, str] = field(default_factory=dict)
     ignored_streak: int = 0
     dispatch_attempts: int = 0
     next_retry_at: float = 0.0

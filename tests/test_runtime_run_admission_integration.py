@@ -340,6 +340,7 @@ class RuntimeRunAdmissionTest(unittest.TestCase):
         self.assertEqual(self.source_count(), 2)
         self.assertEqual(self.runtime.accept_user(second).decision.reason, "replayed_event")
         self.assertEqual(self.store.get("s1").last_unread_seq, 2)
+        self.assertEqual(self.store.get("s1").unread_sources[str(new.read_through_seq)], new.source_id)
 
     def test_failed_acceptance_retry_respects_known_time_and_completion_order(self) -> None:
         for at in (100.0, 0.0):
@@ -439,6 +440,44 @@ class RuntimeRunAdmissionTest(unittest.TestCase):
         new = self.runtime.accept_user(second)
         self.assertTrue(old.is_superseded())
         self.assertIsNotNone(self.begin(second, new))
+
+
+class UnreadSourceProjectionTest(unittest.TestCase):
+    """A confirmed old reply must not consume the Source of a newer input."""
+
+    def test_source_sequence_survives_supersession_and_state_reload(self):
+        from app.runtime.state import RepoStateStore
+        db = open_store(":memory:")
+        self.addCleanup(db.close)
+        state = RepoStateStore(db.runtime_state)
+        runtime = AgentRuntime(state, recorder=RunRecorder(
+            sources=db.sources, buffer=None, checkpoint=None, episodes=None,
+        ), clock=lambda: 100.0, run_control_enabled=True)
+        old_event = RuntimeInput("s1", "first", event_id="a", speaker_id="u",
+                                 event_time=100.0, private=True)
+        first = runtime.accept_user(old_event)
+        old_run = runtime.begin_run("s1", RunTrigger(RunKind.USER, old_event, 100.0), receipt=first)
+        second = runtime.accept_user(RuntimeInput(
+            "s1", "second", event_id="b", speaker_id="u", event_time=101.0, private=True,
+        ))
+        self.assertTrue(old_run.is_superseded())
+        self.assertEqual(state.get("s1").unread_sources, {
+            str(first.read_through_seq): first.source_id,
+            str(second.read_through_seq): second.source_id,
+        })
+        runtime.record_delivery(run_id="old", session_id="s1", decision="reply", reason="direct_attention",
+                                read_through_seq=first.read_through_seq, now=102.0)
+        self.assertEqual(RepoStateStore(db.runtime_state).get("s1").unread_sources,
+                         {str(second.read_through_seq): second.source_id})
+        self.assertEqual(db.sources.sources_by_ids([second.source_id])[second.source_id].text, "second")
+        before = asdict(state.get("s1"))
+        restarted = AgentRuntime(RepoStateStore(db.runtime_state), recorder=RunRecorder(
+            sources=db.sources, buffer=None, checkpoint=None, episodes=None,
+        ), clock=lambda: 103.0, run_control_enabled=True)
+        replay = restarted.accept_user(RuntimeInput("s1", "second", event_id="b", speaker_id="u",
+                                                    event_time=101.0, private=True))
+        self.assertEqual(replay.decision.reason, "replayed_event")
+        self.assertEqual(asdict(state.get("s1")), before)
 
 
 if __name__ == "__main__":
