@@ -35,9 +35,13 @@ epoch 由控制器实例的单调计数器发放，同 lane 重开及跨 lane �
 
 仅启用运行准入时，`dispatch_deferred` 与 `dispatch_proactive` 为隔离的 session lane 领取背景运行句柄；同 lane 已有有效运行时返回 `run_busy`，不消耗到期机会。运行编号采用该句柄的 run_id（默认关闭时仍使用既有 `RunContext.run_id`）；退出时只释放本句柄。模型前、返回后及发送前检查有效性，`_send_text` 把同一 guard 交给 ActionExecutor 或在旧 MessageSender 调用前标记动作开始。若在未开始发送时被新输入覆盖，结果为 `superseded`，不重试旧回复、不记普通错误，也不清除 Source、新输入及补写凭据；覆盖后宿主取消仍向上传播而不安排旧重试。发送已开始则保留真实回执、交付及待补写结果，不能保证撤回；已失效且已开始发送的真实失败记错误、不重试旧计划，未失效的普通失败继续按既有路径重试。此前的已到期主动机会仍由策略重新评估，不能从失效推断它已被消耗。宿主仍未启用此能力，不能据此宣称普通模型回复不会晚发。
 
+仅在启用 Source-backed 运行准入时，接纳输入将 `unread_sources`（未读序号字符串 → Source ID）与注意力状态一起写入现有 `SessionState` 持久负载；交付确认只裁掉已确认序号的映射。重启后对仍未读的相同 Source ID 不重复接纳。此映射不存正文；默认关闭运行准入时，状态 JSON 仍会序列化空映射。旧状态没有映射时不猜测历史未读 Source；若直接启用此读取路径，历史未读批次会因证据缺失而拒绝派发，后续转换脚本另议。Runtime 自有延迟派发在显式运行准入且注入 Source 读取端口后，按已领取的序号精确读取同会话未读用户 Source，组装有界、只读的模型输入；多条消息只用本轮匿名发言者编号区分说话人，不注入原始说话人编号；按接纳顺序每批最多 32 条、组装后最多 16 KiB；成功交付只确认本批末尾序号，剩余消息保持待处理，下一次调度继续读取且不重复交付已确认批次。每次只要求本批 Source 齐全：后续批次缺失映射不阻止已完整的前缀，但其轮到时拒绝，不跳过；重复 Source ID 或异常索引仍整体拒绝。单条超出 16 KiB、当前批次证据缺失、跨会话或序号断裂时拒绝当前批次，不发送或确认该批输入；失败保留待重试状态。不截断单条消息。该能力不接管普通 AstrBot 回复或其宿主上下文。
+
 ## 主动策略与动作审计
 
-`DefaultProactivePolicy` 是确定性的纯状态策略。它要求显式传入 `now`，返回下一次可执行时间，并检查到期时间、安静截止时间、冷却、重试、忽略连击退避和尝试次数上限。它不做 I/O、不调用模型、不修改状态；默认关闭，只有 runtime composition 明确启用后才会生效。`plan_proactive_dispatch` 按到期时间排序可执行会话，应用每轮派发上限，并将超出部分作为仍然到期的任务留待后续轮次。宿主通过 `AgentRuntime.schedule_proactive()` 持久化显式到期时间；AstrBot 在启用 proactive 后由消息入口按 `proactive_idle_seconds` 排期。`TopicSource` 从 Source-backed 缓冲投影中提供记忆由头；没有候选时 worker 清除该次主动机会，不发送空主动。
+`DefaultProactivePolicy` 是确定性的纯状态策略。它要求显式传入 `now`，返回下一次可执行时间，并检查到期时间、安静截止时间、冷却、重试、忽略连击退避和尝试次数上限。它不做 I/O、不调用模型、不修改状态；默认关闭，只有 runtime composition 明确启用后才会生效。`plan_proactive_dispatch` 按到期时间排序可执行会话，应用每轮派发上限，并将超出部分作为仍然到期的任务留待后续轮次。宿主通过 `AgentRuntime.schedule_proactive()` 持久化显式到期时间；AstrBot 在启用 proactive 后由消息入口按 `proactive_idle_seconds` 排期。`TopicSource` 从 Source-backed 缓冲投影中提供记忆由头；成功查询但没有候选时 worker 清除该次主动机会，不发送空主动。话题查询抛错则仅记无正文诊断，保留到期标记供后续轮询重试，不把暂时失败当作没有候选。
+
+当主动派发等待 worker 并发名额时，获得名额后按新时刻重新读取当前会话状态并评估主动策略；旧机会已清理或被新输入推迟则跳过，不调用模型/发送，也不消耗新的到期标记。
 
 `ActionExecutor` 是 Runtime 发起 action 的唯一执行/审计协调者：先写 attempt，再调用 `ActionPort`，最后写 terminal；可选的 `RunHandle` guard 在尝试前及宿主调用前同步检查，过期时不调用宿主；若尝试已记录则记 `cancelled`。宿主调用一旦开始，即便随后被覆盖也按实际回执记录，不伪称撤销。启用运行准入的 Runtime 自有后台派发已传入此 guard；普通宿主回复尚未接入。`ActionMessageSender` 只是 `SEND_TEXT` 的兼容适配器。`ActionLedger` 记录动作尝试及至多一个终态（`succeeded`、`failed` 或 `cancelled`）。幂等键由会话、run、动作类型和宿主 callback key 稳定生成；callback key 本身不会落盘。`RepoActionSink` 通过 `RuntimeEpisodeRepository` 写入元数据。审计仅保留标识符、时间戳、受限原因码、尝试序号和状态，不保存消息正文、prompt、工具参数或结果。
 
@@ -58,6 +62,8 @@ accept_user 返回的 UserRunReceipt 包含本轮接收时的消息确认序号 
 runtime_gate_enabled 默认 false。关闭时，等待和后台 deferred dispatch 不活跃；普通事件捕获、记忆注入和审计仍由插件 hook 承担。
 
 ## 写回与诊断
+
+RuntimeWorker 的轮询/主动派发失败诊断仅记录事件码与异常类型，不传入会话 ID 或异常正文；失败仍隔离到该次任务，其他 lane 可继续执行。
 
 RunRecorder 是 Source、pending projection、checkpoint 和 episode 的唯一运行时写回协调者，以 run_id 和确定性 Source ID 防止重复回调重复写入。runtime_episodes 是追加式业务审计元数据；RunTracer/TraceStore 是受字段白名单约束的诊断时间线。二者不保存对话正文，不互相替代。
 

@@ -231,6 +231,7 @@ class AstrBotPlugin(star.Star):
             model_gateway=AstrBotModelGateway(self.context),
             action_executor=self.action_executor,
             recorder=recorder,
+            source_reader=self.store.sources if self.store is not None else None,
         )
         self.relationship_reader = RelationshipReader(self.cache)
         if self.store is not None:

@@ -18,6 +18,7 @@ from .contracts import (
 from .actions import ActionExecutor
 from .recorder import RunRecorder
 from .runs import RunHandle
+from .unread_context import UnreadSourceReader, assemble_unread_input
 from .topics import TopicCandidate
 from .writeback import DeliveryReceipt, DeliveryWritebacks
 
@@ -63,7 +64,8 @@ class Dispatch:
                  action_executor: ActionExecutor | None, message_sender: MessageSender | None,
                  recorder: RunRecorder | None, trace: TraceSink | None,
                  writebacks: DeliveryWritebacks,
-                 context_recorder: MemoryContextRecorder | None = None) -> None:
+                 context_recorder: MemoryContextRecorder | None = None,
+                 source_reader: UnreadSourceReader | None = None) -> None:
         self.store = store
         self.clock = clock
         self.memory_context = memory_context
@@ -74,6 +76,7 @@ class Dispatch:
         self.trace = trace
         self.writebacks = writebacks
         self.context_recorder = context_recorder
+        self.source_reader = source_reader
         self.states = StateOperations(store)
 
     def build_context(self, event: RuntimeInput, *, now: float, reason: str) -> MemoryContext:
@@ -192,7 +195,7 @@ class Dispatch:
             state.next_retry_at and state.next_retry_at > moment
         ):
             return RunResult(run_id, session_id, False, error="not_due")
-        if not text:
+        if not text and (guard is None or self.source_reader is None):
             self.clear_wait(session_id, now)
             return RunResult(run_id, session_id, False, error="empty_source")
         if self.model_gateway is None or (
@@ -207,6 +210,15 @@ class Dispatch:
             guard.raise_if_invalid()
         if not run_id:
             run_id = self.recorder.new_run_id()
+        read_through_seq = state.last_unread_seq
+        if guard is not None and self.source_reader is not None:
+            try:
+                prepared = assemble_unread_input(state, self.source_reader)
+            except Exception:  # Source lookup failures must not send partial context / 读取失败不得发送残缺上下文。
+                self._trace("runtime", "unread_context_unavailable", {"unread": state.unread_count})
+                return RunResult(run_id, session_id, False, error="unread_context_unavailable")
+            text, source_id = prepared.text, prepared.latest_source_id
+            read_through_seq = prepared.read_through_seq
 
         if (state.last_dispatched_source_id == source_id
                 and state.dispatch_attempts >= max(1, int(max_attempts))):
@@ -295,7 +307,7 @@ class Dispatch:
             decision="wait", reason="deferred_wait", text=reply,
             speaker_id=str(context.bot_id or "bot"), user_source_id=source_id,
             response_chars=len(str(reply).strip()), claimed=claimed,
-            read_through_seq=claimed.last_unread_seq,
+            read_through_seq=read_through_seq,
         ))
         # The receipt exists before reading a fallible clock or writing anything.
         # 在读取可能失败的时钟或执行写入前，交付凭据已经存在。

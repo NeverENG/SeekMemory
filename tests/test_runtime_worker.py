@@ -11,8 +11,8 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.runtime import (  # noqa: E402
-    AgentRuntime, InMemoryStateStore, RunContext, RunRecorder, RuntimeWorker,
-    Scheduler, SessionState,
+    AgentRuntime, DefaultProactivePolicy, InMemoryStateStore, RunContext, RunRecorder,
+    RuntimeInput, RuntimeWorker, Scheduler, SessionState, TopicCandidate,
 )
 
 
@@ -66,6 +66,29 @@ class WorkerTest(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(self.started.wait(), timeout=1)
         return task
 
+    async def test_tick_failure_diagnostics_exclude_session_and_exception_body(self) -> None:
+        sensitive_session = "private-session-8675309"
+        sensitive_message = "secret-message-from-user"
+        self.store.put(SessionState(sensitive_session, wait_until=100))
+        self.worker.session_ids = lambda limit: [sensitive_session, "s3"]
+        records = []
+        self.worker.trace = SimpleNamespace(
+            record=lambda kind, status, context: records.append((kind, status, context))
+        )
+        self.release.set()
+
+        def context(session_id: str, now: float) -> RunContext:
+            if session_id == sensitive_session:
+                raise ValueError(sensitive_message)
+            return self.context(session_id, now)
+
+        self.worker.run_context = context
+        self.assertEqual(await self.worker.tick(now=100), 1)
+        self.assertEqual(self.sessions, ["s3"])
+        self.assertEqual(records, [("runtime", "dispatch_failed", {"error": "ValueError"})])
+        self.assertNotIn(sensitive_session, repr(records))
+        self.assertNotIn(sensitive_message, repr(records))
+
     async def test_direct_calls_and_ticks_share_one_concurrency_limit(self) -> None:
         first = await self.first_dispatch()
         direct = asyncio.create_task(self.worker.dispatch("s2", 100))
@@ -77,6 +100,81 @@ class WorkerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(peak_while_blocked, 1)
         self.assertEqual(self.max_active, 1)
         self.assertEqual(sorted(self.sessions), ["s1", "s2", "s3"])
+
+    async def test_topic_source_error_keeps_due_proactive_for_retry(self) -> None:
+        state = self.store.get("s2")
+        state.wait_until = 0.0
+        state.proactive_due_at = 100.0
+        self.store.put(state)
+        self.worker.session_ids = lambda limit: ["s2"]
+        self.worker.proactive_policy = DefaultProactivePolicy(enabled=True)
+        queries = []
+
+        def candidates(session_id: str, *, now: float, limit: int):
+            queries.append(session_id)
+            if len(queries) == 1:
+                raise OSError("sensitive topic backend failure")
+            return [TopicCandidate("a relevant topic")]
+
+        self.worker.topic_source = SimpleNamespace(candidates=candidates)
+        records = []
+        self.worker.trace = SimpleNamespace(
+            record=lambda kind, status, context: records.append((kind, status, context))
+        )
+        self.release.set()
+
+        self.assertEqual(await self.worker.tick(now=100), 0)
+        self.assertEqual(self.store.get("s2").proactive_due_at, 100.0)
+        self.assertEqual(self.sessions, [])
+        self.assertEqual(records, [("runtime", "proactive_topic_failed", {"error": "OSError"})])
+        self.assertEqual(await self.worker.tick(now=100), 1)
+        self.assertEqual(self.sessions, ["s2"])
+        self.assertEqual(self.store.get("s2").proactive_due_at, 0.0)
+        self.assertEqual(queries, ["s2", "s2"])
+
+    async def test_queued_proactive_rechecks_due_after_new_input_reschedules_it(self) -> None:
+        policy = DefaultProactivePolicy(enabled=True)
+        self.worker.proactive_policy = policy
+        state = self.store.get("s2")
+        state.proactive_due_at = 100.0
+        self.store.put(state)
+        selected = self.worker.scheduler.proactive_due(["s2"], 100, policy).selected[0]
+
+        first = await self.first_dispatch()  # Hold the only worker slot.
+        queued = asyncio.create_task(
+            self.worker.dispatch_proactive("s2", selected.decision, now=100)
+        )
+        await asyncio.sleep(0)
+        self.now = 101.0
+        self.runtime.accept_user(RuntimeInput(
+            "s2", "new message", event_time=self.now, speaker_id="user",
+        ), now=self.now)
+        self.runtime.schedule_proactive("s2", 99, now=self.now)
+        self.release.set()
+        await first
+        self.assertIsNone(await queued)
+        self.assertEqual(self.sessions, ["s1"])
+        self.assertEqual(self.store.get("s2").proactive_due_at, 200.0)
+
+    async def test_queued_proactive_uses_fresh_time_when_still_due(self) -> None:
+        policy = DefaultProactivePolicy(enabled=True)
+        self.worker.proactive_policy = policy
+        state = self.store.get("s2")
+        state.proactive_due_at = 100.0
+        self.store.put(state)
+        selected = self.worker.scheduler.proactive_due(["s2"], 100, policy).selected[0]
+
+        first = await self.first_dispatch()
+        queued = asyncio.create_task(
+            self.worker.dispatch_proactive("s2", selected.decision, now=100)
+        )
+        await asyncio.sleep(0)
+        self.now = 120.0
+        self.release.set()
+        await first
+        self.assertTrue((await queued).delivered)
+        self.assertEqual(self.context_times, [100, 120])
+        self.assertEqual(self.sessions, ["s1", "s2"])
 
     async def test_duplicate_session_is_rejected_while_queued(self) -> None:
         first = await self.first_dispatch()

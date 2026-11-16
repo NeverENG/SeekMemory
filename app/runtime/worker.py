@@ -55,10 +55,10 @@ class RuntimeWorker:
         self._dispatching: set[str] = set()
         self._semaphores: dict[object, asyncio.Semaphore] = {}
 
-    def _record_failure(self, status: str, error: Exception, session_id: str = "") -> None:
+    def _record_failure(self, status: str, error: Exception) -> None:
         try:
             if self.trace is not None:
-                self.trace.record("runtime", status, {"error": type(error).__name__, "session_id": session_id})
+                self.trace.record("runtime", status, {"error": type(error).__name__})
         except Exception:
             pass
 
@@ -116,13 +116,7 @@ class RuntimeWorker:
     def _topic_for(self, session_id: str, now: float) -> TopicCandidate | None:
         if self.topic_source is None:
             return None
-        try:
-            candidates = self.topic_source.candidates(
-                session_id, now=now, limit=1
-            )
-        except Exception as exc:  # noqa: BLE001 - topic failure skips proactive / 话题失败跳过主动发言
-            self._record_failure("proactive_topic_failed", exc, session_id)
-            return None
+        candidates = self.topic_source.candidates(session_id, now=now, limit=1)
         return candidates[0] if candidates else None
 
     async def dispatch_proactive(
@@ -141,6 +135,17 @@ class RuntimeWorker:
             async with self._semaphore():
                 if not self.enabled():
                     return None
+                if self.clock is not None:
+                    moment = max(moment, self._moment(None))
+                if self.proactive_policy is not None:
+                    # A queued opportunity may have been cleared or postponed by new input.
+                    # 排队期间新输入可能清理或推迟了旧的主动发言机会。
+                    selected = self.scheduler.proactive_due(
+                        [session_id], moment, self.proactive_policy, max_fanout=1,
+                    ).selected
+                    if not selected:
+                        return None
+                    decision = selected[0].decision
                 return await self.runtime.dispatch_proactive(
                     self.run_context(session_id, moment),
                     decision,
@@ -168,7 +173,7 @@ class RuntimeWorker:
                 try:
                     result = await self.dispatch(item.session_id, moment)
                 except Exception as exc:  # noqa: BLE001 - isolate failed runs / 隔离失败运行
-                    self._record_failure("dispatch_failed", exc, item.session_id)
+                    self._record_failure("dispatch_failed", exc)
                     return False
                 return result is not None
 
@@ -190,12 +195,13 @@ class RuntimeWorker:
         for candidate in plan.selected:
             if candidate.session_id in deferred_ids:
                 continue
-            topic = self._topic_for(candidate.session_id, moment)
+            try:
+                topic = self._topic_for(candidate.session_id, moment)
+            except Exception as exc:  # noqa: BLE001 - keep due work after a failed topic lookup / 查询失败保留到期任务
+                self._record_failure("proactive_topic_failed", exc)
+                continue
             if self.topic_source is not None and topic is None:
-                self._record_failure(
-                    "proactive_no_topic", RuntimeError("no_topic"),
-                    candidate.session_id,
-                )
+                self._record_failure("proactive_no_topic", RuntimeError("no_topic"))
                 clear = getattr(self.runtime, "clear_proactive", None)
                 if callable(clear):
                     clear(candidate.session_id)
@@ -205,9 +211,7 @@ class RuntimeWorker:
                     candidate.session_id, candidate.decision, moment, topic
                 )
             except Exception as exc:  # noqa: BLE001 - isolate failed runs / 隔离失败运行
-                self._record_failure(
-                    "proactive_dispatch_failed", exc, candidate.session_id
-                )
+                self._record_failure("proactive_dispatch_failed", exc)
                 continue
             if result is not None:
                 dispatched += 1

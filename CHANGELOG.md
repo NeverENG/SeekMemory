@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### 中文
+- #154：主动发言的话题源读取失败不再当成“无话题”清除到期机会；仅记录异常类型并保留标记，下一轮可重试。无话题的成功查询仍按原策略清理；存储格式和公开配置不变。
+- #154：主动派发排队取得 worker 并发名额后重新检查当前到期状态与时间；期间已清理或因新输入推迟的机会不再误发，仍到期的机会继续执行。不变更存储格式或公开配置。
+- #154：RuntimeWorker 轮询与主动派发失败诊断不再泄露会话标识，仅保留事件码与异常类型；失败隔离及继续派发不变。不涉及数据格式或公开配置。
+- #154：显式启用运行准入的 Runtime 自有延迟派发可按未读 Source 接纳顺序逐批构造最多 32 条、16 KiB 的本轮模型输入，仅确认已交付批次，剩余消息留待下次派发；后续缺失映射不阻塞完整前缀，轮到该批时拒绝；重复来源或异常索引仍拒绝。单条超预算或本批证据无效时不截断、不确认该批。普通 AstrBot 回复未接入；不增加数据库列或公开配置；会话状态 JSON 新增的 `unread_sources` 字段见下项（默认关闭时也会序列化为空映射）。
+- #154：启用 Source-backed 运行准入时，在现有会话状态负载保存未读序号到 Source ID 的关联，交付后按确认游标裁剪；仍未读输入在重启后重放不会重复接纳。不存正文、不改变默认关闭的宿主发送行为；旧状态不补造关联，转换脚本暂缓。
 - #154：仅在显式启用运行准入时，延迟/主动派发在模型与发送边界检查同 lane 运行有效性；旧计划被新输入覆盖后不再发送或安排旧重试，已开始发送的真实回执仍补写。宿主普通回复尚未接入，默认行为、存储格式及公开配置不变。
 - #154：ActionExecutor 增加可选运行有效性检查点，过期动作在宿主调用前停止并按已记录尝试记取消；已开始动作仍按真实结果记账。派发和宿主尚未接入，不改变默认回复行为、存储格式或公开配置。
 - #233：新增有证据、版本/树边/账本/无正文操作日志同事务的树写入；多父复核可显式提交，失败整组回滚、相同操作重试不重复，旧边不补造。旧库增量增加 `tree_change_log`，不迁移现有边或公开配置；旧版独立树边写入不可与新版混跑，降级前需停写并从备份恢复。自动 Dream 纠错尚未启用。
@@ -11,6 +16,11 @@
 - #233：新增离线只读的纠错影响图检查，有界比对当前血缘与原始树边，核对当前版本证据，明确报告多父路径及不一致、证据缺失、跨主体、环和截断；不推断应如何修订，也不接入生产 Dream。仅查询既有字段，不改已存数据格式、边或公开配置。
 
 ### English
+- #154: A failed proactive topic lookup no longer clears its due opportunity as if it had no topic: record only the exception type and retry on a later poll. Successful empty lookups still clear the marker; stored formats and public config are unchanged.
+- #154: Proactive dispatch rechecks current eligibility and time after acquiring a worker concurrency slot; cleared or rescheduled opportunities no longer send, while still-due work proceeds. No stored-format or public-config changes.
+- #154: RuntimeWorker polling/proactive failure diagnostics no longer expose session identifiers; only event codes and exception types remain. Failure isolation and subsequent dispatch are unchanged, with no stored-format or public-config change.
+- #154: With run admission explicitly enabled, runtime-owned deferred dispatch can assemble its model input from up to 32 unread Sources within 16 KiB in acceptance order. Backlogs are dispatched in acceptance-ordered batches, acknowledging only delivered messages; a missing mapping in a later batch does not block a valid prefix but blocks that later batch; duplicate IDs or malformed indexes still reject the backlog. A single oversized message or invalid evidence blocks its batch without truncation or acknowledgement. Ordinary AstrBot replies are not integrated; no database column or public setting is added; the session-state JSON gains the `unread_sources` field described below (serialized as an empty mapping even when admission is off).
+- #154: With Source-backed run admission enabled, persist unread-sequence-to-Source-ID mappings in the existing session-state payload and prune them at the acknowledged cursor; replay of still-unread input after a restart is not re-admitted. No message bodies or default host-send behavior change. Old state is not backfilled; a conversion script is deferred.
 - #154: With run admission explicitly enabled, deferred/proactive dispatch checks same-lane validity across model and send boundaries. Superseded unsent replies do not send or retry; started sends retain real receipts and write-backs. Ordinary host replies are not wired; defaults, stored formats and public config stay unchanged.
 - #154: Add an optional run-validity checkpoint to ActionExecutor: obsolete actions stop before the host call and recorded attempts become cancelled; started actions retain their real outcome. Dispatch and hosts do not yet pass guards. Default reply behavior, storage formats and public config are unchanged.
 - #233: Add evidence-backed tree writes with Artifact revisions, edges, ledger and content-free operation log in one transaction. Explicit multi-parent review can commit atomically, failures roll back, exact retries do not duplicate writes, and old links are not invented. Existing databases gain `tree_change_log` without rewriting edges or public settings; old separate tree writers must not run concurrently, and downgrades require stopping writes and restoring a backup. Automatic Dream correction remains off.
