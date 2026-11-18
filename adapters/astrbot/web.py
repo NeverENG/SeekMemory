@@ -208,7 +208,7 @@ class WebRoutes:
                 )
             service = plugin.services.management_service
             if action == "graph":
-                return json_response(service.graph())
+                return json_response(service.graph(sort=request.query.get("sort", "weight")))
             if action == "impressions":
                 return json_response(service.impressions(offset=int(request.query.get("offset", "0"))))
             if action == "dream":

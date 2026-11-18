@@ -177,11 +177,12 @@ export type DreamEntry = z.infer<typeof dreamSchema>["items"][number]
 export type PersonaPack = z.infer<typeof packSchema>
 export type PersonaSeed = z.infer<typeof seedSchema>
 export type PersonaCommand = ApiRequest<"persona">
+export type GraphSort = "weight" | "recent"
 export interface ConsoleClient {
   rollbackPersona(
     command: ApiRequest<"rollbackPersona">
   ): Promise<z.infer<typeof rollbackResultSchema>>
-  graph(): Promise<GraphSnapshot>
+  graph(sort?: GraphSort): Promise<GraphSnapshot>
   impressions(offset?: number): Promise<z.infer<typeof impressionsSchema>>
   dream(): Promise<z.infer<typeof dreamSchema>>
   packs(
@@ -201,6 +202,7 @@ export const pageIds = [
   "home",
   "persona",
   "memory",
+  "library",
   "impressions",
   "studio",
   "store",
@@ -220,6 +222,11 @@ export function parseRoute(hash: string): {
   const params = new URLSearchParams(query)
   const raw = params.get("revision")
   const revision = raw && /^\d+$/.test(raw) ? Number(raw) : null
+  if (
+    page === "system" &&
+    (!params.has("section") || params.get("section") === "memory")
+  )
+    return { page: "library", node: params.get("node") ?? "", revision }
   if (page === "traces")
     return {
       page: "system",

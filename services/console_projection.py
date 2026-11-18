@@ -24,9 +24,9 @@ def kind(art: Artifact) -> str:
     return art.header.family
 
 
-def graph(artifacts: ArtifactStore, *, limit: int = 120) -> dict:
+def graph(artifacts: ArtifactStore, *, limit: int = 120, sort: str = "weight") -> dict:
     """Read a bounded graph projection without Source bodies / 读取有数量上限且不含原始消息正文的图视图。"""
-    rows = artifacts.list_recent(limit)
+    rows = artifacts.list_graph(limit, sort)
     edge_limit = limit * 2
     nodes = [{
         "id": a.header.id, "kind": kind(a), "scope": a.header.scope,

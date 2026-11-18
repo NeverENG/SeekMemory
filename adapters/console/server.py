@@ -135,7 +135,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             except (ValueError, UnicodeError):
                 self._json(error(400, "请求体必须为有效 JSON"))
                 return
-        query = {key: values[-1] for key, values in parse_qs(parsed.query).items()}
+        query = {key: values[-1] for key, values in parse_qs(parsed.query, keep_blank_values=True).items()}
         self._json(self.server.api.handle(action, self.command, query, body))
 
     def _static(self, path: str) -> None:

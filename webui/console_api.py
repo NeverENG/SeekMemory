@@ -84,7 +84,7 @@ class ConsoleApi:
             # This service does not run the host's lifecycle jobs.
             return {"events": [], "capacity": 500}
         if action == "graph":
-            return service.graph()
+            return service.graph(sort=query.get("sort", "weight"))
         if action == "impressions":
             return service.impressions(offset=int(query.get("offset", "0")))
         if action == "dream":

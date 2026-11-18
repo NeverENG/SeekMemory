@@ -32,7 +32,10 @@ export function ControlWorkspace({
 }) {
   const vm = useControl(client)
   const section =
-    systemSections.find((item) => item.id === initialSection)?.id ?? "memory"
+    initialSection === "memory"
+      ? "memory"
+      : (systemSections.find((item) => item.id === initialSection)?.id ??
+        "runtime")
   const [editorId, setEditorId] = useState<string | null>(null)
   return (
     <div className="flex min-h-full flex-col">

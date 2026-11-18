@@ -21,7 +21,7 @@ open_store = importlib.import_module(f"{ROOT.name}.store").open_store
 graph = importlib.import_module(f"{ROOT.name}.services.console_projection").graph
 
 
-def measure(count: int, samples: int, limit: int = 120) -> dict:
+def measure(count: int, samples: int, limit: int = 120, sort: str = "weight") -> dict:
     """Own temporary storage for the measurement and return aggregate latency/allocation counts.
 
     在测量期间拥有临时存储，返回聚合耗时及分配计数。
@@ -40,14 +40,14 @@ def measure(count: int, samples: int, limit: int = 120) -> dict:
             times = []
             for _ in range(samples):
                 started = time.perf_counter()
-                result = graph(store.artifacts, limit=limit)
+                result = graph(store.artifacts, limit=limit, sort=sort)
                 times.append((time.perf_counter() - started) * 1000)
             tracemalloc.start()
-            graph(store.artifacts, limit=limit)
+            graph(store.artifacts, limit=limit, sort=sort)
             _, peak = tracemalloc.get_traced_memory()
             tracemalloc.stop()
             return {
-                "artifacts": count, "storedEdges": count * 2, "readLimit": limit,
+                "artifacts": count, "storedEdges": count * 2, "readLimit": limit, "sort": sort,
                 "snapshotNodes": len(result["nodes"]), "snapshotEdges": len(result["edges"]),
                 "medianMs": statistics.median(times), "maxMs": max(times),
                 "peakPythonBytes": peak, "timesMs": times,
@@ -62,7 +62,8 @@ if __name__ == "__main__":
     parser.add_argument("--nodes", type=int, default=10000)
     parser.add_argument("--samples", type=int, default=10)
     parser.add_argument("--limit", type=int, choices=(40, 80, 120), default=120)
+    parser.add_argument("--sort", choices=("weight", "recent"), default="weight")
     args = parser.parse_args()
     if not 1000 <= args.nodes <= 100000 or not 1 <= args.samples <= 100:
         parser.error("nodes must be 1000..100000; samples must be 1..100")
-    print(json.dumps(measure(args.nodes, args.samples, args.limit), indent=2))
+    print(json.dumps(measure(args.nodes, args.samples, args.limit, args.sort), indent=2))

@@ -33,9 +33,9 @@ class ManagementService:
         self.dreams = dreams
 
 
-    def graph(self, limit: int = 120) -> dict:
+    def graph(self, limit: int = 120, sort: str = "weight") -> dict:
         """Read a bounded graph projection / 读取有数量上限的图视图。"""
-        return queries.graph(self.artifacts, limit)
+        return queries.graph(self.artifacts, limit, sort)
 
     def impressions(self, offset: int = 0, limit: int = 100) -> dict:
         """Read one impression page / 读取一页印象。"""

@@ -72,7 +72,7 @@ class ConsoleTest(unittest.TestCase):
             with self.subTest(limit=limit), \
                  patch.object(self.store.artifacts, 'list', side_effect=AssertionError('unbounded read')), \
                  patch.object(self.store.artifacts, 'edges_of', side_effect=AssertionError('per-node query')):
-                result = self.service.graph(limit=limit)
+                result = self.service.graph(limit=limit, sort='recent')
                 self.assertEqual(result['total'], 1006)
                 self.assertEqual(result['limit'], limit)
                 self.assertEqual(len(result['nodes']), limit)
@@ -81,6 +81,64 @@ class ConsoleTest(unittest.TestCase):
                 self.assertEqual(result['edges'], [{'source': 'item-1004', 'target': 'item-1003', 'kind': 'related'}])
         self.assertEqual(self.store.artifacts.edges_between([], 240), [])
         self.assertEqual(len(self.store.artifacts.edges_between(['item-1004', 'item-1003', old.header.id], 1)), 1)
+
+    def test_graph_selects_global_active_weighted_prefixes_without_writes(self):
+        from dataclasses import replace
+        def seed(aid, weight, updated, state="active", scope="private", family="memory"):
+            art = module('core.artifact').make(family, {'text': 'PRIVATE_SENTINEL', 'level': 'fact'}, id=aid, state=state, scope=scope)
+            art = replace(art, header=replace(art.header, strength=replace(art.header.strength, weight=weight), time=replace(art.header.time, updated=updated)))
+            self.store.artifacts.upsert(art)
+        seed('old-high', 100, '2000-01-01')
+        for i in range(130):
+            seed(f'low-{i:03d}', 0.1, '2026-01-01')
+        for state in ('forgotten', 'merged'):
+            seed(state, 1000, '2028-01-01', state=state)
+        for aid, scope, family in [('shadow', 'shadow', 'memory'), ('secret', 'private', 'secret'), ('designated', 'private', 'designated')]:
+            seed(aid, 200, '2027-01-01', scope=scope, family=family)
+        seed('tie-z', 100, '2001-01-01')
+        seed('tie-a', 100, '2001-01-01')
+        self.store.artifacts.add_edge('old-high', 'tie-a', 'related', 1)
+        before = self.store.conn.total_changes
+        full = self.service.graph()
+        self.assertEqual([n['id'] for n in full['nodes'][:6]], ['shadow', 'secret', 'designated', 'tie-z', 'tie-a', 'old-high'])
+        for limit in (40, 80, 120):
+            result = self.service.graph(limit=limit)
+            self.assertEqual(result['nodes'], full['nodes'][:limit])
+            self.assertTrue(all(n['state'] == 'active' for n in result['nodes']))
+            self.assertLessEqual(len(result['edges']), 2 * limit)
+            for node in result['nodes']:
+                if node['protected']:
+                    self.assertNotIn('PRIVATE_SENTINEL', node['label'])
+        recent = self.service.graph(sort='recent')
+        self.assertNotIn('old-high', [n['id'] for n in recent['nodes']])
+        self.assertTrue(all(n['state'] == 'active' for n in recent['nodes']))
+        self.assertEqual(self.store.conn.total_changes, before)
+        self.assertEqual(full['total'], 138)
+        for value in ('invalid', '', None, ['weight']):
+            with self.assertRaises(ValueError):
+                self.service.graph(sort=value)
+
+    def test_graph_legacy_and_invalid_weights_have_deterministic_read_only_fallback(self):
+        from dataclasses import replace
+        cases = {
+            'missing': '{}', 'null': '{"weight":null}', 'text': '{"weight":"99"}',
+            'boolean': '{"weight":true}', 'negative': '{"weight":-4}',
+            'nan': '{"weight":NaN}', 'infinity': '{"weight":Infinity}',
+            'overflow': '{"weight":1e999}', 'malformed': '{', 'array': '[]',
+            'zero': '{"weight":0}', 'valid': '{"weight":2.5}',
+        }
+        for aid, raw in cases.items():
+            art = module('core.artifact').make('memory', {'text': aid, 'level': 'fact'}, id=aid)
+            art = replace(art, header=replace(art.header, time=replace(art.header.time, updated='2026-01-01')))
+            self.store.artifacts.upsert(art)
+            self.store.conn.execute('UPDATE nodes SET strength = ? WHERE id = ?', (raw, aid))
+        self.store.conn.commit()
+        before = self.store.conn.total_changes
+        expected = ['valid', *sorted(set(cases) - {'zero', 'valid'}, reverse=True), 'zero']
+        for _ in range(2):
+            self.assertEqual([n['id'] for n in self.service.graph()['nodes']], expected)
+        self.assertEqual(self.store.conn.total_changes, before)
+        self.assertEqual(dict(self.store.conn.execute('SELECT id, strength FROM nodes')), cases)
 
     def test_dream_projection_excludes_error_bodies(self):
         self.store.dreams.begin('2026-10-25')

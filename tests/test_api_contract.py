@@ -293,6 +293,18 @@ class ApiContractTests(unittest.IsolatedAsyncioTestCase):
         await self.call("events")
         await self.call("events", query={"kind": "extract", "search": task["id"]})
 
+    async def test_graph_sort_reaches_repository_through_host_route(self):
+        from dataclasses import replace
+        for aid, weight, updated in [('old-high', 100, '2000-01-01'), ('new-low', 0.1, '2099-01-01')]:
+            art = artifact.make('memory', {'text': aid, 'level': 'fact'}, id=aid)
+            art = replace(art, header=replace(art.header, strength=replace(art.header.strength, weight=weight), time=replace(art.header.time, updated=updated)))
+            self.plugin.store.artifacts.upsert(art)
+        self.assertEqual((await self.call('graph'))['nodes'][0]['id'], 'old-high')
+        self.assertEqual((await self.call('graph', query={'sort': 'recent'}))['nodes'][0]['id'], 'new-low')
+        for value in ('invalid', ''):
+            await self.call('graph', query={'sort': value}, expected=400)
+        await self.call('graph', username=None, expected=401)
+
     async def test_long_chinese_persona_remains_editable_through_host_adapter(self):
         service = self.plugin.services.management_service
         seed = {"id": "host-long", "version": "1", "name": "星灯", "persona": "星" * 20000}
