@@ -19,10 +19,10 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, openSync, closeSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, openSync, closeSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 /**
  * 校验 dump 文本里是否真的组装了目标插件。
@@ -153,4 +153,4 @@ function cli() {
   process.exit(res.ok ? 0 : 1);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) cli();
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) cli();

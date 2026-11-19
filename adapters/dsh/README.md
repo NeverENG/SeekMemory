@@ -56,9 +56,10 @@ test/safe-mode.mjs           跳闸/强杀豁免/自愈/开关键（42 项）
 test/extract-bridge.mjs      抽取桥（18 项：block-end 权威 / 中止 / 抛错 / 无 llm 服务）
 test/postinstall-check.mjs   自检脚本用例（dump 判定 + 子进程路径）
 test/install-profile.mjs     安装器 junction 四场景（全新 / 重复 / 换目录 / 实体目录）
+test/package-distribution.mjs  从 npm tarball 安装并验证包内工具与许可
 ```
 
-## 怎么跑
+## 开发验证（仅仓库检出）
 
 ```bash
 # 1. 静态检查（G13/G4）
@@ -108,13 +109,46 @@ mock 的故障注入开关（验 fail-open 用）：
 
 ## 安装到某个 DSH profile
 
-必须显式给出本包目录（不内置任何默认路径）：
+npm 包只包含 DSH 适配器，不包含 Python 内核或 DSH 宿主。先单独启动仓库中的内核（Python 3.10+），并在 DSH 插件配置中指定它生成的 `runtime.json`（`runtimePath`，或通过 `dataDir` 推导）：
 
 ```bash
-node tools/install-profile.mjs --profile <profile> --plugin <path-to-this-package>
+python scripts/serve.py --data-dir "$HOME/.seekmemory/kernel"
+```
+
+在仓库根目录运行上述命令；内核未启动或配置路径错误时，适配器会 fail-open，但不会提供记忆功能。`runtime.json` 含本机服务令牌，不应公开。安装 npm 包时请选独立的暂存目录，不要在 DSH profile 里运行 `npm install`：
+
+```bash
+STAGING="$HOME/.seekmemory/dsh-package"
+mkdir -p "$STAGING"
+
+# 发布到 npm 后
+npm install --prefix "$STAGING" dsh-seekmemory@0.0.1
+
+# 发布前从仓库的 adapters/dsh 目录验证打出的包，可代替上一条
+npm pack --pack-destination "$STAGING"
+npm install --prefix "$STAGING" "$STAGING/dsh-seekmemory-0.0.1.tgz"
+```
+
+以上为 POSIX shell 示例；Windows 请替换为本机绝对路径。确认 DSH 已建立目标 profile，并让 `DSH_HOME` 指向该宿主的数据目录。进入 `$STAGING/node_modules/dsh-seekmemory` 后运行包内工具；必须显式给出包目录（不内置默认路径）：
+
+```bash
+cd "$STAGING/node_modules/dsh-seekmemory"
+node tools/install-profile.mjs --profile web --plugin "$PWD"
 ```
 
 它做三件事：`dependencies` 加 `link:`、`dsh.profile.bundles` 加条目、`node_modules` 建 junction；改之前把 `package.json` 备份到系统临时目录，并生成 `rollback-<profile>.cmd`。
+
+在目标 profile 的 `cordis.patch.yml` 中合并插件配置（保留已有内容，路径改为内核实际生成的文件）：
+
+```yaml
+- id: dsh-seekmemory
+  config:
+    runtimePath: '/absolute/path/to/runtime.json'
+    subjectMode: fixed
+    subjectKey: 'loopback:default'
+```
+
+这里的 `subjectKey` 要与内核 `owner_umo` 一致；示例是默认值。重启 DSH 后再检查实际宿主是否组装了插件：
 
 - 备份与回滚脚本默认落在系统临时目录，可用 `--backup-dir` / `--rollback-dir` 指定；
 - ⚠️ 不要对目标 profile 跑 `pnpm install`——会把 junction 冲掉，重跑本工具即可；
@@ -125,6 +159,8 @@ node tools/install-profile.mjs --profile <profile> --plugin <path-to-this-packag
   # 只校验已有的 dump（不需要 DSH 安装）：
   node scripts/postinstall-check.mjs --dump <dump.yml>
   ```
+
+  已有 dump 文件时也可以运行 `npm run check:installed -- --dump <dump.yml>`；这个 npm 命令在各平台均使用 Node 自检脚本。
 
   Windows 上也可以用包装脚本：先 `set DSH_EXE_OVERRIDE=C:\path\to\DeepSeek Harness.exe`，再跑 `scripts\postinstall-check.cmd <profile> <home>`（两者行为一致，`--dump` 分支已由 `test/postinstall-check.mjs` 覆盖）。
 

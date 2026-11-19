@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### 中文
+- DSH npm 分发补齐 MIT 许可、profile 安装器与安装后自检脚本，并从实际打出的 tarball 验证隔离 profile 安装；自检脚本支持 macOS 临时目录别名路径，`npm run check:installed` 改为跨平台 Node 命令。只调整分发内容及工具入口，不改内核数据格式或公开配置；npm 发布与真实 DSH 宿主验收另行进行。
 - #154：主动发言的话题源读取失败不再当成“无话题”清除到期机会；仅记录异常类型并保留标记，下一轮可重试。无话题的成功查询仍按原策略清理；存储格式和公开配置不变。
 - #154：主动派发排队取得 worker 并发名额后重新检查当前到期状态与时间；期间已清理或因新输入推迟的机会不再误发，仍到期的机会继续执行。不变更存储格式或公开配置。
 - #154：RuntimeWorker 轮询与主动派发失败诊断不再泄露会话标识，仅保留事件码与异常类型；失败隔离及继续派发不变。不涉及数据格式或公开配置。
@@ -16,6 +17,7 @@
 - #233：新增离线只读的纠错影响图检查，有界比对当前血缘与原始树边，核对当前版本证据，明确报告多父路径及不一致、证据缺失、跨主体、环和截断；不推断应如何修订，也不接入生产 Dream。仅查询既有字段，不改已存数据格式、边或公开配置。
 
 ### English
+- Complete the DSH npm archive with its MIT license, profile installer, and post-install checks; verify installation into an isolated profile from the actual tarball. The self-check CLI now works through macOS temporary-path aliases, and `npm run check:installed` uses the cross-platform Node script. Only distribution contents and the tool entry point change; kernel storage and public config do not. npm publishing and real DSH host acceptance remain separate.
 - #154: A failed proactive topic lookup no longer clears its due opportunity as if it had no topic: record only the exception type and retry on a later poll. Successful empty lookups still clear the marker; stored formats and public config are unchanged.
 - #154: Proactive dispatch rechecks current eligibility and time after acquiring a worker concurrency slot; cleared or rescheduled opportunities no longer send, while still-due work proceeds. No stored-format or public-config changes.
 - #154: RuntimeWorker polling/proactive failure diagnostics no longer expose session identifiers; only event codes and exception types remain. Failure isolation and subsequent dispatch are unchanged, with no stored-format or public-config change.

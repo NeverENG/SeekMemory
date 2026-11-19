@@ -14,8 +14,13 @@
     "src",
     "cordis.patch.yml",
     "dsh.plugin.json",
+    "LICENSE-MIT",
     "README.md",
-    "PLATFORM-CONTRACT.md"
+    "PLATFORM-CONTRACT.md",
+    "tools/install-profile.mjs",
+    "scripts/postinstall-check.mjs",
+    "scripts/postinstall-check.cmd",
+    "scripts/check-installed.mjs"
   ],
   "dsh": {
     "bundle": {
@@ -36,11 +41,11 @@
   },
   "scripts": {
     "check": "node scripts/check-manifest.mjs",
-    "check:installed": "scripts/postinstall-check.cmd",
+    "check:installed": "node scripts/postinstall-check.mjs",
     "lint": "node scripts/check-manifest.mjs",
     "build": "node scripts/build-check.mjs",
     "postinstall:check": "node scripts/postinstall-check.mjs",
-    "test": "node test/client-failopen.mjs && node test/hooks-fake-host.mjs && node test/persona-isolation.mjs && node test/safe-mode.mjs && node test/extract-bridge.mjs && node test/postinstall-check.mjs && node test/install-profile.mjs && node test/platform-contract.mjs && node test/host-bridge.mjs && node test/runtime-bridge.mjs && node test/runtime-host.mjs && node test/runtime-smoke.mjs && node test/loopback-contract.mjs && node test/extract-python-smoke.mjs",
+    "test": "node test/client-failopen.mjs && node test/hooks-fake-host.mjs && node test/persona-isolation.mjs && node test/safe-mode.mjs && node test/extract-bridge.mjs && node test/postinstall-check.mjs && node test/install-profile.mjs && node test/package-distribution.mjs && node test/platform-contract.mjs && node test/host-bridge.mjs && node test/runtime-bridge.mjs && node test/runtime-host.mjs && node test/runtime-smoke.mjs && node test/loopback-contract.mjs && node test/extract-python-smoke.mjs",
     "mock": "node mock/kernel.mjs --data-dir .tmp/mock",
     "smoke": "node scripts/smoke-contract.mjs --runtime .tmp/mock/runtime.json",
     "contract:kernel": "node scripts/check-kernel-contract.mjs --runtime .tmp/mock/runtime.json",
