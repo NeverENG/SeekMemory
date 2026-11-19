@@ -8,7 +8,7 @@
  *
  * 校验项：
  *   1. files 白名单里每一项都存在；
- *   2. 必需文件都在：dsh.plugin.json、cordis.patch.yml、README.md、src/index.js；
+ *   2. 必需文件都在：宿主声明、安装/自检工具、许可和入口；
  *   3. 必需文件都在白名单内（否则打不进包）；
  *   4. main 与 exports 指向的文件存在。
  *
@@ -42,7 +42,11 @@ function walk(rel) {
 for (const entry of pkg.files ?? []) walk(entry);
 
 // package.json 由 npm 自动纳入，不要求在 files 里
-const REQUIRED = ['package.json', 'dsh.plugin.json', 'cordis.patch.yml', 'README.md', 'src/index.js'];
+const REQUIRED = [
+  'package.json', 'dsh.plugin.json', 'cordis.patch.yml', 'LICENSE-MIT', 'README.md',
+  'src/index.js', 'tools/install-profile.mjs', 'scripts/postinstall-check.mjs',
+  'scripts/postinstall-check.cmd', 'scripts/check-installed.mjs',
+];
 for (const must of REQUIRED) {
   if (!existsSync(path.join(ROOT, must))) problems.push(`缺少必需文件: ${must}`);
   if (must !== 'package.json' && !files.some((f) => f.rel === must)) {
