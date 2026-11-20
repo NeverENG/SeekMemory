@@ -1,8 +1,8 @@
 # SeekMemory
 
-**一个面向长期陪伴的 AgentRuntime 与记忆内核。**
+**以 AgentRuntime 为中心的长期运行 Agent 基础设施。**
 
-> 平台只是入口。Runtime 负责这一轮怎么活，Memory Kernel 负责她为什么还是她。
+> AgentRuntime 协调输入、任务准入、中断与动作；Memory Kernel 为持续互动提供有证据的上下文。
 
 <div align="center">
   <a href="https://github.com/NeverENG/SeekMemory/releases/latest">
@@ -13,6 +13,7 @@
 </div>
 
 <p align="center">
+  <a href="docs/zh/architecture/modules/runtime.md">Runtime 契约</a> /
   <a href="docs/zh/architecture/overview.md">架构总览</a> /
   <a href="docs/zh/index.md">文档</a> /
   <a href="docs/en/index.md">English</a>
@@ -22,26 +23,19 @@
   <a href="https://github.com/NeverENG/SeekMemory/issues">Issues</a>
 </p>
 
-<p align="center">
-  <img src="docs/assets/readme-future-vision-v2.png" alt="SeekMemory 多平台未来愿景" width="100%">
-</p>
-
-<p align="center">
-  <sub>多平台入口不是多套上下文，而是同一颗记忆大脑的不同入口。</sub>
-</p>
-
 ---
 
 ## 工程定位
 
-SeekMemory 不是“把聊天记录切块再塞进 prompt”的检索器，而是给 Agent 提供一套长期运行基础件：
+SeekMemory 不只是记忆检索器。它把宿主事件映射为运行时输入，由 AgentRuntime 协调会话状态、回复时机、任务准入和动作；记忆、模型与平台发送通过独立能力端口接入。目标是让对话、主动任务和未来的 Dream / 浏览工作负载遵守同一套生命周期规则，而不是各自处理抢占、重试和副作用。
 
-- **Host-neutral Runtime**：平台事件只经过 Adapter 和 RuntimeInput；
-- **可追溯记忆**：Source 是不可变证据，Artifact 是可修订解释；
-- **可解释召回**：相关性、强度、时间、证据、披露和预算共同决定上下文；
-- **统一动作**：Runtime 发起动作走 ActionExecutor -> ActionPort；
-- **连续人格**：Persona 不是一段固定 prompt，而是一条带证据的版本链；
-- **边界清晰**：平台差异留在 host adapter，不污染核心运行时。
+- **统一输入与决策边界**：Adapter 提供 `RuntimeInput`；Runtime 按会话状态和策略决定观察、回复或等待。
+- **运行生命周期**：同 lane 的旧回复可在未发送前失效；前台任务的让位请求与实际安全点分开处理。
+- **可组合调度**：AgentRuntime 持有进程内前台准入器，纯策略选择优先级；后台 Worker 可显式接入。
+- **受控动作**：Runtime 发起的动作经 `ActionExecutor` 和 `ActionPort`，已开始的外部调用依真实结果处理。
+- **持续上下文**：Memory Kernel 提供带 Source 证据的 Artifact、披露后的有界召回与人格版本链。
+
+**当前边界**：进程内前台调度和 Worker 接入已实现，但 Worker 默认不接入；生产宿主的普通回复、Dream 和浏览任务尚未共用这一前台。这里的“统一调度”是演进方向，不是已覆盖所有宿主工作负载的承诺。
 
 ## 系统边界
 
@@ -56,8 +50,9 @@ Platform / Host
   -> AgentRuntime
        SessionState
        AttentionPolicy
-       RunControl / RunPolicy
-       Worker / Scheduler
+       RunControl / RunPolicy (同 lane 的 run 有效性)
+       ForegroundScheduler / SchedulingPolicy (前台准入)
+       Worker / Scheduler (到期任务与派发)
        ActionExecutor
   -> MemoryContextPort / ModelGateway / ActionPort
   -> Platform / Host
@@ -66,7 +61,7 @@ Platform / Host
 | 层 | 职责 | 不负责 |
 |---|---|---|
 | `adapters/*` | 平台事件转换、宿主能力注入 | attention、proactive、memory 策略 |
-| `AgentRuntime` | session 状态、是否回复、何时回复、run 生命周期 | 平台 SDK、SQLite、人设文案 |
+| `AgentRuntime` | session 状态、run 有效性、前台准入与 Runtime 发起的动作 | 宿主模型循环、平台 SDK、SQLite |
 | `Memory Kernel` | Source / Artifact / 版本 / 召回 / 披露 | 平台发送、模型对话循环 |
 | `ActionExecutor` | attempt -> terminal、动作审计 | 平台 API 实现 |
 | `ActionPort` | 平台发送、回复、转发等能力 | 记忆与决策 |
@@ -75,64 +70,49 @@ Platform / Host
 
 ---
 
-## 运行链路：AgentRuntime V3
+## AgentRuntime：类操作系统的调度语义
 
-<img src="docs/assets/v3-runtime-interruption-premium.png" width="100%">
+“类操作系统”指**由一个所有者决定谁可以推进工作，以及何时安全地交还执行权**，不表示能抢占任意 Python 协程、宿主模型调用或平台 API。Runtime 不保存模型调用栈，也不替 Dream、浏览或对话实现各自的业务算法。
 
-*平台只是入口；RunControl 以 session 为边界，同会话替换旧 run，跨会话互不抢占。*
-
-### 一条消息的完整生命周期
-
-```text
-1. Adapter       接收平台事件
-2. normalize     -> RuntimeInput
-3. Runtime       记录 Source / 更新 SessionState / 评估注意力和动作
-4. context       向 MemoryContextPort 请求有界记忆上下文
-5. model         通过 ModelGateway 调用宿主模型
-6. action        通过 ActionExecutor + ActionPort 发回平台
-7. record        Source / Episode / Trace / delivery cursor
-8. dream         离线强化、合并、遗忘、修订，进入人格链
-```
-
-### 核心契约
-
-> 以下是 V3 目标契约；当前 `app/runtime/contracts` 与 Issue #154 是实际实现的准绳。
-
-```python
-RuntimeInput(
-    session_id: str,
-    text: str,
-    speaker_id: str = "",
-    subject_key: str = "",
-    event_id: str = "",
-    event_time: float = 0.0,
-    received_at: float = 0.0,
-)
-RunDecision(action, reason, attention, must_reply)
-ActionRequest(session_id, kind, text="")
-```
-
-### 中断语义
-
-V3 不是“所有消息一来就杀 run”，而是把中断做成可注入的运行时能力：
-
-| 场景 | 行为 |
+| 概念 | 在这里的含义 |
 |---|---|
-| 同 session 新 user input | 取消旧 run，启动新 run |
-| 不同 session | 互不取消 |
-| 新 user input vs active proactive | 不启动 proactive |
-| 取消发生在 ActionPort 前 | action terminal = `cancelled` |
-| ActionPort 已经执行 | 记录真实 success / failure，不伪造 cancelled |
-| “我去刷视频了” | 语义暂停，不取消正在生成的回复 |
+| Agent 工作负载 | 长期存在的对话、后台或未来的 Dream / 浏览执行者；各自负责业务逻辑 |
+| Task | 一次可登记的工作；Runtime 持有任务身份、优先级和准入状态，工作负载负责自己的进度 |
+| Lane | 同一宿主会话内回复失效的范围，不等于跨会话共享的记忆主体 `subject_key` |
+| 前台准入 | 一次只授予一个参与者推进前台决策的权利；外部 I/O 不会因此自动暂停或取消 |
+
+### 请求中断，不等于已经中断
 
 ```text
-RunPolicy  决定是否替换
-RunHandle  提供协作式 cancel token
-Runtime    负责 run 生命周期
-Host       负责把自己的模型/发送任务接到 token 上
+READY --取得前台--> RUNNING
+RUNNING --更高优先级任务就绪--> YIELD_REQUESTED（旧任务仍占前台）
+YIELD_REQUESTED --工作负载确认安全点并交还前台--> SUSPENDED
+SUSPENDED --核验进度与外部状态后恢复--> READY
+RUNNING / YIELD_REQUESTED --真实工作结束--> 释放前台
 ```
 
-实现设计见 [Runtime V3 Issue #154](https://github.com/NeverENG/SeekMemory/issues/154)。
+`YIELD` 是协作让位请求，只有工作负载到达安全点、处理必要进度后才算交还前台。等待模型或平台回执本身不是安全点；已经开始的外部动作不能因收到中断就标为取消或盲目重发。
+
+这与同会话的回复失效是**两条不同的轴**：`SUPERSEDE` 只阻止同 lane 尚未开始的旧回复动作，不证明旧任务已挂起；`WAIT` 表示此刻不回复，新输入仍可触发重评估；`STOP` 才表示结束任务，不能拿它替代临时让位。跨 lane、跨宿主的共享记忆不会自动造成互相取消。
+
+### 为什么需要这些区分
+
+- **新消息不被旧计划覆盖**：同 lane 输入更新后，旧的未发送回复可以失效，避免晚到的输出冒充最新回答。
+- **高优先级工作有机会推进**：交互任务可以请求后台让位；同级按先后准入，连续交互也会给等待的后台任务机会。请求不会强行撤销在途调用。
+- **副作用可核对**：发送或工具动作一旦开始，必须根据真实回执判断结果；结果未知就保留未知，避免重复发送或伪造撤回。
+- **恢复有明确边界**：后台工作负载只保存必要进度并在恢复前核验环境，不序列化模型思维过程或调用栈。
+
+### 当前落地与下一步
+
+| 能力 | 状态 |
+|---|---|
+| 会话注意力、到期派发与运行时动作 | 已有 Runtime 路径；普通宿主模型 / 工具循环仍由宿主管理 |
+| 同 lane 的 RunControl / RunPolicy | 进程内可选接入；不代表宿主调用已经被强制中止 |
+| 交互 / 后台前台准入与协作让位 | AgentRuntime 已提供进程内接口；让位需工作负载显式确认安全点 |
+| 延迟与主动 Worker 参与前台 | 支持显式接入，但生产组装未启用；当前整次模型 / 发送期间持有前台，启用会串行化后台派发 |
+| 普通宿主回复、Dream、浏览共用调度及 I/O 安全让位 | 尚未接入，不承诺跨重启恢复或外部动作恰好一次 |
+
+具体契约与测试边界见 [Runtime 模块](docs/zh/architecture/modules/runtime.md)、[运行控制 #154](https://github.com/NeverENG/SeekMemory/issues/154) 和 [协作调度 #186](https://github.com/NeverENG/SeekMemory/issues/186)。
 
 ---
 
