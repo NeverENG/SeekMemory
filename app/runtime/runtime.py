@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass, replace
-from typing import Callable
+from typing import Awaitable, Callable
 
 from .contracts import (
     ActionKind,
@@ -315,7 +315,8 @@ class AgentRuntime:
         )
 
     async def dispatch_deferred(self, context: RunContext, *, now: float | None = None,
-                                max_attempts: int = 3, base_seconds: float = 2.0) -> RunResult:
+                                max_attempts: int = 3, base_seconds: float = 2.0,
+                                before_send: Callable[[], Awaitable[None]] | None = None) -> RunResult:
         """Execute one deferred run through injected ports / 通过注入端口执行一次延迟回复。"""
         pending = self._retry_before_dispatch(context)
         if pending is not None:
@@ -330,13 +331,14 @@ class AgentRuntime:
         try:
             return await self._dispatcher().dispatch_deferred(
                 replace(context, run_id=handle.run_id), now=moment, max_attempts=max_attempts,
-                base_seconds=base_seconds, guard=handle,
+                base_seconds=base_seconds, guard=handle, before_send=before_send,
             )
         finally:
             self.finish_run(handle)
 
     async def dispatch_proactive(self, context: RunContext, decision: ProactiveDecision, *,
-                                 topic: TopicCandidate | None = None, now: float | None = None) -> RunResult:
+                                 topic: TopicCandidate | None = None, now: float | None = None,
+                                 before_send: Callable[[], Awaitable[None]] | None = None) -> RunResult:
         """Execute one proactive run with its own policy / 按主动策略执行一次主动发言。"""
         pending = self._retry_before_dispatch(context)
         if pending is not None:
@@ -350,6 +352,7 @@ class AgentRuntime:
         try:
             return await self._dispatcher().dispatch_proactive(
                 replace(context, run_id=handle.run_id), decision, topic=topic, now=moment, guard=handle,
+                before_send=before_send,
             )
         finally:
             self.finish_run(handle)

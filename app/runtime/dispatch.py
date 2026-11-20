@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
-from typing import Callable
+from typing import Awaitable, Callable
 
 from . import transitions
 from .contracts import (
@@ -176,6 +176,7 @@ class Dispatch:
         max_attempts: int = 3,
         base_seconds: float = 2.0,
         guard: RunHandle | None = None,
+        before_send: Callable[[], Awaitable[None]] | None = None,
     ) -> RunResult:
         """Claim, generate and send; retain a receipt before fallible write-back. Model/send failures retain bounded retries and cancellation propagation.
 
@@ -252,6 +253,9 @@ class Dispatch:
                 guard.raise_if_invalid()
             if not str(reply or "").strip():
                 raise RuntimeError("empty_response")
+            if guard is not None and before_send is not None:
+                await before_send()
+                guard.raise_if_invalid()
             await self._send_text(
                 session_id,
                 reply,
@@ -327,6 +331,7 @@ class Dispatch:
         topic: TopicCandidate | None = None,
         now: float | None = None,
         guard: RunHandle | None = None,
+        before_send: Callable[[], Awaitable[None]] | None = None,
     ) -> RunResult:
         """Generate a due proactive reply using its own prompt; retain confirmed delivery for write-back.
 
@@ -376,6 +381,9 @@ class Dispatch:
                 guard.raise_if_invalid()
             if not str(reply or "").strip():
                 raise RuntimeError("empty_response")
+            if guard is not None and before_send is not None:
+                await before_send()
+                guard.raise_if_invalid()
             await self._send_text(
                 session_id,
                 reply,

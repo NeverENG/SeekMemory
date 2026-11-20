@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### 中文
+- #186：显式同时启用前台准入与同 lane 运行控制的 RuntimeWorker，可在模型完成、发送开始前响应让位请求，恢复后复查旧 run，失效回复不发送；排队取消不释放其他任务的前台。模型/发送在途不让位，未启用运行控制与生产宿主路径不变；不改存储格式或公开配置。
 - #186：AgentRuntime 增加进程内前台准入与可注入纯调度策略；交互任务请求后台协作让位，同级 FIFO，并在连续三次交互准入后给就绪后台任务一次机会。RuntimeWorker 可显式将延迟/主动派发接入前台并在排队取消、到期变化或执行结束时清理任务；其在途模型/发送尚无安全让位点，启用会串行化后台派发，生产宿主暂不启用。旧路径、存储格式与公开配置不变，也不提供跨重启恢复。
 - DSH npm 分发补齐 MIT 许可、profile 安装器与安装后自检脚本，并从实际打出的 tarball 验证隔离 profile 安装；自检脚本支持 macOS 临时目录别名路径，`npm run check:installed` 改为跨平台 Node 命令。只调整分发内容及工具入口，不改内核数据格式或公开配置；npm 发布与真实 DSH 宿主验收另行进行。
 - #154：主动发言的话题源读取失败不再当成“无话题”清除到期机会；仅记录异常类型并保留标记，下一轮可重试。无话题的成功查询仍按原策略清理；存储格式和公开配置不变。
@@ -18,6 +19,7 @@
 - #233：新增离线只读的纠错影响图检查，有界比对当前血缘与原始树边，核对当前版本证据，明确报告多父路径及不一致、证据缺失、跨主体、环和截断；不推断应如何修订，也不接入生产 Dream。仅查询既有字段，不改已存数据格式、边或公开配置。
 
 ### English
+- #186: With both foreground admission and same-lane run control explicitly enabled, RuntimeWorker can honor a yield request after model completion but before send, rechecking run validity on return so obsolete unsent replies do not send. Queue cancellation cannot release another task's slot. In-flight model/send operations do not yield; unguarded and production host paths, stored formats and public settings are unchanged.
 - #186: AgentRuntime now owns process-local foreground admission with an injectable pure scheduling policy. Interactive work can request cooperative yield from background work, with per-class FIFO and one waiting background admission after three consecutive interactive claims. RuntimeWorker can explicitly route deferred and proactive dispatch through it, cleaning up cancelled, stale and completed tasks. Model/send I/O has no safe yield point yet, so enabling this serializes background dispatch; production hosts do not enable it. Existing paths, stored formats and public configuration are unchanged, and tasks do not resume across restarts.
 - Complete the DSH npm archive with its MIT license, profile installer, and post-install checks; verify installation into an isolated profile from the actual tarball. The self-check CLI now works through macOS temporary-path aliases, and `npm run check:installed` uses the cross-platform Node script. Only distribution contents and the tool entry point change; kernel storage and public config do not. npm publishing and real DSH host acceptance remain separate.
 - #154: A failed proactive topic lookup no longer clears its due opportunity as if it had no topic: record only the exception type and retry on a later poll. Successful empty lookups still clear the marker; stored formats and public config are unchanged.

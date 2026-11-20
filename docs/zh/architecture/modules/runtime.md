@@ -21,7 +21,7 @@ app/runtime 定义不依赖 AstrBot 的会话状态、注意力决策和运行�
 
 状态按 `READY → RUNNING → YIELD_REQUESTED → SUSPENDED → READY` 迁移。`claim_next()` 只在前台空闲时准入一项；较高优先级任务就绪只提出让位请求，原任务仍占前台，直到它自己保存/核对最小进度并调用 `yield_at_checkpoint(task_id)` 才交还执行权。接入方验证外部环境后调用 `resume(task_id)` 重新排队；`finish(task_id)` 只能释放当前任务，迟到的旧任务回调不能释放新任务。`abandon(task_id)` 只移除未运行的任务，不撤销在途动作；若请求让位的高优先级任务已撤销，当前任务继续运行。等待 I/O 本身不是安全点，不自动释放执行权；已开始动作仍由工作负载按真实回执处理。
 
-`RuntimeWorker(..., foreground=runtime.foreground)` 可显式把延迟/主动派发接入该前台：任务排队时不领取到期状态，准入后仍复查开关、时间与到期机会；排队取消、执行结束或异常均清理自己登记的任务。未显式传入时保留原 Worker 并发行为。当前 Worker 在整次模型及发送调用期间持有前台权，**没有在途 I/O 的安全让位点**；启用后会把这些后台派发串行化。因此生产 AstrBot 组装暂不启用，普通 AstrBot/DSH 回复及 Dream/浏览任务也未接入，不能宣称全局唯一执行权已覆盖宿主。任务不持久化、不跨重启恢复；不改存储格式或公开配置。回退时不传 `foreground` 即恢复旧路径。
+`RuntimeWorker(..., foreground=runtime.foreground)` 可显式把延迟/主动派发接入该前台：任务排队时不领取到期状态，准入后仍复查开关、时间与到期机会；排队取消、执行结束或异常均清理自己登记的任务。未显式传入时保留原 Worker 并发行为。若同时显式启用同 lane `RunControl`，模型完成且尚未开始发送时，Worker 在前台收到让位请求才确认安全点、重新排队并等待准入；恢复后重新检查 run 有效性，已失效的旧回复不会发送，等待期间取消也不会释放别人的前台权。模型调用进行中和发送已开始后**均不让位**；未启用 `RunControl` 的 Worker 仍持有前台直至整次派发结束。因此不能把此检查点当作在途 I/O 的暂停或恢复。生产 AstrBot 组装暂不启用，普通 AstrBot/DSH 回复及 Dream/浏览任务也未接入，不能宣称全局唯一执行权已覆盖宿主。任务不持久化、不跨重启恢复；不改存储格式或公开配置。回退时不传 `foreground` 即恢复旧路径。
 
 `contracts/runs.py` 定义同 lane 运行控制契约，并由 `app.runtime.contracts` 导出。`RunKind` 区分用户、延迟和主动运行；`RunTrigger` 携带显式时间与可选的 `RuntimeInput`，调用方负责在策略执行前接纳用户输入并排除过期/重放；该数据对象本身不执行接纳。`ActiveRunView` 只暴露运行标识、lane、代次、类型、开始时间及 `action_started`，不含正文或工具参数。`RunTransition.supersede_active` 表达旧计划的逻辑失效，只阻止未开始动作，不表示宿主调用已经终止、动作已撤销或任务已让位。`start_new=True, supersede_active=False` 在没有有效运行时允许启动；存在有效运行时保留旧句柄，`begin()` 返回空，替换须先显式应用覆盖意图。`RunPolicy.decide(state, trigger, active)` 是同步纯策略，不修改输入、不执行 I/O，也不决定全局优先级或 `YIELD`；若保留旧运行，调用方须有可靠待处理入口并保证之后重评估，否则使用默认覆盖策略。
 
