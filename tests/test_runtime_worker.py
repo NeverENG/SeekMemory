@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.runtime import (  # noqa: E402
     AgentRuntime, DefaultProactivePolicy, InMemoryStateStore, RunContext, RunRecorder,
-    RuntimeInput, RuntimeWorker, Scheduler, SessionState, TopicCandidate,
+    RuntimeInput, RuntimeWorker, Scheduler, SessionState, TaskPriority, TaskStatus, TopicCandidate,
 )
 
 
@@ -75,6 +75,106 @@ class WorkerTest(unittest.IsolatedAsyncioTestCase):
             max_concurrency=2, clock=lambda: self.now,
             foreground=self.runtime.foreground,
         )
+
+    def use_guarded_foreground(self) -> None:
+        self.runtime = AgentRuntime(
+            self.store, clock=lambda: self.now,
+            recorder=RunRecorder(sources=None, buffer=None, checkpoint=None, episodes=None),
+            model_gateway=SimpleNamespace(complete=self.complete),
+            message_sender=SimpleNamespace(send=self.send), run_control_enabled=True,
+        )
+        self.use_foreground()
+
+    async def test_guarded_foreground_yields_after_model_before_send(self) -> None:
+        self.use_guarded_foreground()
+        first = await self.first_dispatch()
+        background = self.runtime.foreground.current()
+        interactive = self.runtime.foreground.submit("conversation", "other-lane", TaskPriority.INTERACTIVE)
+        self.assertEqual(self.runtime.foreground.current().status, TaskStatus.YIELD_REQUESTED)
+        self.assertIsNone(self.runtime.foreground.claim_next())
+
+        self.release.set()
+        admitted = await asyncio.wait_for(self.runtime.foreground.claim_when_ready(interactive.task_id), 1)
+        self.assertEqual(admitted.task_id, interactive.task_id)
+        self.assertEqual(self.runtime.foreground.view(background.task_id).status, TaskStatus.READY)
+        self.assertFalse(first.done())
+        self.assertTrue(self.runtime.foreground.finish(interactive.task_id))
+        self.assertTrue((await asyncio.wait_for(first, 1)).delivered)
+        self.assertIsNone(self.runtime.foreground.current())
+
+    async def test_superseded_guarded_foreground_does_not_send_after_yield(self) -> None:
+        self.use_guarded_foreground()
+        first = await self.first_dispatch()
+        handle = self.runtime.current_run("s1")
+        interactive = self.runtime.foreground.submit("conversation", "other-lane", TaskPriority.INTERACTIVE)
+        self.release.set()
+        await asyncio.wait_for(self.runtime.foreground.claim_when_ready(interactive.task_id), 1)
+        self.assertTrue(self.runtime.supersede_run("s1", handle.run_id))
+        self.assertTrue(self.runtime.foreground.finish(interactive.task_id))
+        self.assertEqual((await asyncio.wait_for(first, 1)).error, "superseded")
+        self.assertIsNone(self.runtime.foreground.current())
+        self.assertIsNone(self.runtime.foreground.claim_next())
+
+    async def test_cancelled_guarded_foreground_waiter_cleans_up_without_releasing_other_task(self) -> None:
+        self.use_guarded_foreground()
+        first = await self.first_dispatch()
+        interactive = self.runtime.foreground.submit("conversation", "other-lane", TaskPriority.INTERACTIVE)
+        self.release.set()
+        await asyncio.wait_for(self.runtime.foreground.claim_when_ready(interactive.task_id), 1)
+        first.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await first
+        self.assertEqual(self.runtime.foreground.current().task_id, interactive.task_id)
+        self.assertTrue(self.runtime.foreground.finish(interactive.task_id))
+        self.assertIsNone(self.runtime.foreground.claim_next())
+
+    async def test_unguarded_foreground_does_not_claim_a_safe_point(self) -> None:
+        self.use_foreground()
+        first = await self.first_dispatch()
+        interactive = self.runtime.foreground.submit("conversation", "other-lane", TaskPriority.INTERACTIVE)
+        self.release.set()
+        self.assertTrue((await asyncio.wait_for(first, 1)).delivered)
+        self.assertEqual(self.runtime.foreground.claim_next().task_id, interactive.task_id)
+
+    async def test_guarded_proactive_yields_before_sending(self) -> None:
+        self.use_guarded_foreground()
+        policy = DefaultProactivePolicy(enabled=True)
+        self.worker.proactive_policy = policy
+        state = self.store.get("s1")
+        state.wait_until = 0
+        state.proactive_due_at = 100
+        self.store.put(state)
+        decision = self.worker.scheduler.proactive_due(["s1"], 100, policy).selected[0].decision
+        proactive = asyncio.create_task(self.worker.dispatch_proactive("s1", decision, now=100))
+        await asyncio.wait_for(self.started.wait(), 1)
+        interactive = self.runtime.foreground.submit("conversation", "other-lane", TaskPriority.INTERACTIVE)
+        self.release.set()
+        await asyncio.wait_for(self.runtime.foreground.claim_when_ready(interactive.task_id), 1)
+        self.assertFalse(proactive.done())
+        self.assertTrue(self.runtime.foreground.finish(interactive.task_id))
+        self.assertTrue((await asyncio.wait_for(proactive, 1)).delivered)
+        self.assertIsNone(self.runtime.foreground.current())
+
+    async def test_started_send_keeps_foreground_until_its_real_result(self) -> None:
+        self.use_guarded_foreground()
+        send_started = asyncio.Event()
+        send_release = asyncio.Event()
+
+        async def slow_send(*args) -> bool:
+            send_started.set()
+            await send_release.wait()
+            return True
+
+        self.runtime.message_sender = SimpleNamespace(send=slow_send)
+        first = await self.first_dispatch()
+        self.release.set()
+        await asyncio.wait_for(send_started.wait(), 1)
+        interactive = self.runtime.foreground.submit("conversation", "other-lane", TaskPriority.INTERACTIVE)
+        self.assertEqual(self.runtime.foreground.current().status, TaskStatus.YIELD_REQUESTED)
+        self.assertIsNone(self.runtime.foreground.claim_next())
+        send_release.set()
+        self.assertTrue((await asyncio.wait_for(first, 1)).delivered)
+        self.assertEqual(self.runtime.foreground.claim_next().task_id, interactive.task_id)
 
     async def test_opt_in_worker_serializes_real_deferred_dispatches(self) -> None:
         self.use_foreground()

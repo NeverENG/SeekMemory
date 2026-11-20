@@ -121,7 +121,7 @@ RUNNING / YIELD_REQUESTED --真实工作结束--> 释放前台
 | 会话注意力、到期派发与运行时动作 | 已有 Runtime 路径；普通宿主模型 / 工具循环仍由宿主管理 |
 | 同 lane 的 RunControl / RunPolicy | 进程内可选接入；不代表宿主调用已经被强制中止 |
 | 交互 / 后台前台准入与协作让位 | AgentRuntime 已提供进程内接口；让位需工作负载显式确认安全点 |
-| 延迟与主动 Worker 参与前台 | 支持显式接入，但生产组装未启用；当前整次模型 / 发送期间持有前台，启用会串行化后台派发 |
+| 延迟与主动 Worker 参与前台 | 支持显式接入，但生产组装未启用；同时启用 `RunControl` 时仅能在模型完成、发送开始前协作让位，不支持在途 I/O 抢占；否则整次派发持有前台 |
 | 普通宿主回复、Dream、浏览共用调度及 I/O 安全让位 | 尚未接入，不承诺跨重启恢复或外部动作恰好一次 |
 
 具体契约与测试边界见 [Runtime 模块](docs/zh/architecture/modules/runtime.md)、[运行控制 #154](https://github.com/NeverENG/SeekMemory/issues/154) 和 [协作调度 #186](https://github.com/NeverENG/SeekMemory/issues/186)。

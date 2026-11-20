@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Callable
+from typing import AsyncIterator, Awaitable, Callable
 
 from .contracts import Clock, ProactiveDecision, ProactivePolicy, RunContext, RunResult, TraceSink
 from .contracts.scheduling import TaskPriority
@@ -94,24 +94,39 @@ class RuntimeWorker:
         return semaphore
 
     @asynccontextmanager
-    async def _foreground_slot(self, session_id: str) -> AsyncIterator[bool]:
+    async def _foreground_slot(
+        self, session_id: str,
+    ) -> AsyncIterator[tuple[bool, Callable[[], Awaitable[None]] | None]]:
         """Opt in to Runtime-owned foreground admission; never retain a cancelled waiter.
 
         可选通过 Runtime 的前台准入；排队取消不得留下任务。
         """
-        if self.foreground is None:
-            yield True
+        foreground = self.foreground
+        if foreground is None:
+            yield True, None
             return
-        task = self.foreground.submit("runtime-worker", session_id, TaskPriority.BACKGROUND)
+        task = foreground.submit("runtime-worker", session_id, TaskPriority.BACKGROUND)
         claimed = False
+
+        async def before_send() -> None:
+            current = foreground.current()
+            if current is None or current.task_id != task.task_id:
+                raise RuntimeError("foreground task lost admission")
+            if foreground.yield_at_checkpoint(task.task_id):
+                if not foreground.resume(task.task_id):
+                    raise RuntimeError("foreground task cannot resume")
+                if await foreground.claim_when_ready(task.task_id) is None:
+                    raise RuntimeError("foreground task no longer ready")
+
         try:
-            claimed = await self.foreground.claim_when_ready(task.task_id) is not None
-            yield claimed
+            claimed = await foreground.claim_when_ready(task.task_id) is not None
+            yield claimed, before_send
         finally:
-            if claimed:
-                self.foreground.finish(task.task_id)
+            current = foreground.current()
+            if current is not None and current.task_id == task.task_id:
+                foreground.finish(task.task_id)
             else:
-                self.foreground.abandon(task.task_id)
+                foreground.abandon(task.task_id)
 
     async def dispatch(self, session_id: str, now: float | None = None) -> RunResult | None:
         """Claim a concurrency slot, recheck due state and dispatch one session / 领取并发名额、复查到期状态并执行一个会话。"""
@@ -120,7 +135,7 @@ class RuntimeWorker:
         moment = self._moment(now)
         self._dispatching.add(session_id)
         try:
-            async with self._foreground_slot(session_id) as admitted:
+            async with self._foreground_slot(session_id) as (admitted, before_send):
                 if not admitted:
                     return None
                 async with self._semaphore():
@@ -137,6 +152,7 @@ class RuntimeWorker:
                         now=moment,
                         max_attempts=max(1, int(self.max_attempts())),
                         base_seconds=max(0.1, float(self.base_seconds())),
+                        before_send=before_send,
                     )
         finally:
             self._dispatching.discard(session_id)
@@ -160,7 +176,7 @@ class RuntimeWorker:
         moment = self._moment(now)
         self._dispatching.add(session_id)
         try:
-            async with self._foreground_slot(session_id) as admitted:
+            async with self._foreground_slot(session_id) as (admitted, before_send):
                 if not admitted:
                     return None
                 async with self._semaphore():
@@ -182,6 +198,7 @@ class RuntimeWorker:
                         decision,
                         topic=topic,
                         now=moment,
+                        before_send=before_send,
                     )
         finally:
             self._dispatching.discard(session_id)
