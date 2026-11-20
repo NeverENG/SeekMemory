@@ -6,9 +6,12 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Callable
+from contextlib import asynccontextmanager
+from typing import AsyncIterator, Callable
 
 from .contracts import Clock, ProactiveDecision, ProactivePolicy, RunContext, RunResult, TraceSink
+from .contracts.scheduling import TaskPriority
+from .foreground import ForegroundScheduler
 from .runtime import AgentRuntime
 from .scheduler import Scheduler
 from .topics import TopicCandidate, TopicSource
@@ -37,6 +40,7 @@ class RuntimeWorker:
         proactive_policy: ProactivePolicy | None = None,
         proactive_max_fanout: int = 5,
         topic_source: TopicSource | None = None,
+        foreground: ForegroundScheduler | None = None,
     ) -> None:
         self.runtime = runtime
         self.scheduler = scheduler
@@ -52,6 +56,7 @@ class RuntimeWorker:
         self.proactive_policy = proactive_policy
         self.proactive_max_fanout = max(0, int(proactive_max_fanout))
         self.topic_source = topic_source
+        self.foreground = foreground
         self._dispatching: set[str] = set()
         self._semaphores: dict[object, asyncio.Semaphore] = {}
 
@@ -88,6 +93,26 @@ class RuntimeWorker:
             self._semaphores[loop] = semaphore
         return semaphore
 
+    @asynccontextmanager
+    async def _foreground_slot(self, session_id: str) -> AsyncIterator[bool]:
+        """Opt in to Runtime-owned foreground admission; never retain a cancelled waiter.
+
+        可选通过 Runtime 的前台准入；排队取消不得留下任务。
+        """
+        if self.foreground is None:
+            yield True
+            return
+        task = self.foreground.submit("runtime-worker", session_id, TaskPriority.BACKGROUND)
+        claimed = False
+        try:
+            claimed = await self.foreground.claim_when_ready(task.task_id) is not None
+            yield claimed
+        finally:
+            if claimed:
+                self.foreground.finish(task.task_id)
+            else:
+                self.foreground.abandon(task.task_id)
+
     async def dispatch(self, session_id: str, now: float | None = None) -> RunResult | None:
         """Claim a concurrency slot, recheck due state and dispatch one session / 领取并发名额、复查到期状态并执行一个会话。"""
         if not self.enabled() or session_id in self._dispatching:
@@ -95,21 +120,24 @@ class RuntimeWorker:
         moment = self._moment(now)
         self._dispatching.add(session_id)
         try:
-            async with self._semaphore():
-                if not self.enabled():
+            async with self._foreground_slot(session_id) as admitted:
+                if not admitted:
                     return None
-                # Recheck time and due state after waiting for a slot.
-                # 等待并发名额后复查时间及到期状态。
-                if self.clock is not None:
-                    moment = max(moment, self._moment(None))
-                if not self.scheduler.due([session_id], moment):
-                    return None
-                return await self.runtime.dispatch_deferred(
-                    self.run_context(session_id, moment),
-                    now=moment,
-                    max_attempts=max(1, int(self.max_attempts())),
-                    base_seconds=max(0.1, float(self.base_seconds())),
-                )
+                async with self._semaphore():
+                    if not self.enabled():
+                        return None
+                    # Recheck time and due state after waiting for a slot.
+                    # 等待并发名额后复查时间及到期状态。
+                    if self.clock is not None:
+                        moment = max(moment, self._moment(None))
+                    if not self.scheduler.due([session_id], moment):
+                        return None
+                    return await self.runtime.dispatch_deferred(
+                        self.run_context(session_id, moment),
+                        now=moment,
+                        max_attempts=max(1, int(self.max_attempts())),
+                        base_seconds=max(0.1, float(self.base_seconds())),
+                    )
         finally:
             self._dispatching.discard(session_id)
 
@@ -132,26 +160,29 @@ class RuntimeWorker:
         moment = self._moment(now)
         self._dispatching.add(session_id)
         try:
-            async with self._semaphore():
-                if not self.enabled():
+            async with self._foreground_slot(session_id) as admitted:
+                if not admitted:
                     return None
-                if self.clock is not None:
-                    moment = max(moment, self._moment(None))
-                if self.proactive_policy is not None:
-                    # A queued opportunity may have been cleared or postponed by new input.
-                    # 排队期间新输入可能清理或推迟了旧的主动发言机会。
-                    selected = self.scheduler.proactive_due(
-                        [session_id], moment, self.proactive_policy, max_fanout=1,
-                    ).selected
-                    if not selected:
+                async with self._semaphore():
+                    if not self.enabled():
                         return None
-                    decision = selected[0].decision
-                return await self.runtime.dispatch_proactive(
-                    self.run_context(session_id, moment),
-                    decision,
-                    topic=topic,
-                    now=moment,
-                )
+                    if self.clock is not None:
+                        moment = max(moment, self._moment(None))
+                    if self.proactive_policy is not None:
+                        # A queued opportunity may have been cleared or postponed by new input.
+                        # 排队期间新输入可能清理或推迟了旧的主动发言机会。
+                        selected = self.scheduler.proactive_due(
+                            [session_id], moment, self.proactive_policy, max_fanout=1,
+                        ).selected
+                        if not selected:
+                            return None
+                        decision = selected[0].decision
+                    return await self.runtime.dispatch_proactive(
+                        self.run_context(session_id, moment),
+                        decision,
+                        topic=topic,
+                        now=moment,
+                    )
         finally:
             self._dispatching.discard(session_id)
 

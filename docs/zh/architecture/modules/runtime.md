@@ -13,6 +13,16 @@ app/runtime 定义不依赖 AstrBot 的会话状态、注意力决策和运行�
 - MemoryContextPort 将运行时输入交给既有 RecallService；Runtime 本身不实现第二套记忆检索。
 - ActionPort 接收临时 ActionRequest（session_id、kind、text），返回 ActionResult（ok、reason）。MessageSender 的布尔发送接口保持兼容；ActionRecord 仍只保存无正文审计信息，执行结果不负责决定审计终态。
 
+**进程内前台调度（#186 首步）**
+
+组装方可通过 `AgentRuntime(..., scheduling_policy=...)` 注入纯调度策略；不增加插件公开配置。
+
+每个 `AgentRuntime` 拥有独立的 `foreground: ForegroundScheduler`，由同一事件循环线程上的工作负载显式调用；原有读取到期会话的 `Scheduler` 和同 lane `RunControl` 保持各自职责。`submit(agent_id, lane_id, priority)` 只登记任务元数据（随机 task_id、Agent、lane、交互/后台优先级），不保存消息正文、进度或外部调用；lane 由接入方确认隔离，不能直接将记忆主体当作跨宿主 lane。调度策略 `SchedulingPolicy.pick/should_yield` 纯计算，默认同级 FIFO、交互优先；若后台任务一直就绪，连续领取 3 次交互任务后给后台一次准入机会。此公平性只作用于每次领取，不强制中断一个长期占用前台的任务。
+
+状态按 `READY → RUNNING → YIELD_REQUESTED → SUSPENDED → READY` 迁移。`claim_next()` 只在前台空闲时准入一项；较高优先级任务就绪只提出让位请求，原任务仍占前台，直到它自己保存/核对最小进度并调用 `yield_at_checkpoint(task_id)` 才交还执行权。接入方验证外部环境后调用 `resume(task_id)` 重新排队；`finish(task_id)` 只能释放当前任务，迟到的旧任务回调不能释放新任务。`abandon(task_id)` 只移除未运行的任务，不撤销在途动作；若请求让位的高优先级任务已撤销，当前任务继续运行。等待 I/O 本身不是安全点，不自动释放执行权；已开始动作仍由工作负载按真实回执处理。
+
+`RuntimeWorker(..., foreground=runtime.foreground)` 可显式把延迟/主动派发接入该前台：任务排队时不领取到期状态，准入后仍复查开关、时间与到期机会；排队取消、执行结束或异常均清理自己登记的任务。未显式传入时保留原 Worker 并发行为。当前 Worker 在整次模型及发送调用期间持有前台权，**没有在途 I/O 的安全让位点**；启用后会把这些后台派发串行化。因此生产 AstrBot 组装暂不启用，普通 AstrBot/DSH 回复及 Dream/浏览任务也未接入，不能宣称全局唯一执行权已覆盖宿主。任务不持久化、不跨重启恢复；不改存储格式或公开配置。回退时不传 `foreground` 即恢复旧路径。
+
 `contracts/runs.py` 定义同 lane 运行控制契约，并由 `app.runtime.contracts` 导出。`RunKind` 区分用户、延迟和主动运行；`RunTrigger` 携带显式时间与可选的 `RuntimeInput`，调用方负责在策略执行前接纳用户输入并排除过期/重放；该数据对象本身不执行接纳。`ActiveRunView` 只暴露运行标识、lane、代次、类型、开始时间及 `action_started`，不含正文或工具参数。`RunTransition.supersede_active` 表达旧计划的逻辑失效，只阻止未开始动作，不表示宿主调用已经终止、动作已撤销或任务已让位。`start_new=True, supersede_active=False` 在没有有效运行时允许启动；存在有效运行时保留旧句柄，`begin()` 返回空，替换须先显式应用覆盖意图。`RunPolicy.decide(state, trigger, active)` 是同步纯策略，不修改输入、不执行 I/O，也不决定全局优先级或 `YIELD`；若保留旧运行，调用方须有可靠待处理入口并保证之后重评估，否则使用默认覆盖策略。
 
 `runs.py` 提供独立的内存组件 `RunControl` 与 `RunHandle`，由同一事件循环线程使用。`lane_id` 是实例内的覆盖范围，不等于记忆 `subject_key` 或全局会话身份；只有已经确认宿主与机器人实例隔离的路径才能复用现有 `session_id`，不据此生成或修改持久化会话键。`begin(lane_id, trigger)` 仅在没有有效当前句柄时创建运行，否则返回空，不自动覆盖；获准替换时，由调用方先执行 `supersede(lane_id, run_id)`，首次失效返回真并保留原因，重复、已关闭或过期请求返回假。其他 lane 不受影响。`finish()` 幂等关闭本控制器创建的句柄，且仅当它是当前同一个句柄时移除活动记录；被替换旧运行的结束不清除新运行，其他控制器及复制句柄的结束不影响原运行。`current()` 不创建状态。

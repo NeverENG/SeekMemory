@@ -31,6 +31,7 @@ from .ports import (
 )
 from .proactive import ProactiveDecision, ProactivePolicy
 from .runs import ActiveRunView, RunKind, RunPolicy, RunTransition, RunTrigger
+from .scheduling import SchedulingPolicy, TaskPriority, TaskStatus, TaskView
 from .sessions import SessionState, SessionStateStore
 
 __all__ = [
@@ -60,6 +61,10 @@ __all__ = [
     "RunResult",
     "RunTransition",
     "RunTrigger",
+    "SchedulingPolicy",
+    "TaskPriority",
+    "TaskStatus",
+    "TaskView",
     "RuntimeInput",
     "SessionState",
     "SessionStateStore",
