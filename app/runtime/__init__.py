@@ -59,6 +59,9 @@ from .policy.proactive import (
     plan_proactive_dispatch,
 )
 from .runtime import AgentRuntime
+from .foreground import ForegroundScheduler
+from .contracts.scheduling import TaskPriority, TaskStatus, TaskView, SchedulingPolicy
+from .policy.scheduling import DefaultSchedulingPolicy
 from .scheduler import DueRun, Scheduler, TimingPolicy
 from .state import (
     InMemoryStateStore,
@@ -86,6 +89,12 @@ __all__ = [
     "ActionSink",
     "ActionStatus",
     "AgentRuntime",
+    "ForegroundScheduler",
+    "TaskPriority",
+    "TaskStatus",
+    "TaskView",
+    "SchedulingPolicy",
+    "DefaultSchedulingPolicy",
     "AttentionDecision",
     "AttentionLevel",
     "Clock",

@@ -66,6 +66,117 @@ class WorkerTest(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(self.started.wait(), timeout=1)
         return task
 
+    def use_foreground(self) -> None:
+        self.worker = RuntimeWorker(
+            runtime=self.runtime, scheduler=Scheduler(self.store),
+            enabled=lambda: self.enabled, session_ids=lambda limit: ["s1", "s2"],
+            run_context=self.context, interval_seconds=lambda: 1,
+            max_attempts=lambda: 3, base_seconds=lambda: 2,
+            max_concurrency=2, clock=lambda: self.now,
+            foreground=self.runtime.foreground,
+        )
+
+    async def test_opt_in_worker_serializes_real_deferred_dispatches(self) -> None:
+        self.use_foreground()
+        first = await self.first_dispatch()
+        second = asyncio.create_task(self.worker.dispatch("s2", 100))
+        await asyncio.sleep(0)
+        self.assertEqual(self.sessions, ["s1"])
+        self.assertEqual(self.store.get("s2").dispatch_attempts, 0)
+        self.release.set()
+        a, b = await asyncio.gather(first, second)
+        self.assertTrue(a.delivered)
+        self.assertTrue(b.delivered)
+        self.assertEqual(self.sessions, ["s1", "s2"])
+        self.assertIsNone(self.runtime.foreground.current())
+        self.assertIsNone(self.runtime.foreground.claim_next())
+
+    async def test_cancelled_queued_foreground_work_leaves_due_input_retryable(self) -> None:
+        self.use_foreground()
+        first = await self.first_dispatch()
+        queued = asyncio.create_task(self.worker.dispatch("s2", 100))
+        await asyncio.sleep(0)
+        queued.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await queued
+        self.assertEqual(self.store.get("s2").dispatch_attempts, 0)
+        self.release.set()
+        await first
+        self.assertIsNone(self.runtime.foreground.claim_next())
+        self.assertTrue((await self.worker.dispatch("s2", 100)).delivered)
+
+    async def test_foreground_waiter_rechecks_due_state_after_new_input(self) -> None:
+        self.use_foreground()
+        first = await self.first_dispatch()
+        queued = asyncio.create_task(self.worker.dispatch("s2", 100))
+        await asyncio.sleep(0)
+        self.store.get("s2").wait_until = 200
+        self.release.set()
+        await first
+        self.assertIsNone(await queued)
+        self.assertEqual(self.sessions, ["s1"])
+        self.assertEqual(self.store.get("s2").dispatch_attempts, 0)
+        self.assertIsNone(self.runtime.foreground.claim_next())
+
+    async def test_foreground_waiter_rechecks_disabled_gate(self) -> None:
+        self.use_foreground()
+        first = await self.first_dispatch()
+        queued = asyncio.create_task(self.worker.dispatch("s2", 100))
+        await asyncio.sleep(0)
+        self.enabled = False
+        self.release.set()
+        await first
+        self.assertIsNone(await queued)
+        self.assertEqual(self.store.get("s2").dispatch_attempts, 0)
+        self.assertIsNone(self.runtime.foreground.claim_next())
+
+    async def test_cancelling_started_foreground_run_releases_slot_for_other_lane(self) -> None:
+        self.use_foreground()
+        first = await self.first_dispatch()
+        queued = asyncio.create_task(self.worker.dispatch("s2", 100))
+        await asyncio.sleep(0)
+        first.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await first
+        self.release.set()
+        self.assertTrue((await asyncio.wait_for(queued, timeout=1)).delivered)
+        self.assertIsNone(self.runtime.foreground.current())
+
+    async def test_failed_foreground_dispatch_releases_slot_and_can_retry(self) -> None:
+        self.use_foreground()
+        original_context = self.worker.run_context
+
+        def fail_context(session_id: str, now: float) -> RunContext:
+            raise ValueError("context unavailable")
+
+        self.worker.run_context = fail_context
+        with self.assertRaisesRegex(ValueError, "context unavailable"):
+            await self.worker.dispatch("s1", 100)
+        self.assertIsNone(self.runtime.foreground.current())
+        self.assertIsNone(self.runtime.foreground.claim_next())
+        self.worker.run_context = original_context
+        self.release.set()
+        self.assertTrue((await self.worker.dispatch("s1", 100)).delivered)
+
+    async def test_proactive_and_deferred_share_the_same_foreground(self) -> None:
+        self.use_foreground()
+        policy = DefaultProactivePolicy(enabled=True)
+        self.worker.proactive_policy = policy
+        state = self.store.get("s2")
+        state.wait_until = 0
+        state.proactive_due_at = 100
+        self.store.put(state)
+        decision = self.worker.scheduler.proactive_due(["s2"], 100, policy).selected[0].decision
+        first = await self.first_dispatch()
+        proactive = asyncio.create_task(self.worker.dispatch_proactive("s2", decision, now=100))
+        await asyncio.sleep(0)
+        self.assertEqual(self.sessions, ["s1"])
+        self.release.set()
+        await first
+        self.assertTrue((await proactive).delivered)
+        self.assertEqual(self.sessions, ["s1", "s2"])
+        self.assertIsNone(self.runtime.foreground.current())
+
     async def test_tick_failure_diagnostics_exclude_session_and_exception_body(self) -> None:
         sensitive_session = "private-session-8675309"
         sensitive_message = "secret-message-from-user"

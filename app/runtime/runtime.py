@@ -35,6 +35,8 @@ from .contracts import (
 )
 from .actions import ActionExecutor
 from .admission import RunAdmission
+from .foreground import ForegroundScheduler
+from .contracts.scheduling import SchedulingPolicy
 from .recorder import RecordedReply, RunRecorder
 from .policy.attention import DefaultAttentionPolicy
 from .runs import RunHandle
@@ -77,6 +79,7 @@ class AgentRuntime:
         *, context_recorder: MemoryContextRecorder | None = None,
         run_control_enabled: bool = False,
         run_policy: RunPolicy | None = None,
+        scheduling_policy: SchedulingPolicy | None = None,
         source_reader: UnreadSourceReader | None = None,
     ) -> None:
         self.store = store
@@ -92,6 +95,7 @@ class AgentRuntime:
         self.source_reader = source_reader
         self.context_recorder = context_recorder
         self._writebacks = DeliveryWritebacks()
+        self.foreground = ForegroundScheduler(scheduling_policy)
         if run_control_enabled and recorder is None:
             raise ValueError("run control requires a recorder for Source identity")
         self._run_admission = RunAdmission(run_policy, trace) if run_control_enabled else None
