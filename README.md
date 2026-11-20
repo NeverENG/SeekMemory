@@ -23,6 +23,14 @@
   <a href="https://github.com/NeverENG/SeekMemory/issues">Issues</a>
 </p>
 
+<p align="center">
+  <img src="docs/assets/readme-future-vision-v2.png" alt="SeekMemory 多平台未来愿景" width="100%">
+</p>
+
+<p align="center">
+  <sub>多平台入口不是多套上下文，而是同一颗记忆大脑的不同入口。</sub>
+</p>
+
 ---
 
 ## 工程定位
@@ -71,6 +79,10 @@ Platform / Host
 ---
 
 ## AgentRuntime：类操作系统的调度语义
+
+<img src="docs/assets/v3-runtime-interruption-premium.png" alt="AgentRuntime V3 平台与运行时概念图" width="100%">
+
+*V3 早期概念图，含尚未接入的宿主中断流程；具体状态迁移和已实现范围以下文为准。*
 
 “类操作系统”指**由一个所有者决定谁可以推进工作，以及何时安全地交还执行权**，不表示能抢占任意 Python 协程、宿主模型调用或平台 API。Runtime 不保存模型调用栈，也不替 Dream、浏览或对话实现各自的业务算法。
 
